@@ -1,0 +1,41 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <h2 class="mb-4">Admin Dashboard</h2>
+
+  <div class="row">
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">Total Incidents</h6>
+          <p class="display-6 mb-0">{{ overview.total_incidents }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">Pending</h6>
+          <p class="display-6 mb-0">{{ overview.pending }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">In Progress</h6>
+          <p class="display-6 mb-0">{{ overview.in_progress }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">Resolved</h6>
+          <p class="display-6 mb-0">{{ overview.resolved }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

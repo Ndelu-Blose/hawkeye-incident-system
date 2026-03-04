@@ -1,0 +1,21 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <div class="text-center my-5">
+        <h1 class="display-5 fw-bold mb-3">{{ APP_NAME }}</h1>
+        <p class="lead mb-4">{{ APP_TAGLINE }}</p>
+        <div class="d-flex justify-content-center gap-3 flex-wrap">
+          <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+            Get Started
+          </a>
+          <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg border">
+            Login
+          </a>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}
+

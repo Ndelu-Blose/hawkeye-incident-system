@@ -1,0 +1,10 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <div class="text-center my-5">
+    <h1 class="display-5 fw-bold mb-3">Something went wrong</h1>
+    <p class="lead mb-4">An unexpected error occurred. Please try again later.</p>
+    <a href="{{ url_for('main.home') }}" class="btn btn-primary">Back to home</a>
+  </div>
+{% endblock %}
+

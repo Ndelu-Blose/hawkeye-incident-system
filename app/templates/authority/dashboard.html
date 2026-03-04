@@ -1,0 +1,92 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <h2>Authority Dashboard</h2>
+  </div>
+
+  <div class="row mb-4">
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">Total Incidents</h6>
+          <p class="display-6 mb-0">{{ overview.total_incidents }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">Pending</h6>
+          <p class="display-6 mb-0">{{ overview.pending }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">In Progress</h6>
+          <p class="display-6 mb-0">{{ overview.in_progress }}</p>
+        </div>
+      </div>
+    </div>
+    <div class="col-md-3 mb-3">
+      <div class="card text-center">
+        <div class="card-body">
+          <h6 class="card-title text-muted text-uppercase">Resolved</h6>
+          <p class="display-6 mb-0">{{ overview.resolved }}</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <form class="row g-3 mb-3" method="get">
+    <div class="col-sm-4 col-md-3">
+      <label for="status" class="form-label">Filter by status</label>
+      <select class="form-select" id="status" name="status" onchange="this.form.submit()">
+        <option value="" {% if not selected_status %}selected{% endif %}>All</option>
+        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pending</option>
+        <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In Progress</option>
+        <option value="resolved" {% if selected_status == 'resolved' %}selected{% endif %}>Resolved</option>
+      </select>
+    </div>
+  </form>
+
+  {% if incidents %}
+    <div class="table-responsive">
+      <table class="table table-dark table-striped align-middle">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Status</th>
+            <th>Severity</th>
+            <th>Reported By</th>
+            <th>Reported At</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for incident in incidents %}
+            <tr>
+              <td>#{{ incident.id }}</td>
+              <td>{{ incident.title }}</td>
+              <td>{{ render_status_badge(incident.status) }}</td>
+              <td class="text-capitalize">{{ incident.severity }}</td>
+              <td>{{ incident.reporter.name if incident.reporter }}</td>
+              <td>{{ incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at }}</td>
+              <td class="text-end">
+                <a href="{{ url_for('authority.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">
+                  View
+                </a>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <p class="text-muted">There are no incidents yet.</p>
+  {% endif %}
+{% endblock %}
+

@@ -1,0 +1,74 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h2 class="mb-4">Report an Incident</h2>
+      <form method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="mb-3">
+          <label for="title" class="form-label">Title</label>
+          <input
+            type="text"
+            class="form-control"
+            id="title"
+            name="title"
+            value="{{ (form_data.title if form_data is defined else '') | default('') }}"
+            required
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="description" class="form-label">Description</label>
+          <textarea
+            class="form-control"
+            id="description"
+            name="description"
+            rows="4"
+            required
+          >{{ (form_data.description if form_data is defined else '') | default('') }}</textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="category" class="form-label">Category</label>
+          <input
+            type="text"
+            class="form-control"
+            id="category"
+            name="category"
+            value="{{ (form_data.category if form_data is defined else '') | default('') }}"
+            required
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="location" class="form-label">Location</label>
+          <input
+            type="text"
+            class="form-control"
+            id="location"
+            name="location"
+            value="{{ (form_data.location if form_data is defined else '') | default('') }}"
+            required
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="severity" class="form-label">Severity</label>
+          <select class="form-select" id="severity" name="severity" required>
+            {% set selected = (form_data.severity if form_data is defined else '') | default('') %}
+            <option value="">Select severity</option>
+            <option value="low" {% if selected == 'low' %}selected{% endif %}>Low</option>
+            <option value="medium" {% if selected == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="high" {% if selected == 'high' %}selected{% endif %}>High</option>
+            <option value="critical" {% if selected == 'critical' %}selected{% endif %}>Critical</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit incident</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}
+
