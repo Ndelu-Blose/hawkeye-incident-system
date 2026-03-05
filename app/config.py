@@ -8,10 +8,7 @@ class BaseConfig:
     APP_NAME = "Hawkeye"
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
 
-    SQLALCHEMY_DATABASE_URI = os.getenv(
-        "DATABASE_URL",
-        "mysql+pymysql://user:password@localhost:3306/hawkeye_db",
-    )
+    SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     SESSION_COOKIE_HTTPONLY = True
