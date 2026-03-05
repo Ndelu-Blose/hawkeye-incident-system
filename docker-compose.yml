@@ -1,0 +1,38 @@
+services:
+  db:
+    image: postgres:16
+    container_name: hawkeye_db
+    environment:
+      POSTGRES_DB: hawkeye_db
+      POSTGRES_USER: hawkeye_user
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    ports:
+      - "5432:5432"
+    volumes:
+      - hawkeye_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U hawkeye_user -d hawkeye_db"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  web:
+    build: .
+    container_name: hawkeye_web
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://hawkeye_user:${DB_PASSWORD}@db:5432/hawkeye_db
+      SECRET_KEY: ${SECRET_KEY:-dev-change-me}
+      FLASK_ENV: development
+    ports:
+      - "5000:5000"
+    volumes:
+      - .:/app
+    command: >
+      sh -c "python -m flask --app run.py db upgrade &&
+             python -m flask --app run.py run --host=0.0.0.0 --port=5000"
+
+volumes:
+  hawkeye_pgdata:

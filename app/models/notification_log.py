@@ -45,4 +45,3 @@ class NotificationLog(db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<NotificationLog id={self.id} status={self.status}>"
-

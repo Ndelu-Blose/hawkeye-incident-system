@@ -16,4 +16,3 @@ def test_login_validator_requires_email_and_password():
     errors = validate_login_form({"email": "", "password": ""})
     assert "Email is required." in errors
     assert "Password is required." in errors
-

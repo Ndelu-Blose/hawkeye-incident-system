@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from app.extensions import db
 from app.models.incident import Incident
@@ -52,4 +52,3 @@ class NotificationService:
 
 
 notification_service = NotificationService()
-

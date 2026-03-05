@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-from urllib.parse import urlparse, urljoin
+from urllib.parse import urljoin, urlparse
 
-from flask import Request, current_app, request
+from flask import request
 
 from app.extensions import bcrypt
 
@@ -21,10 +21,7 @@ def is_safe_url(target: str) -> bool:
         return False
     ref_url = urlparse(request.host_url)
     test_url = urlparse(urljoin(request.host_url, target))
-    return (
-        test_url.scheme in ("http", "https")
-        and ref_url.netloc == test_url.netloc
-    )
+    return test_url.scheme in ("http", "https") and ref_url.netloc == test_url.netloc
 
 
 def safe_redirect_target(default: str = "/") -> str:
@@ -32,4 +29,3 @@ def safe_redirect_target(default: str = "/") -> str:
     if target and is_safe_url(target):
         return target
     return default
-

@@ -30,4 +30,3 @@ class User(UserMixin, db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover - debug representation
         return f"<User id={self.id} email={self.email} role={self.role}>"
-

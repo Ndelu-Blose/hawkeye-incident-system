@@ -7,7 +7,6 @@ from flask_migrate import Migrate
 from flask_sqlalchemy import SQLAlchemy
 from flask_wtf import CSRFProtect
 
-
 db = SQLAlchemy()
 migrate = Migrate()
 bcrypt = Bcrypt()
@@ -15,4 +14,3 @@ login_manager = LoginManager()
 csrf = CSRFProtect()
 mail = Mail()
 limiter = Limiter(key_func=get_remote_address, storage_uri="memory://")
-

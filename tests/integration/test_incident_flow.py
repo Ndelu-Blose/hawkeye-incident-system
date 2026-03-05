@@ -1,52 +1,59 @@
-from app import create_app
 from app.constants import Roles
-from app.extensions import db
-from app.models.user import User
+from app.services.auth_service import auth_service
 
 
-def _create_user(email: str, role: str) -> User:
-    user = User(
-        name=email.split("@")[0],
-        email=email,
-        password_hash="test-hash",
-        role=role,
-    )
-    db.session.add(user)
-    db.session.commit()
-    return user
-
-
-def test_incident_lifecycle():
-    app = create_app("testing")
-    client = app.test_client()
-
+def test_incident_lifecycle(app, client):
+    # Create users with real hashed passwords via the auth service
     with app.app_context():
-        resident = _create_user("resident@example.com", Roles.RESIDENT.value)
-        authority = _create_user("authority@example.com", Roles.AUTHORITY.value)
-
-        # Log in as resident by setting session directly
-        with client.session_transaction() as sess:
-            sess["_user_id"] = str(resident.id)
-
-        # Resident creates incident
-        resp = client.post(
-            "/resident/incidents/new",
-            data={
-                "title": "Broken street light",
-                "description": "Street light not working",
-                "category": "Lighting",
-                "location": "Main street",
-                "severity": "low",
-            },
-            follow_redirects=True,
+        resident, errors_resident = auth_service.register_user(
+            name="Resident User",
+            email="resident@example.com",
+            password="password123",
+            role=Roles.RESIDENT.value,
         )
-        assert resp.status_code == 200
+        authority, errors_authority = auth_service.register_user(
+            name="Authority User",
+            email="authority@example.com",
+            password="password123",
+            role=Roles.AUTHORITY.value,
+        )
+        assert not errors_resident
+        assert not errors_authority
 
-        # Log in as authority
-        with client.session_transaction() as sess:
-            sess["_user_id"] = str(authority.id)
+    # Log in as resident through the real login route
+    resp = client.post(
+        "/auth/login",
+        data={"email": "resident@example.com", "password": "password123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
 
-        # View authority dashboard
-        resp = client.get("/authority/dashboard")
-        assert resp.status_code == 200
+    # Resident creates incident
+    resp = client.post(
+        "/resident/incidents/new",
+        data={
+            "title": "Broken street light",
+            "description": "Street light not working",
+            "category": "Lighting",
+            "location": "Main street",
+            "severity": "low",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
 
+    # Log out resident
+    resp = client.get("/auth/logout", follow_redirects=True)
+    assert resp.status_code == 200
+
+    # Log in as authority via login route
+    resp = client.post(
+        "/auth/login",
+        data={"email": "authority@example.com", "password": "password123"},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+    # View authority dashboard
+    resp = client.get("/authority/dashboard")
+    assert resp.status_code == 200

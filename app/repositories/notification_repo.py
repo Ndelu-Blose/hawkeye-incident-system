@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from sqlalchemy import select
 
@@ -15,7 +15,7 @@ class NotificationRepository:
         db.session.add(notification)
         return notification
 
-    def get_by_id(self, notification_id: int) -> Optional[NotificationLog]:
+    def get_by_id(self, notification_id: int) -> NotificationLog | None:
         return db.session.get(NotificationLog, notification_id)
 
     def list_queued(self, limit: int = 50) -> Iterable[NotificationLog]:
@@ -26,4 +26,3 @@ class NotificationRepository:
             .limit(limit)
         )
         return db.session.execute(stmt).scalars().all()
-

@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from typing import Optional, Tuple
-
 from app.constants import Roles
 from app.extensions import db
 from app.models.user import User
@@ -21,7 +19,7 @@ class AuthService:
         email: str,
         password: str,
         role: str = Roles.RESIDENT.value,
-    ) -> Tuple[Optional[User], list[str]]:
+    ) -> tuple[User | None, list[str]]:
         errors: list[str] = []
 
         existing = self.user_repo.get_by_email(email)
@@ -43,7 +41,7 @@ class AuthService:
         self,
         email: str,
         password: str,
-    ) -> Tuple[Optional[User], list[str]]:
+    ) -> tuple[User | None, list[str]]:
         errors: list[str] = []
         user = self.user_repo.get_by_email(email.strip().lower())
         if user is None:
@@ -58,4 +56,3 @@ class AuthService:
 
 
 auth_service = AuthService()
-

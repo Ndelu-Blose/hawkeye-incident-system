@@ -8,4 +8,3 @@ def test_password_hash_and_verify():
     assert hashed != password
     assert check_password(password, hashed)
     assert not check_password("wrong-password", hashed)
-

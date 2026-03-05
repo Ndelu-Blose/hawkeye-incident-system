@@ -1,10 +1,8 @@
 from __future__ import annotations
 
-from typing import Dict, List
 
-
-def validate_registration_form(data: Dict[str, str]) -> List[str]:
-    errors: List[str] = []
+def validate_registration_form(data: dict[str, str]) -> list[str]:
+    errors: list[str] = []
 
     name = (data.get("name") or "").strip()
     email = (data.get("email") or "").strip()
@@ -23,8 +21,8 @@ def validate_registration_form(data: Dict[str, str]) -> List[str]:
     return errors
 
 
-def validate_login_form(data: Dict[str, str]) -> List[str]:
-    errors: List[str] = []
+def validate_login_form(data: dict[str, str]) -> list[str]:
+    errors: list[str] = []
 
     email = (data.get("email") or "").strip()
     password = data.get("password") or ""
@@ -35,4 +33,3 @@ def validate_login_form(data: Dict[str, str]) -> List[str]:
         errors.append("Password is required.")
 
     return errors
-

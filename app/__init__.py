@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict
+from typing import Any
 
 from flask import Flask, render_template
 
@@ -16,7 +16,7 @@ def create_app(config_name: str | None = None) -> Flask:
     if config_name is None:
         config_name = os.getenv("FLASK_CONFIG", "development").lower()
 
-    config_mapping: Dict[str, type] = {
+    config_mapping: dict[str, type] = {
         "development": DevelopmentConfig,
         "testing": TestingConfig,
         "production": ProductionConfig,
@@ -28,6 +28,10 @@ def create_app(config_name: str | None = None) -> Flask:
     _register_blueprints(app)
     _register_error_handlers(app)
     _register_template_globals(app)
+
+    from .utils.template_helpers import render_status_badge
+
+    app.jinja_env.globals["render_status_badge"] = render_status_badge
 
     return app
 
@@ -55,11 +59,11 @@ def _register_extensions(app: Flask) -> None:
 
 
 def _register_blueprints(app: Flask) -> None:
+    from .routes.admin_routes import admin_bp
     from .routes.auth_routes import auth_bp
+    from .routes.authority_routes import authority_bp
     from .routes.main_routes import main_bp
     from .routes.resident_routes import resident_bp
-    from .routes.authority_routes import authority_bp
-    from .routes.admin_routes import admin_bp
 
     app.register_blueprint(main_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
@@ -86,14 +90,13 @@ def _register_template_globals(app: Flask) -> None:
     from flask_wtf.csrf import generate_csrf
 
     @app.context_processor
-    def inject_globals() -> Dict[str, Any]:
+    def inject_globals() -> dict[str, Any]:
         return {
             "APP_NAME": APP_NAME,
             "APP_TAGLINE": APP_TAGLINE,
         }
 
     @app.context_processor
-    def inject_csrf() -> Dict[str, Any]:
+    def inject_csrf() -> dict[str, Any]:
         # Expose generate_csrf as csrf_token() in templates
         return {"csrf_token": generate_csrf}
-

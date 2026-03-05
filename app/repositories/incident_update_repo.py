@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable
+from collections.abc import Iterable
 
 from sqlalchemy import select
 
@@ -22,4 +22,3 @@ class IncidentUpdateRepository:
             .order_by(IncidentUpdate.created_at.asc())
         )
         return db.session.execute(stmt).scalars().all()
-

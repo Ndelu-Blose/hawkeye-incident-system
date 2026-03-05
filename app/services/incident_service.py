@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional, Tuple
+from collections.abc import Iterable
 
 from app.constants import IncidentStatus
 from app.extensions import db
@@ -27,7 +27,7 @@ class IncidentService:
         self,
         payload: dict,
         resident_user: User,
-    ) -> Tuple[Optional[Incident], list[str]]:
+    ) -> tuple[Incident | None, list[str]]:
         errors: list[str] = []
 
         title = (payload.get("title") or "").strip()
@@ -81,7 +81,7 @@ class IncidentService:
         self,
         incident_id: int,
         user: User,
-    ) -> Tuple[Optional[Incident], list[IncidentUpdate]]:
+    ) -> tuple[Incident | None, list[IncidentUpdate]]:
         incident = self.incident_repo.get_by_id(incident_id)
         if incident is None:
             return None, []
@@ -95,7 +95,7 @@ class IncidentService:
 
     def list_incidents_for_authority(
         self,
-        status: Optional[IncidentStatus] = None,
+        status: IncidentStatus | None = None,
     ) -> Iterable[Incident]:
         return self.incident_repo.list_for_authority(status=status)
 
@@ -105,7 +105,7 @@ class IncidentService:
         to_status: IncidentStatus,
         note: str,
         authority_user: User,
-    ) -> Tuple[bool, list[str]]:
+    ) -> tuple[bool, list[str]]:
         errors: list[str] = []
         incident = self.incident_repo.get_by_id(incident_id)
         if incident is None:
@@ -160,4 +160,3 @@ class IncidentService:
 
 
 incident_service = IncidentService()
-

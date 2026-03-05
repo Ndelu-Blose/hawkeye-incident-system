@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Iterable, Optional
+from collections.abc import Iterable
 
 from sqlalchemy import select
 
@@ -12,7 +12,7 @@ from app.models.incident import Incident
 class IncidentRepository:
     """Data access helper for Incident entities."""
 
-    def get_by_id(self, incident_id: int) -> Optional[Incident]:
+    def get_by_id(self, incident_id: int) -> Incident | None:
         return db.session.get(Incident, incident_id)
 
     def add(self, incident: Incident) -> Incident:
@@ -32,10 +32,9 @@ class IncidentRepository:
 
     def list_for_authority(
         self,
-        status: Optional[IncidentStatus] = None,
+        status: IncidentStatus | None = None,
     ) -> Iterable[Incident]:
         stmt = select(Incident).order_by(Incident.created_at.desc())
         if status is not None:
             stmt = stmt.where(Incident.status == status.value)
         return db.session.execute(stmt).scalars().all()
-

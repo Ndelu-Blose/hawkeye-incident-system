@@ -38,4 +38,3 @@ class IncidentUpdate(db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<IncidentUpdate id={self.id} incident_id={self.incident_id}>"
-

@@ -7,7 +7,6 @@ from app.constants import Roles
 from app.services.incident_service import incident_service
 from app.utils.decorators import role_required
 
-
 resident_bp = Blueprint("resident", __name__, template_folder="../templates/resident")
 
 
@@ -60,4 +59,3 @@ def incident_detail(incident_id: int):
         incident=incident,
         updates=updates,
     )
-

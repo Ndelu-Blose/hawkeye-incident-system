@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import time
-from typing import Iterable
+from collections.abc import Iterable
 
 from flask import Flask
 from flask_mail import Message
@@ -10,7 +10,6 @@ from app import create_app
 from app.extensions import db, mail
 from app.models.notification_log import NotificationLog
 from app.repositories.notification_repo import NotificationRepository
-
 
 POLL_INTERVAL_SECONDS = 5
 BATCH_SIZE = 20
@@ -59,4 +58,3 @@ def run_worker() -> None:
 
 if __name__ == "__main__":
     run_worker()
-

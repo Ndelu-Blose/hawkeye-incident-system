@@ -55,4 +55,3 @@ class ProductionConfig(BaseConfig):
     SESSION_COOKIE_SECURE = True
     REMEMBER_COOKIE_SECURE = True
     SESSION_COOKIE_SAMESITE = "Strict"
-

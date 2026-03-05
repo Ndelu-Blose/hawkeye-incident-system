@@ -4,10 +4,9 @@ from flask import Blueprint, flash, redirect, render_template, request, url_for
 from flask_login import current_user, login_required
 
 from app.constants import IncidentStatus, Roles
-from app.services.incident_service import incident_service
 from app.services.dashboard_service import dashboard_service
+from app.services.incident_service import incident_service
 from app.utils.decorators import role_required
-
 
 authority_bp = Blueprint(
     "authority",
@@ -89,4 +88,3 @@ def update_incident_status(incident_id: int):
         flash("Incident status updated.", "success")
 
     return redirect(url_for("authority.incident_detail", incident_id=incident_id))
-

@@ -1,0 +1,12 @@
+{% macro render_status_badge(status) -%}
+  {%- if status == "pending" -%}
+    <span class="badge bg-warning text-dark">Pending</span>
+  {%- elif status == "in_progress" -%}
+    <span class="badge bg-info text-dark">In Progress</span>
+  {%- elif status == "resolved" -%}
+    <span class="badge bg-success">Resolved</span>
+  {%- else -%}
+    <span class="badge bg-secondary">{{ status }}</span>
+  {%- endif -%}
+{%- endmacro %}
+

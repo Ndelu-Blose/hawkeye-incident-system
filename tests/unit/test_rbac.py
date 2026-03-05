@@ -1,4 +1,4 @@
-from flask import Flask
+from flask import Flask, abort
 from flask_login import AnonymousUserMixin, LoginManager, UserMixin
 
 from app.constants import Roles
@@ -41,6 +41,12 @@ def test_role_required_allows_correct_role(monkeypatch):
 def test_role_required_rejects_anonymous(monkeypatch):
     app = Flask(__name__)
     app.config["SECRET_KEY"] = "test"
+    login_manager = LoginManager()
+    login_manager.init_app(app)
+
+    @login_manager.unauthorized_handler
+    def _unauthorized():
+        abort(403)
 
     @app.route("/protected")
     @role_required(Roles.RESIDENT)
@@ -59,6 +65,4 @@ def test_role_required_rejects_anonymous(monkeypatch):
         try:
             protected()
         except Exception as exc:
-            # Flask will raise a 403 abort
             assert getattr(exc, "code", None) == 403
-

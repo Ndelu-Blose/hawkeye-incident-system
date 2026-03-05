@@ -11,7 +11,6 @@ from app.utils.validators import (
     validate_registration_form,
 )
 
-
 auth_bp = Blueprint("auth", __name__, template_folder="../templates/auth")
 
 
@@ -84,4 +83,3 @@ def logout():
     logout_user()
     flash("You have been logged out.", "info")
     return redirect(url_for("main.home"))
-

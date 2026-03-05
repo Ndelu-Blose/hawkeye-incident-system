@@ -1,0 +1,27 @@
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+# What to check
+lint.select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes
+  "I",   # import sorting
+  "B",   # flake8-bugbear
+  "UP",  # pyupgrade
+]
+lint.ignore = [
+  "E501", # line length (handled by formatter)
+]
+
+# Optional: folders to ignore
+exclude = [
+  ".venv",
+  "__pycache__",
+  "migrations",
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+

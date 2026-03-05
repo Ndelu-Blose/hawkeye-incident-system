@@ -1,6 +1,5 @@
 from enum import Enum
 
-
 APP_NAME = "Hawkeye"
 APP_TAGLINE = "Report. Track. Respond."
 
@@ -15,4 +14,3 @@ class IncidentStatus(str, Enum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
-
