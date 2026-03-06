@@ -1,9 +1,30 @@
 from app.extensions import db
 
+from .authority import Authority  # noqa: F401
+from .authority_user import AuthorityUser  # noqa: F401
 from .incident import Incident  # noqa: F401
+from .incident_assignment import IncidentAssignment  # noqa: F401
+from .incident_category import IncidentCategory  # noqa: F401
 from .incident_media import IncidentMedia  # noqa: F401
 from .incident_update import IncidentUpdate  # noqa: F401
+from .location import Location  # noqa: F401
 from .notification_log import NotificationLog  # noqa: F401
+from .resident_profile import ResidentProfile  # noqa: F401
+from .routing_rule import RoutingRule  # noqa: F401
 from .user import User  # noqa: F401
 
-__all__ = ["db", "User", "Incident", "IncidentMedia", "IncidentUpdate", "NotificationLog"]
+__all__ = [
+    "db",
+    "User",
+    "ResidentProfile",
+    "Authority",
+    "AuthorityUser",
+    "Incident",
+    "IncidentCategory",
+    "IncidentMedia",
+    "IncidentUpdate",
+    "IncidentAssignment",
+    "RoutingRule",
+    "Location",
+    "NotificationLog",
+]

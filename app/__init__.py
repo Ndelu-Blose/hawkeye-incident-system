@@ -29,9 +29,10 @@ def create_app(config_name: str | None = None) -> Flask:
     _register_error_handlers(app)
     _register_template_globals(app)
 
-    from .utils.template_helpers import render_status_badge
+    from .utils.template_helpers import render_status_badge, sla_due
 
     app.jinja_env.globals["render_status_badge"] = render_status_badge
+    app.jinja_env.filters["sla_due"] = sla_due
 
     return app
 

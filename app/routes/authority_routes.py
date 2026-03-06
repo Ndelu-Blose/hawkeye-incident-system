@@ -31,8 +31,11 @@ def dashboard():
     status_param = request.args.get("status") or None
     status_filter = _parse_status_filter(status_param)
 
-    incidents = incident_service.list_incidents_for_authority(status=status_filter)
     overview = dashboard_service.get_overview()
+    incidents = dashboard_service.get_authority_incident_list(
+        status=status_filter,
+        limit=200,
+    )
 
     return render_template(
         "authority/dashboard.html",
@@ -79,6 +82,7 @@ def update_incident_status(incident_id: int):
         to_status=to_status,
         note=note,
         authority_user=current_user,  # type: ignore[arg-type]
+        allow_admin_override=getattr(current_user, "role", None) == Roles.ADMIN.value,
     )
 
     if not ok:

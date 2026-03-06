@@ -16,8 +16,14 @@ from flask_login import current_user, login_required
 from werkzeug.datastructures import FileStorage
 
 from app.constants import IncidentStatus, Roles
-from app.extensions import limiter
+from app.extensions import db, limiter
+from app.models import IncidentCategory
 from app.services.incident_service import incident_service
+from app.services.resident_profile_service import (
+    get_or_create_profile,
+    is_profile_complete,
+    update_profile,
+)
 from app.utils.decorators import role_required
 
 resident_bp = Blueprint("resident", __name__, template_folder="../templates/resident")
@@ -29,6 +35,32 @@ def _resident_rate_key() -> str:
     if current_user.is_authenticated:
         return f"resident:{current_user.id}"
     return request.remote_addr or "anon"
+
+
+@resident_bp.route("/profile", methods=["GET", "POST"])
+@login_required
+@role_required(Roles.RESIDENT)
+def profile():
+    if request.method == "POST":
+        profile_obj, errors = update_profile(
+            current_user,  # type: ignore[arg-type]
+            request.form.to_dict(),
+        )
+        if errors:
+            for e in errors:
+                flash(e, "danger")
+        else:
+            flash("Profile saved.", "success")
+        next_url = request.args.get("next") or request.form.get("next")
+        if next_url and next_url.startswith("/"):
+            return redirect(next_url)
+        return redirect(url_for("resident.profile"))
+    profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
+    return render_template(
+        "resident/profile.html",
+        profile=profile_obj,
+        next_url=request.args.get("next"),
+    )
 
 
 @resident_bp.route("/dashboard")
@@ -52,6 +84,7 @@ def dashboard():
     resolved_count = counts["resolved"] + counts["rejected"]
     active_cases = pending_count + in_progress_count
     recent_incidents = incidents[:6]
+    profile_complete = is_profile_complete(current_user)  # type: ignore[arg-type]
     return render_template(
         "resident/dashboard.html",
         total_incidents=total_incidents,
@@ -60,6 +93,7 @@ def dashboard():
         resolved_count=resolved_count,
         active_cases=active_cases,
         recent_incidents=recent_incidents,
+        profile_complete=profile_complete,
     )
 
 
@@ -68,6 +102,9 @@ def dashboard():
 @role_required(Roles.RESIDENT)
 @limiter.limit("3 per minute", key_func=_resident_rate_key)
 def report_incident():
+    if not is_profile_complete(current_user):  # type: ignore[arg-type]
+        flash("Complete your profile to report an incident.", "warning")
+        return redirect(url_for("resident.profile", next=url_for("resident.report_incident")))
     if request.method == "POST":
         payload = request.form.to_dict()
         files = request.files.getlist("evidence")
@@ -82,15 +119,29 @@ def report_incident():
             for error in errors:
                 flash(error, "danger")
             similar = []
-            if payload.get("category") and payload.get("suburb_or_ward"):
+            if payload.get("category") or payload.get("suburb_or_ward"):
                 similar = incident_service.suggest_similar_for_resident(
                     payload.get("category", ""),
                     payload.get("suburb_or_ward", ""),
                 )
+            categories = (
+                db.session.query(IncidentCategory)
+                .filter(IncidentCategory.is_active.is_(True))
+                .order_by(IncidentCategory.name)
+                .all()
+            )
+            profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
+            prefill = {
+                "suburb": getattr(profile_obj, "suburb", None) or "",
+                "street": getattr(profile_obj, "street_address_1", None) or "",
+                "ward": getattr(profile_obj, "ward_id", None),
+            }
             return render_template(
                 "resident/report_incident.html",
                 form_data=payload,
                 similar_incidents=similar,
+                categories=categories,
+                prefill=prefill,
             )
 
         flash("Incident reported successfully.", "success")
@@ -102,9 +153,23 @@ def report_incident():
             request.args.get("category", ""),
             request.args.get("suburb_or_ward", ""),
         )
+    categories = (
+        db.session.query(IncidentCategory)
+        .filter(IncidentCategory.is_active.is_(True))
+        .order_by(IncidentCategory.name)
+        .all()
+    )
+    profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
+    prefill = {
+        "suburb": getattr(profile_obj, "suburb", None) or "",
+        "street": getattr(profile_obj, "street_address_1", None) or "",
+        "ward": getattr(profile_obj, "ward_id", None),
+    }
     return render_template(
         "resident/report_incident.html",
         similar_incidents=similar,
+        categories=categories,
+        prefill=prefill,
     )
 
 

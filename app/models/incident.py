@@ -16,15 +16,37 @@ class Incident(db.Model):
         nullable=False,
     )
 
+    resident_profile_id = db.Column(
+        db.Integer,
+        db.ForeignKey("resident_profiles.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     category = db.Column(db.String(100), nullable=False)
+
+    category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Structured location fields
     suburb_or_ward = db.Column(db.String(120), nullable=False)
     street_or_landmark = db.Column(db.String(255), nullable=False)
     nearest_place = db.Column(db.String(255), nullable=True)
     # Backwards-compatible combined location string
     location = db.Column(db.String(255), nullable=False)
+
+    location_id = db.Column(
+        db.Integer,
+        db.ForeignKey("locations.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    latitude = db.Column(db.Numeric(9, 6), nullable=True)
+    longitude = db.Column(db.Numeric(9, 6), nullable=True)
+
     severity = db.Column(db.String(50), nullable=False)
 
     status = db.Column(
@@ -37,12 +59,53 @@ class Incident(db.Model):
     # Optional optimistic concurrency field
     version = db.Column(db.Integer, nullable=False, default=1)
 
+    reference_no = db.Column(db.String(32), nullable=True, index=True)
+
+    current_authority_id = db.Column(
+        db.Integer,
+        db.ForeignKey("authorities.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    is_anonymous = db.Column(db.Boolean, nullable=False, default=False)
+    duplicate_of_incident_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incidents.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    reported_at = db.Column(db.DateTime, nullable=True)
+    acknowledged_at = db.Column(db.DateTime, nullable=True)
+    assigned_at = db.Column(db.DateTime, nullable=True)
+    resolved_at = db.Column(db.DateTime, nullable=True)
+    closed_at = db.Column(db.DateTime, nullable=True)
+
     created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     reporter = db.relationship(
         "User",
         back_populates="incidents_reported",
+    )
+
+    resident_profile = db.relationship("ResidentProfile")
+
+    category_rel = db.relationship(
+        "IncidentCategory",
+        back_populates="incidents",
+    )
+
+    location_rel = db.relationship("Location")
+
+    current_authority = db.relationship(
+        "Authority",
+        back_populates="incidents",
+    )
+
+    duplicate_of = db.relationship(
+        "Incident",
+        remote_side=[id],
+        uselist=False,
     )
 
     updates = db.relationship(
@@ -62,6 +125,13 @@ class Incident(db.Model):
 
     media = db.relationship(
         "IncidentMedia",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
+    assignments = db.relationship(
+        "IncidentAssignment",
         back_populates="incident",
         cascade="all, delete-orphan",
         lazy="dynamic",

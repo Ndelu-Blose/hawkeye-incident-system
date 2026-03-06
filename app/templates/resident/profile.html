@@ -1,0 +1,60 @@
+{% extends "resident/resident_app.html" %}
+
+{% set resident_active_page = "profile" %}
+{% set resident_page_title = "Your Profile" %}
+{% set resident_page_subtitle = "Complete your profile to report incidents. Your address helps us route reports correctly." %}
+
+{% block resident_content %}
+<div class="hawkeye-form-card" style="max-width: 720px;">
+  <h2 class="hawkeye-card-title mb-2">Resident Profile</h2>
+  <p class="hawkeye-card-subtitle mb-4">Phone, address, and location consent are required to submit incident reports.</p>
+
+  <form method="post" novalidate>
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+
+    <div class="hawkeye-form-group">
+      <label class="hawkeye-form-label" for="phone_number">Phone number</label>
+      <input class="hawkeye-input" type="tel" id="phone_number" name="phone_number" value="{{ profile.phone_number or '' }}" placeholder="e.g. 081 234 5678" />
+    </div>
+
+    <div class="hawkeye-form-group">
+      <label class="hawkeye-form-label" for="street_address_1">Street address</label>
+      <input class="hawkeye-input" type="text" id="street_address_1" name="street_address_1" value="{{ profile.street_address_1 or '' }}" placeholder="Street number and name" />
+    </div>
+
+    <div class="hawkeye-form-group">
+      <label class="hawkeye-form-label" for="street_address_2">Address line 2 (optional)</label>
+      <input class="hawkeye-input" type="text" id="street_address_2" name="street_address_2" value="{{ profile.street_address_2 or '' }}" />
+    </div>
+
+    <div class="hawkeye-form-grid-2">
+      <div class="hawkeye-form-group">
+        <label class="hawkeye-form-label" for="suburb">Suburb</label>
+        <input class="hawkeye-input" type="text" id="suburb" name="suburb" value="{{ profile.suburb or '' }}" required />
+      </div>
+      <div class="hawkeye-form-group">
+        <label class="hawkeye-form-label" for="city">City</label>
+        <input class="hawkeye-input" type="text" id="city" name="city" value="{{ profile.city or '' }}" />
+      </div>
+    </div>
+
+    <div class="hawkeye-form-group">
+      <label class="hawkeye-form-label" for="postal_code">Postal code (optional)</label>
+      <input class="hawkeye-input" type="text" id="postal_code" name="postal_code" value="{{ profile.postal_code or '' }}" />
+    </div>
+
+    <div class="hawkeye-form-group mt-4">
+      <div class="form-check">
+        <input class="form-check-input" type="checkbox" id="consent_location" name="consent_location" value="1" {% if profile.consent_location %}checked{% endif %} />
+        <label class="form-check-label" for="consent_location">I consent to use my location to route and display my reports</label>
+      </div>
+    </div>
+
+    <div class="mt-4">
+      <button type="submit" class="btn btn-primary resident-primary-btn">Save profile</button>
+      <a href="{{ url_for('resident.dashboard') }}" class="btn btn-outline-light ms-2">Back to dashboard</a>
+    </div>
+  </form>
+</div>
+{% endblock %}

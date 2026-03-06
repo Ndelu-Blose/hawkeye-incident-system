@@ -19,9 +19,26 @@ class User(UserMixin, db.Model):
     created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    email_verified = db.Column(db.Boolean, nullable=False, default=False)
+    phone_verified = db.Column(db.Boolean, nullable=False, default=False)
+    last_login_at = db.Column(db.DateTime, nullable=True)
+
     incidents_reported = db.relationship(
         "Incident",
         back_populates="reporter",
+        lazy="dynamic",
+    )
+
+    resident_profile = db.relationship(
+        "ResidentProfile",
+        back_populates="user",
+        uselist=False,
+    )
+
+    authority_memberships = db.relationship(
+        "AuthorityUser",
+        back_populates="user",
         lazy="dynamic",
     )
 

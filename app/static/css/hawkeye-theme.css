@@ -15,6 +15,186 @@
   --hawkeye-shadow: 0 18px 50px rgba(0, 0, 0, 0.28);
 }
 
+/* Flash / alert messages – match dark theme */
+.alert {
+  background: var(--hawkeye-panel);
+  border: 1px solid var(--hawkeye-border);
+  border-radius: var(--hawkeye-radius);
+  color: var(--hawkeye-text);
+  box-shadow: var(--hawkeye-shadow);
+  padding: 1rem 1.25rem;
+}
+
+.alert.alert-info {
+  border-left: 4px solid rgba(59, 130, 246, 0.7);
+}
+
+.alert.alert-success {
+  border-left: 4px solid var(--hawkeye-success);
+}
+
+.alert.alert-warning {
+  border-left: 4px solid var(--hawkeye-warning);
+}
+
+.alert.alert-danger {
+  border-left: 4px solid var(--hawkeye-danger);
+}
+
+.alert .btn-close {
+  filter: invert(1);
+  opacity: 0.8;
+}
+
+.alert .btn-close:hover {
+  opacity: 1;
+}
+
+/* Toasts – fixed, non-blocking, no layout shift */
+.hawkeye-toast-container {
+  position: fixed;
+  top: 1rem;
+  right: 1rem;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  width: min(360px, calc(100vw - 2rem));
+  padding: 0;
+  pointer-events: none;
+}
+
+.hawkeye-toast-container .hawkeye-toast {
+  pointer-events: auto;
+}
+
+.hawkeye-toast {
+  background: var(--hawkeye-panel);
+  border: 1px solid var(--hawkeye-border);
+  border-radius: var(--hawkeye-radius);
+  color: var(--hawkeye-text);
+  box-shadow: var(--hawkeye-shadow);
+  padding: 0.75rem 1rem;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  animation: hawkeye-toast-in 0.3s ease;
+  min-width: 0;
+}
+
+.hawkeye-toast.hawkeye-toast-out {
+  animation: hawkeye-toast-out 0.25s ease forwards;
+}
+
+.hawkeye-toast.hawkeye-toast-success { border-left: 4px solid var(--hawkeye-success); }
+.hawkeye-toast.hawkeye-toast-info { border-left: 4px solid rgba(59, 130, 246, 0.7); }
+.hawkeye-toast.hawkeye-toast-warning { border-left: 4px solid var(--hawkeye-warning); }
+.hawkeye-toast.hawkeye-toast-danger { border-left: 4px solid var(--hawkeye-danger); }
+
+.hawkeye-toast .btn-close {
+  filter: invert(1);
+  opacity: 0.8;
+  flex-shrink: 0;
+}
+
+.hawkeye-toast .btn-close:hover {
+  opacity: 1;
+}
+
+@keyframes hawkeye-toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+@keyframes hawkeye-toast-out {
+  to {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+}
+
+@media (max-width: 480px) {
+  .hawkeye-toast-container {
+    left: 0.5rem;
+    right: 0.5rem;
+    max-width: none;
+  }
+}
+
+/* Public header – minimal strip, no full bar */
+.hawkeye-public-header {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 1rem 1.5rem;
+  z-index: 10;
+  pointer-events: none;
+}
+
+.hawkeye-public-header > * {
+  pointer-events: auto;
+}
+
+.hawkeye-public-logo {
+  font-size: 1.25rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--hawkeye-text);
+  text-decoration: none;
+  transition: color 0.2s ease;
+}
+
+.hawkeye-public-logo:hover {
+  color: #fff;
+}
+
+.hawkeye-public-links {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+}
+
+.hawkeye-public-link {
+  color: var(--hawkeye-text-soft);
+  font-size: 0.95rem;
+  font-weight: 500;
+  text-decoration: none;
+  padding: 0.4rem 0.75rem;
+  border-radius: 8px;
+  transition: color 0.2s ease, background 0.2s ease;
+}
+
+.hawkeye-public-link:hover {
+  color: #fff;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.hawkeye-public-link-cta {
+  color: #fff;
+  background: var(--hawkeye-primary);
+}
+
+.hawkeye-public-link-cta:hover {
+  background: var(--hawkeye-primary-hover);
+}
+
+.hawkeye-public-user {
+  color: var(--hawkeye-text-soft);
+  font-size: 0.9rem;
+  padding: 0 0.25rem;
+}
+
 body {
   background:
     radial-gradient(circle at top left, rgba(59, 130, 246, 0.16), transparent 30%),
@@ -273,7 +453,8 @@ body.resident-app-body {
 
 /* Public shell and auth */
 .hawkeye-public-page {
-  min-height: calc(100vh - 72px);
+  min-height: 100vh;
+  padding-top: 3rem;
   display: flex;
   align-items: center;
   justify-content: center;

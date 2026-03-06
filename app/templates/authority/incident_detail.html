@@ -29,7 +29,14 @@
       </p>
       <p class="mb-2">
         <strong>Reported at:</strong>
-        {{ incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at }}
+        {{ (incident.reported_at or incident.created_at).strftime('%Y-%m-%d %H:%M') if (incident.reported_at or incident.created_at) }}
+      </p>
+      <p class="mb-2">
+        <strong>Assigned to:</strong>
+        {{ incident.current_authority.name if incident.current_authority else 'Unassigned' }}
+      </p>
+      <p class="mb-2">
+        <strong>Ref:</strong> {{ incident.reference_no or ('#%d' % incident.id) }}
       </p>
       <hr />
       <p>{{ incident.description }}</p>
@@ -44,10 +51,13 @@
           <label for="status" class="form-label">New status</label>
           <select class="form-select" id="status" name="status" required>
             <option value="">Select status</option>
-            <option value="pending" {% if incident.status == 'pending' %}selected{% endif %}>Pending</option>
+            <option value="pending" {% if incident.status == 'pending' %}selected{% endif %}>Reported</option>
+            <option value="verified" {% if incident.status == 'verified' %}selected{% endif %}>Verified</option>
+            <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
             <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
             <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
             <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
+            <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
           </select>
         </div>
 

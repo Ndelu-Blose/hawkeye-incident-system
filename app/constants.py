@@ -11,7 +11,12 @@ class Roles(StrEnum):
 
 
 class IncidentStatus(StrEnum):
-    PENDING = "pending"
+    """Lifecycle: reported (PENDING) -> verified -> assigned -> in_progress -> resolved -> closed."""
+
+    PENDING = "pending"  # reported
+    VERIFIED = "verified"
+    ASSIGNED = "assigned"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
     REJECTED = "rejected"
+    CLOSED = "closed"
