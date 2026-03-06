@@ -1,6 +1,10 @@
-{% extends "layout.html" %}
+{% extends "resident/resident_app.html" %}
 
-{% block content %}
+{% set resident_active_page = "my_incidents" %}
+{% set resident_page_title = "Edit Incident" %}
+{% set resident_page_subtitle = "Update details for this incident while it is still editable." %}
+
+{% block resident_content %}
   <div class="mb-3">
     <a href="{{ url_for('resident.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">
       &larr; Back to incident

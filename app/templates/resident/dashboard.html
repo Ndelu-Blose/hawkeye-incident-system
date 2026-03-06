@@ -1,68 +1,145 @@
-{% extends "layout.html" %}
+{% extends "resident/resident_app.html" %}
 
-{% block content %}
-  <div class="mb-4">
-    <h2 class="mb-2">Welcome, {{ current_user.name }}</h2>
-    <p class="text-muted mb-0">You are signed in as a <strong>Resident</strong>.</p>
-  </div>
+{% set resident_active_page = "dashboard" %}
+{% set resident_page_title = "Resident Dashboard" %}
+{% set resident_page_subtitle = "Track incidents, monitor statuses, and report new issues in your area." %}
 
-  <div class="d-flex flex-wrap gap-2 mb-4">
-    <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary">Report Incident</a>
-    <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-outline-light">My Incidents</a>
-  </div>
+{% block resident_top_actions %}
+<a class="btn btn-primary resident-primary-btn" href="{{ url_for('resident.report_incident') }}">
+    <i class="bi bi-plus-lg"></i>
+    Report Incident
+</a>
+{% endblock %}
 
-  <h3 class="h5 mb-3">Your incident summary</h3>
-  <div class="row g-3 mb-4">
-    <div class="col-6 col-md-3">
-      <div class="card bg-dark border-secondary">
-        <div class="card-body py-3">
-          <div class="text-muted small">Pending</div>
-          <div class="fs-4">{{ counts.pending }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="card bg-dark border-secondary">
-        <div class="card-body py-3">
-          <div class="text-muted small">In Progress</div>
-          <div class="fs-4">{{ counts.in_progress }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="card bg-dark border-secondary">
-        <div class="card-body py-3">
-          <div class="text-muted small">Resolved</div>
-          <div class="fs-4">{{ counts.resolved }}</div>
-        </div>
-      </div>
-    </div>
-    <div class="col-6 col-md-3">
-      <div class="card bg-dark border-secondary">
-        <div class="card-body py-3">
-          <div class="text-muted small">Rejected</div>
-          <div class="fs-4">{{ counts.rejected }}</div>
-        </div>
-      </div>
-    </div>
-  </div>
+{% block resident_content %}
+<div class="d-flex flex-wrap gap-2 mb-4">
+    <span class="resident-chip active">All</span>
+    <span class="resident-chip">Pending</span>
+    <span class="resident-chip">In Progress</span>
+    <span class="resident-chip">Resolved / Closed</span>
+</div>
 
-  <h3 class="h5 mb-3">Recent incidents</h3>
-  {% if recent_incidents %}
-    <ul class="list-group">
-      {% for inc in recent_incidents %}
-        <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
-          <div>
-            <strong>#{{ inc.id }}</strong> {{ inc.title }}
-            {{ render_status_badge(inc.status) }}
-          </div>
-          <div class="text-muted small">{{ inc.created_at.strftime('%Y-%m-%d %H:%M') if inc.created_at }}</div>
-          <a href="{{ url_for('resident.incident_detail', incident_id=inc.id) }}" class="btn btn-sm btn-outline-light">View</a>
-        </li>
-      {% endfor %}
-    </ul>
-  {% else %}
-    <p class="text-muted">You have not reported any incidents yet.</p>
-    <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary">Report your first incident</a>
-  {% endif %}
+<div class="row g-3 mb-4">
+    <div class="col-md-6 col-xl-3">
+        <div class="resident-stat-card">
+            <div class="resident-stat-label">Total Incidents</div>
+            <div class="resident-stat-value">{{ total_incidents }}</div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="resident-stat-card">
+            <div class="resident-stat-label">Pending</div>
+            <div class="resident-stat-value">{{ pending_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="resident-stat-card">
+            <div class="resident-stat-label">In Progress</div>
+            <div class="resident-stat-value">{{ in_progress_count }}</div>
+        </div>
+    </div>
+    <div class="col-md-6 col-xl-3">
+        <div class="resident-stat-card">
+            <div class="resident-stat-label">Resolved / Closed</div>
+            <div class="resident-stat-value">{{ resolved_count }}</div>
+        </div>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-xl-8">
+        <div class="resident-panel h-100">
+            <div class="d-flex justify-content-between align-items-center mb-4">
+                <h4 class="resident-section-title mb-0">Recent Incidents</h4>
+                <a href="{{ url_for('resident.my_incidents') }}" class="resident-link-btn">View all</a>
+            </div>
+
+            {% if recent_incidents %}
+                <div class="row g-3">
+                    {% for incident in recent_incidents %}
+                    <div class="col-md-6">
+                        <div class="resident-incident-card">
+                            <div class="resident-incident-title">{{ incident.title }}</div>
+                            <div class="resident-incident-meta">
+                                {{ incident.category }} •
+                                {{ incident.created_at.strftime('%d %b %Y') if incident.created_at else 'Recently' }}
+                            </div>
+
+                            <div class="my-3">
+                                {{ render_status_badge(incident.status) }}
+                            </div>
+
+                            <a
+                                href="{{ url_for('resident.incident_detail', incident_id=incident.id) }}"
+                                class="btn btn-outline-light btn-sm rounded-3"
+                            >
+                                Open
+                            </a>
+                        </div>
+                    </div>
+                    {% endfor %}
+                </div>
+            {% else %}
+                <div class="resident-empty-state">
+                    <p class="mb-3">You have not reported any incidents yet.</p>
+                    <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary resident-primary-btn">
+                        Report your first incident
+                    </a>
+                </div>
+            {% endif %}
+        </div>
+    </div>
+
+    <div class="col-xl-4">
+        <div class="resident-panel mb-4">
+            <h4 class="resident-section-title">Quick Actions</h4>
+            <div class="d-grid gap-2 mt-3">
+                <a href="{{ url_for('resident.report_incident') }}" class="btn btn-outline-light rounded-3">
+                    Report New Incident
+                </a>
+                <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-outline-light rounded-3">
+                    Track My Incidents
+                </a>
+            </div>
+        </div>
+
+        <div class="resident-panel">
+            <h4 class="resident-section-title">Resident Tips</h4>
+            <ul class="resident-tips-list mt-3 mb-0">
+                <li>Add clear descriptions for faster response.</li>
+                <li>Upload evidence images when possible.</li>
+                <li>Check status updates regularly.</li>
+            </ul>
+        </div>
+    </div>
+</div>
+
+<div class="row g-3 mt-1">
+    <div class="col-md-4">
+        <div class="resident-metric-card">
+            <div class="resident-stat-label">Resolution Rate</div>
+            <div class="resident-metric-value">
+                {% if total_incidents > 0 %}
+                    {{ ((resolved_count / total_incidents) * 100) | round(0) }}%
+                {% else %}
+                    0%
+                {% endif %}
+            </div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="resident-metric-card">
+            <div class="resident-stat-label">Active Cases</div>
+            <div class="resident-metric-value">{{ active_cases }}</div>
+        </div>
+    </div>
+
+    <div class="col-md-4">
+        <div class="resident-metric-card">
+            <div class="resident-stat-label">Resident Account</div>
+            <div class="resident-metric-value">{{ current_user.name }}</div>
+        </div>
+    </div>
+</div>
 {% endblock %}

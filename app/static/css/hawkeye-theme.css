@@ -1,0 +1,247 @@
+body.resident-app-body {
+  margin: 0;
+  background: radial-gradient(circle at top, #0a2540 0%, #041426 55%, #02111f 100%);
+  color: #f8fafc;
+  font-family: "Segoe UI", Arial, sans-serif;
+}
+
+.resident-app-shell {
+  display: flex;
+  min-height: 100vh;
+}
+
+.resident-sidebar {
+  width: 260px;
+  background: rgba(2, 12, 28, 0.96);
+  border-right: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 2rem 1rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.resident-logo {
+  font-size: 2rem;
+  font-weight: 900;
+  letter-spacing: 0.08em;
+  color: #ffffff;
+}
+
+.resident-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.7rem;
+}
+
+.resident-nav-link {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  padding: 0.9rem 1rem;
+  border-radius: 14px;
+  color: #d7e7ff;
+  text-decoration: none;
+  transition: all 0.2s ease;
+}
+
+.resident-nav-link:hover,
+.resident-nav-link.active {
+  background: rgba(255, 255, 255, 0.1);
+  color: #ffffff;
+}
+
+.resident-user-card {
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 18px;
+  padding: 1rem;
+}
+
+.resident-user-name {
+  font-weight: 700;
+  font-size: 1.1rem;
+}
+
+.resident-user-role {
+  color: #a9bfd9;
+  margin-top: 0.25rem;
+}
+
+.resident-main {
+  flex: 1;
+  padding: 2rem 2rem 2.5rem;
+  max-width: calc(100vw - 260px);
+}
+
+.resident-topbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: start;
+  gap: 1rem;
+  margin-bottom: 2rem;
+}
+
+.resident-page-title {
+  font-size: 3rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.resident-page-subtitle {
+  color: #a9bfd9;
+  font-size: 1.05rem;
+}
+
+.resident-primary-btn {
+  border-radius: 16px;
+  padding: 0.9rem 1.25rem;
+  font-weight: 700;
+  background: linear-gradient(135deg, #2f7df6, #4f8dff);
+  border: none;
+}
+
+.resident-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.55rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(93, 148, 255, 0.45);
+  color: #d9e8ff;
+  font-size: 0.92rem;
+}
+
+.resident-chip.active {
+  background: rgba(47, 125, 246, 0.2);
+  color: #ffffff;
+}
+
+.resident-stat-card,
+.resident-panel,
+.resident-metric-card {
+  background: rgba(10, 23, 48, 0.9);
+  border: 1px solid rgba(124, 164, 224, 0.22);
+  border-radius: 20px;
+  padding: 1.2rem;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+}
+
+.resident-stat-label {
+  color: #a9bfd9;
+  font-size: 0.95rem;
+  margin-bottom: 0.7rem;
+}
+
+.resident-stat-value,
+.resident-metric-value {
+  font-size: 2.2rem;
+  font-weight: 900;
+  color: #ffffff;
+}
+
+.resident-section-title {
+  font-size: 1.4rem;
+  font-weight: 800;
+  color: #ffffff;
+}
+
+.resident-link-btn {
+  color: #67a8ff;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.resident-link-btn:hover {
+  color: #91c0ff;
+}
+
+.resident-empty-state {
+  min-height: 280px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: #a9bfd9;
+  text-align: center;
+}
+
+.resident-incident-card {
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(124, 164, 224, 0.16);
+  border-radius: 16px;
+  padding: 1rem;
+}
+
+.resident-incident-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: #ffffff;
+}
+
+.resident-incident-meta {
+  font-size: 0.9rem;
+  color: #a9bfd9;
+  margin-top: 0.35rem;
+}
+
+.resident-tips-list {
+  color: #d7e7ff;
+  padding-left: 1.2rem;
+}
+
+.resident-tips-list li {
+  margin-bottom: 0.75rem;
+}
+
+.hawk-status-pill {
+  display: inline-block;
+  padding: 0.38rem 0.8rem;
+  border-radius: 999px;
+  font-size: 0.85rem;
+  font-weight: 700;
+}
+
+.hawk-status-open,
+.hawk-status-pending {
+  background: rgba(245, 158, 11, 0.16);
+  color: #ffd166;
+}
+
+.hawk-status-in-progress {
+  background: rgba(59, 130, 246, 0.16);
+  color: #8cc4ff;
+}
+
+.hawk-status-resolved,
+.hawk-status-closed {
+  background: rgba(16, 185, 129, 0.16);
+  color: #7ff0c0;
+}
+
+.hawk-status-rejected {
+  background: rgba(239, 68, 68, 0.16);
+  color: #ff9c9c;
+}
+
+@media (max-width: 992px) {
+  .resident-app-shell {
+    flex-direction: column;
+  }
+
+  .resident-sidebar {
+    width: 100%;
+  }
+
+  .resident-main {
+    max-width: 100%;
+    padding: 1.25rem;
+  }
+
+  .resident-topbar {
+    flex-direction: column;
+  }
+
+  .resident-page-title {
+    font-size: 2.2rem;
+  }
+}
+

@@ -13,3 +13,45 @@ body {
   border-color: #1f2d3d;
 }
 
+/* Resident dashboard */
+.resident-welcome-card .card-body {
+  background: linear-gradient(135deg, #1a2d42 0%, #122132 100%);
+  border-radius: 0.375rem;
+}
+
+.resident-stat-card {
+  background-color: #0f1922;
+  border: 1px solid #1f2d3d;
+}
+
+.resident-stat-number {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: #f8f9fa;
+}
+
+.resident-table-card .table {
+  color: #f8f9fa;
+}
+
+.resident-table-card .table thead th {
+  border-bottom-color: #1f2d3d;
+  color: #94a3b8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  font-size: 0.75rem;
+}
+
+.resident-table-card .table tbody tr {
+  border-bottom-color: #1f2d3d;
+}
+
+.resident-table-card .table-hover tbody tr:hover {
+  background-color: rgba(30, 58, 90, 0.3);
+}
+
+.tracking {
+  letter-spacing: 0.05em;
+}
+

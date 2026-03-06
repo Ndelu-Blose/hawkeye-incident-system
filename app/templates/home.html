@@ -7,12 +7,32 @@
         <h1 class="display-5 fw-bold mb-3">{{ APP_NAME }}</h1>
         <p class="lead mb-4">{{ APP_TAGLINE }}</p>
         <div class="d-flex justify-content-center gap-3 flex-wrap">
-          <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
-            Get Started
-          </a>
-          <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg border">
-            Login
-          </a>
+          {% if current_user.is_authenticated %}
+            {% if current_user.role == "resident" %}
+              <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary btn-lg">
+                Report an Incident
+              </a>
+              <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-outline-light btn-lg border">
+                My Incidents
+              </a>
+            {% elif current_user.role in ("authority", "admin") %}
+              <a href="{{ url_for('authority.dashboard') }}" class="btn btn-primary btn-lg">
+                Open Dashboard
+              </a>
+              {% if current_user.role == "admin" %}
+                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-light btn-lg border">
+                  Admin Overview
+                </a>
+              {% endif %}
+            {% endif %}
+          {% else %}
+            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
+              Get Started
+            </a>
+            <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg border">
+              Login
+            </a>
+          {% endif %}
         </div>
       </div>
     </div>

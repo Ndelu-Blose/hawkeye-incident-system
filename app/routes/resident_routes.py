@@ -39,16 +39,27 @@ def dashboard():
         incident_service.list_incidents_for_resident(current_user)  # type: ignore[arg-type]
     )
     counts = {
+        "total": len(incidents),
         "pending": sum(1 for i in incidents if i.status == IncidentStatus.PENDING.value),
         "in_progress": sum(1 for i in incidents if i.status == IncidentStatus.IN_PROGRESS.value),
         "resolved": sum(1 for i in incidents if i.status == IncidentStatus.RESOLVED.value),
         "rejected": sum(1 for i in incidents if i.status == IncidentStatus.REJECTED.value),
     }
-    recent = incidents[:5]
+    total_incidents = counts["total"]
+    pending_count = counts["pending"]
+    in_progress_count = counts["in_progress"]
+    # Resolved / Closed includes resolved and rejected
+    resolved_count = counts["resolved"] + counts["rejected"]
+    active_cases = pending_count + in_progress_count
+    recent_incidents = incidents[:6]
     return render_template(
         "resident/dashboard.html",
-        counts=counts,
-        recent_incidents=recent,
+        total_incidents=total_incidents,
+        pending_count=pending_count,
+        in_progress_count=in_progress_count,
+        resolved_count=resolved_count,
+        active_cases=active_cases,
+        recent_incidents=recent_incidents,
     )
 
 

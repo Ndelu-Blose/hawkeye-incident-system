@@ -1,6 +1,10 @@
-{% extends "layout.html" %}
+{% extends "resident/resident_app.html" %}
 
-{% block content %}
+{% set resident_active_page = "report_incident" %}
+{% set resident_page_title = "Report an Incident" %}
+{% set resident_page_subtitle = "Describe the issue clearly and attach evidence so it can be resolved faster." %}
+
+{% block resident_content %}
   <div class="row justify-content-center">
     <div class="col-lg-8">
       <h2 class="mb-4">Report an Incident</h2>
