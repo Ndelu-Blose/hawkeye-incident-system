@@ -47,6 +47,7 @@
             <option value="pending" {% if incident.status == 'pending' %}selected{% endif %}>Pending</option>
             <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
             <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
+            <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
           </select>
         </div>
 

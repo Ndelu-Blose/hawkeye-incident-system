@@ -1,19 +1,30 @@
 {% extends "layout.html" %}
 
 {% block content %}
-  <div class="mb-3">
+  <div class="mb-3 d-flex justify-content-between align-items-center flex-wrap gap-2">
     <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-sm btn-outline-light">
       &larr; Back to my incidents
     </a>
+    {% if can_edit %}
+      <a href="{{ url_for('resident.edit_incident', incident_id=incident.id) }}" class="btn btn-sm btn-primary">Edit incident</a>
+    {% endif %}
   </div>
 
   <div class="row">
     <div class="col-lg-7 mb-4">
       <h2 class="mb-3">Incident #{{ incident.id }} – {{ incident.title }}</h2>
-      <p class="mb-2">
-        Status:
-        {{ render_status_badge(incident.status) }}
-      </p>
+
+      <div class="card bg-dark border-secondary mb-3">
+        <div class="card-body py-2">
+          <strong>Status:</strong>
+          {{ render_status_badge(incident.status) }}
+          <div class="small text-muted mt-1">
+            <strong>What this means:</strong>
+            Pending = waiting for review; In Progress = being handled; Resolved = completed; Rejected = invalid or insufficient info.
+          </div>
+        </div>
+      </div>
+
       <p class="mb-2">
         <strong>Severity:</strong>
         <span class="text-capitalize">{{ incident.severity }}</span>
@@ -22,7 +33,8 @@
         <strong>Category:</strong> {{ incident.category }}
       </p>
       <p class="mb-2">
-        <strong>Location:</strong> {{ incident.location }}
+        <strong>Location:</strong> {{ incident.street_or_landmark }}, {{ incident.suburb_or_ward }}
+        {% if incident.nearest_place %}({{ incident.nearest_place }}){% endif %}
       </p>
       <p class="mb-2">
         <strong>Reported at:</strong>
@@ -30,10 +42,28 @@
       </p>
       <hr />
       <p>{{ incident.description }}</p>
+
+      {% if media %}
+        <h3 class="h6 mt-4 mb-2">Evidence</h3>
+        <div class="row g-2">
+          {% for m in media %}
+            <div class="col-6 col-md-4">
+              <a href="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}" target="_blank" rel="noopener">
+                <img
+                  src="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}"
+                  alt="Evidence"
+                  class="img-fluid rounded border"
+                  style="max-height: 120px; object-fit: cover;"
+                />
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
     </div>
 
     <div class="col-lg-5">
-      <h3 class="h5 mb-3">Status history</h3>
+      <h3 class="h5 mb-3">Timeline</h3>
       {% if updates %}
         <ul class="list-group">
           {% for update in updates %}
@@ -64,4 +94,3 @@
     </div>
   </div>
 {% endblock %}
-

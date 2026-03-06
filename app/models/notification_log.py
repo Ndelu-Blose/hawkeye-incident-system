@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.datetime_helpers import utc_now
 
 
 class NotificationLog(db.Model):
@@ -33,7 +32,7 @@ class NotificationLog(db.Model):
     provider_message_id = db.Column(db.String(255), nullable=True)
     last_error = db.Column(db.Text, nullable=True)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     sent_at = db.Column(db.DateTime, nullable=True)
 
     incident = db.relationship(

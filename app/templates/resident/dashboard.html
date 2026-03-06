@@ -1,0 +1,68 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <div class="mb-4">
+    <h2 class="mb-2">Welcome, {{ current_user.name }}</h2>
+    <p class="text-muted mb-0">You are signed in as a <strong>Resident</strong>.</p>
+  </div>
+
+  <div class="d-flex flex-wrap gap-2 mb-4">
+    <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary">Report Incident</a>
+    <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-outline-light">My Incidents</a>
+  </div>
+
+  <h3 class="h5 mb-3">Your incident summary</h3>
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="card bg-dark border-secondary">
+        <div class="card-body py-3">
+          <div class="text-muted small">Pending</div>
+          <div class="fs-4">{{ counts.pending }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card bg-dark border-secondary">
+        <div class="card-body py-3">
+          <div class="text-muted small">In Progress</div>
+          <div class="fs-4">{{ counts.in_progress }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card bg-dark border-secondary">
+        <div class="card-body py-3">
+          <div class="text-muted small">Resolved</div>
+          <div class="fs-4">{{ counts.resolved }}</div>
+        </div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="card bg-dark border-secondary">
+        <div class="card-body py-3">
+          <div class="text-muted small">Rejected</div>
+          <div class="fs-4">{{ counts.rejected }}</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <h3 class="h5 mb-3">Recent incidents</h3>
+  {% if recent_incidents %}
+    <ul class="list-group">
+      {% for inc in recent_incidents %}
+        <li class="list-group-item bg-dark text-light d-flex justify-content-between align-items-center">
+          <div>
+            <strong>#{{ inc.id }}</strong> {{ inc.title }}
+            {{ render_status_badge(inc.status) }}
+          </div>
+          <div class="text-muted small">{{ inc.created_at.strftime('%Y-%m-%d %H:%M') if inc.created_at }}</div>
+          <a href="{{ url_for('resident.incident_detail', incident_id=inc.id) }}" class="btn btn-sm btn-outline-light">View</a>
+        </li>
+      {% endfor %}
+    </ul>
+  {% else %}
+    <p class="text-muted">You have not reported any incidents yet.</p>
+    <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary">Report your first incident</a>
+  {% endif %}
+{% endblock %}

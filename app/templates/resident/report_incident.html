@@ -4,7 +4,20 @@
   <div class="row justify-content-center">
     <div class="col-lg-8">
       <h2 class="mb-4">Report an Incident</h2>
-      <form method="post" novalidate>
+
+      {% if similar_incidents %}
+        <div class="alert alert-info mb-4">
+          <strong>Similar incidents in this area</strong>
+          <p class="mb-0 small">You or neighbours may have already reported similar issues in this area (same category/suburb in the last 24 hours). You can still submit if this is a separate incident.</p>
+          <ul class="mb-0 mt-2 small">
+            {% for sim in similar_incidents %}
+              <li>#{{ sim.id }} – {{ sim.title }} ({{ sim.created_at.strftime('%Y-%m-%d %H:%M') if sim.created_at }})</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
         <div class="mb-3">
@@ -42,15 +55,39 @@
           />
         </div>
 
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label for="suburb_or_ward" class="form-label">Suburb / Ward</label>
+            <input
+              type="text"
+              class="form-control"
+              id="suburb_or_ward"
+              name="suburb_or_ward"
+              value="{{ (form_data.suburb_or_ward if form_data is defined else '') | default('') }}"
+              required
+            />
+          </div>
+          <div class="col-md-6 mb-3">
+            <label for="street_or_landmark" class="form-label">Street / Landmark</label>
+            <input
+              type="text"
+              class="form-control"
+              id="street_or_landmark"
+              name="street_or_landmark"
+              value="{{ (form_data.street_or_landmark if form_data is defined else '') | default('') }}"
+              required
+            />
+          </div>
+        </div>
+
         <div class="mb-3">
-          <label for="location" class="form-label">Location</label>
+          <label for="nearest_place" class="form-label">Nearest place (optional)</label>
           <input
             type="text"
             class="form-control"
-            id="location"
-            name="location"
-            value="{{ (form_data.location if form_data is defined else '') | default('') }}"
-            required
+            id="nearest_place"
+            name="nearest_place"
+            value="{{ (form_data.nearest_place if form_data is defined else '') | default('') }}"
           />
         </div>
 
@@ -66,9 +103,35 @@
           </select>
         </div>
 
+        <div class="mb-3">
+          <label for="evidence" class="form-label">Evidence (at least one image)</label>
+          <input
+            type="file"
+            class="form-control"
+            id="evidence"
+            name="evidence"
+            accept=".jpg,.jpeg,.png,.webp"
+            multiple
+          />
+          <div class="form-text">Accepted: JPG, PNG, WebP. Max 5 images, 5 MB each.</div>
+        </div>
+
+        <div class="mb-3 form-check">
+          <input
+            type="checkbox"
+            class="form-check-input"
+            id="confirm_real"
+            name="confirm_real"
+            value="1"
+            required
+          />
+          <label class="form-check-label" for="confirm_real">
+            I confirm this is a real incident and the information is accurate to the best of my knowledge.
+          </label>
+        </div>
+
         <button type="submit" class="btn btn-primary">Submit incident</button>
       </form>
     </div>
   </div>
 {% endblock %}
-

@@ -1,9 +1,8 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.constants import IncidentStatus
 from app.extensions import db
+from app.utils.datetime_helpers import utc_now
 
 
 class Incident(db.Model):
@@ -20,6 +19,11 @@ class Incident(db.Model):
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
     category = db.Column(db.String(100), nullable=False)
+    # Structured location fields
+    suburb_or_ward = db.Column(db.String(120), nullable=False)
+    street_or_landmark = db.Column(db.String(255), nullable=False)
+    nearest_place = db.Column(db.String(255), nullable=True)
+    # Backwards-compatible combined location string
     location = db.Column(db.String(255), nullable=False)
     severity = db.Column(db.String(50), nullable=False)
 
@@ -33,9 +37,9 @@ class Incident(db.Model):
     # Optional optimistic concurrency field
     version = db.Column(db.Integer, nullable=False, default=1)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        db.DateTime, default=utc_now, onupdate=utc_now, nullable=False
     )
 
     reporter = db.relationship(
@@ -53,6 +57,13 @@ class Incident(db.Model):
 
     notifications = db.relationship(
         "NotificationLog",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
+    media = db.relationship(
+        "IncidentMedia",
         back_populates="incident",
         cascade="all, delete-orphan",
         lazy="dynamic",

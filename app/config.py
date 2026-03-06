@@ -32,6 +32,12 @@ class BaseConfig:
     RATELIMIT_DEFAULT = "200 per day"
     RATELIMIT_STORAGE_URI = "memory://"
 
+    # Uploads (evidence images)
+    UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
+    MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25 MB total request
+    MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB per image
+    MAX_MEDIA_PER_INCIDENT = 5
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True

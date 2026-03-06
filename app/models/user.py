@@ -1,11 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from flask_login import UserMixin
 
 from app.constants import Roles
 from app.extensions import db
+from app.utils.datetime_helpers import utc_now
 
 
 class User(UserMixin, db.Model):
@@ -17,9 +16,9 @@ class User(UserMixin, db.Model):
     password_hash = db.Column(db.String(255), nullable=False)
     role = db.Column(db.String(32), nullable=False, default=Roles.RESIDENT.value)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     updated_at = db.Column(
-        db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False
+        db.DateTime, default=utc_now, onupdate=utc_now, nullable=False
     )
 
     incidents_reported = db.relationship(

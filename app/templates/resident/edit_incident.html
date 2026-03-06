@@ -1,0 +1,104 @@
+{% extends "layout.html" %}
+
+{% block content %}
+  <div class="mb-3">
+    <a href="{{ url_for('resident.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">
+      &larr; Back to incident
+    </a>
+  </div>
+
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h2 class="mb-4">Edit Incident #{{ incident.id }}</h2>
+      <p class="text-muted small">Status: {{ render_status_badge(incident.status) }} — Reported {{ incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at }}</p>
+
+      <form method="post" novalidate>
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="mb-3">
+          <label for="title" class="form-label">Title</label>
+          <input
+            type="text"
+            class="form-control"
+            id="title"
+            name="title"
+            value="{{ (form_data.title if form_data is defined else incident.title) | default(incident.title) }}"
+            required
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="description" class="form-label">Description</label>
+          <textarea
+            class="form-control"
+            id="description"
+            name="description"
+            rows="4"
+            required
+          >{{ (form_data.description if form_data is defined else incident.description) | default(incident.description) }}</textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="category" class="form-label">Category</label>
+          <input
+            type="text"
+            class="form-control"
+            id="category"
+            name="category"
+            value="{{ (form_data.category if form_data is defined else incident.category) | default(incident.category) }}"
+            required
+          />
+        </div>
+
+        <div class="row">
+          <div class="col-md-6 mb-3">
+            <label for="suburb_or_ward" class="form-label">Suburb / Ward</label>
+            <input
+              type="text"
+              class="form-control"
+              id="suburb_or_ward"
+              name="suburb_or_ward"
+              value="{{ (form_data.suburb_or_ward if form_data is defined else incident.suburb_or_ward) | default(incident.suburb_or_ward) }}"
+              required
+            />
+          </div>
+          <div class="col-md-6 mb-3">
+            <label for="street_or_landmark" class="form-label">Street / Landmark</label>
+            <input
+              type="text"
+              class="form-control"
+              id="street_or_landmark"
+              name="street_or_landmark"
+              value="{{ (form_data.street_or_landmark if form_data is defined else incident.street_or_landmark) | default(incident.street_or_landmark) }}"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="nearest_place" class="form-label">Nearest place (optional)</label>
+          <input
+            type="text"
+            class="form-control"
+            id="nearest_place"
+            name="nearest_place"
+            value="{{ (form_data.nearest_place if form_data is defined else incident.nearest_place) | default(incident.nearest_place or '') }}"
+          />
+        </div>
+
+        <div class="mb-3">
+          <label for="severity" class="form-label">Severity</label>
+          <select class="form-select" id="severity" name="severity" required>
+            {% set sel = (form_data.severity if form_data is defined else incident.severity) | default(incident.severity) %}
+            <option value="low" {% if sel == 'low' %}selected{% endif %}>Low</option>
+            <option value="medium" {% if sel == 'medium' %}selected{% endif %}>Medium</option>
+            <option value="high" {% if sel == 'high' %}selected{% endif %}>High</option>
+            <option value="critical" {% if sel == 'critical' %}selected{% endif %}>Critical</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save changes</button>
+      </form>
+    </div>
+  </div>
+{% endblock %}

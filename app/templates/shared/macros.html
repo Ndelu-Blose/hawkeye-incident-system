@@ -5,6 +5,8 @@
     <span class="badge bg-info text-dark">In Progress</span>
   {%- elif status == "resolved" -%}
     <span class="badge bg-success">Resolved</span>
+  {%- elif status == "rejected" -%}
+    <span class="badge bg-danger">Rejected</span>
   {%- else -%}
     <span class="badge bg-secondary">{{ status }}</span>
   {%- endif -%}

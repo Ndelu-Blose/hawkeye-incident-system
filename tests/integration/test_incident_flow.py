@@ -1,5 +1,9 @@
+import io
+
 from app.constants import Roles
 from app.services.auth_service import auth_service
+
+from tests.conftest import MINIMAL_PNG_BYTES
 
 
 def test_incident_lifecycle(app, client):
@@ -28,15 +32,18 @@ def test_incident_lifecycle(app, client):
     )
     assert resp.status_code == 200
 
-    # Resident creates incident
+    # Resident creates incident (structured location + at least one evidence image)
     resp = client.post(
         "/resident/incidents/new",
         data={
             "title": "Broken street light",
             "description": "Street light not working",
             "category": "Lighting",
-            "location": "Main street",
+            "suburb_or_ward": "Downtown",
+            "street_or_landmark": "Main street",
             "severity": "low",
+            "confirm_real": "1",
+            "evidence": (io.BytesIO(MINIMAL_PNG_BYTES), "evidence.png"),
         },
         follow_redirects=True,
     )

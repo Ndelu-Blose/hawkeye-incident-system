@@ -1,8 +1,7 @@
 from __future__ import annotations
 
-from datetime import datetime
-
 from app.extensions import db
+from app.utils.datetime_helpers import utc_now
 
 
 class IncidentUpdate(db.Model):
@@ -27,7 +26,7 @@ class IncidentUpdate(db.Model):
     to_status = db.Column(db.String(32), nullable=False)
     note = db.Column(db.Text, nullable=True)
 
-    created_at = db.Column(db.DateTime, default=datetime.utcnow, nullable=False)
+    created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
 
     incident = db.relationship(
         "Incident",
