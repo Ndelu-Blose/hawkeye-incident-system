@@ -2,63 +2,88 @@
 
 {% set resident_active_page = "my_incidents" %}
 {% set resident_page_title = "My Incidents" %}
-{% set resident_page_subtitle = "Review and track all incidents you have reported." %}
+{% set resident_page_subtitle = "Track all incidents you have reported and monitor their progress." %}
+
+{% block resident_top_actions %}
+<a href="{{ url_for('resident.report_incident') }}" class="btn resident-primary-btn">
+  <i class="bi bi-plus-circle"></i> Report Incident
+</a>
+{% endblock %}
 
 {% block resident_content %}
-  <div class="d-flex justify-content-between align-items-center mb-3 flex-wrap gap-2">
-    <h2>My Incidents</h2>
-    <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary">
-      Report new incident
-    </a>
+<div class="resident-dashboard-content">
+  <div class="resident-dashboard-filters mb-4">
+    <a href="{{ url_for('resident.my_incidents') }}" class="resident-chip {% if not request.args.get('status') %}active{% endif %}">All</a>
+    <a href="{{ url_for('resident.my_incidents', status='pending') }}" class="resident-chip {% if request.args.get('status') == 'pending' %}active{% endif %}">Pending</a>
+    <a href="{{ url_for('resident.my_incidents', status='in_progress') }}" class="resident-chip {% if request.args.get('status') == 'in_progress' %}active{% endif %}">In Progress</a>
+    <a href="{{ url_for('resident.my_incidents', status='resolved') }}" class="resident-chip {% if request.args.get('status') == 'resolved' %}active{% endif %}">Resolved</a>
+    <a href="{{ url_for('resident.my_incidents', status='rejected') }}" class="resident-chip {% if request.args.get('status') == 'rejected' %}active{% endif %}">Rejected</a>
   </div>
 
-  <form method="get" class="mb-3 d-flex align-items-center gap-2 flex-wrap">
-    <label class="form-label mb-0">Filter by status</label>
-    <select name="status" class="form-select form-select-sm" style="width: auto;" onchange="this.form.submit()">
-      <option value="">All</option>
-      <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Pending</option>
-      <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In Progress</option>
-      <option value="resolved" {% if selected_status == 'resolved' %}selected{% endif %}>Resolved</option>
-      <option value="rejected" {% if selected_status == 'rejected' %}selected{% endif %}>Rejected</option>
-    </select>
-  </form>
-
   {% if incidents %}
-    <div class="table-responsive">
-      <table class="table table-dark table-striped align-middle">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Title</th>
-            <th>Suburb / Ward</th>
-            <th>Status</th>
-            <th>Severity</th>
-            <th>Created</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for incident in incidents %}
-            <tr>
-              <td>#{{ incident.id }}</td>
-              <td>{{ incident.title }}</td>
-              <td>{{ incident.suburb_or_ward }}</td>
-              <td>
+    <div class="row g-4">
+      {% for incident in incidents %}
+        <div class="col-12 col-md-6 col-xl-4">
+          <div class="resident-incident-card h-100">
+            <div class="resident-incident-card-top">
+              <div>
+                <h3 class="resident-incident-title">{{ incident.title }}</h3>
+                <p class="resident-incident-meta mb-1">
+                  <i class="bi bi-tag"></i> {{ incident.category }}
+                </p>
+                <p class="resident-incident-meta mb-0">
+                  <i class="bi bi-geo-alt"></i> {% if incident.location %}{{ incident.location }}{% elif incident.street_or_landmark and incident.suburb_or_ward %}{{ incident.street_or_landmark }}, {{ incident.suburb_or_ward }}{% else %}Location not provided{% endif %}
+                </p>
+              </div>
+              <span class="resident-status-badge resident-status-{{ incident.status }}">
                 {{ render_status_badge(incident.status) }}
-              </td>
-              <td class="text-capitalize">{{ incident.severity }}</td>
-              <td>{{ incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at }}</td>
-              <td class="text-end">
-                <a href="{{ url_for('resident.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">
-                  View
+              </span>
+            </div>
+            <div class="resident-incident-body">
+              <div class="resident-incident-detail-row">
+                <span class="resident-incident-label">Severity</span>
+                <span class="resident-incident-value text-capitalize">{{ incident.severity }}</span>
+              </div>
+              <div class="resident-incident-detail-row">
+                <span class="resident-incident-label">Created</span>
+                <span class="resident-incident-value">{{ incident.created_at.strftime("%d %b %Y") if incident.created_at else "—" }}</span>
+              </div>
+              <div class="resident-incident-detail-row">
+                <span class="resident-incident-label">Last update</span>
+                <span class="resident-incident-value">{{ incident.updated_at.strftime("%d %b %Y") if incident.updated_at else "—" }}</span>
+              </div>
+            </div>
+            <div class="resident-incident-actions">
+              <a href="{{ url_for('resident.incident_detail', incident_id=incident.id) }}" class="hawkeye-btn-primary w-100">
+                <i class="bi bi-eye"></i> Open Incident
+              </a>
+              {% if incident.status == 'pending' %}
+                <a href="{{ url_for('resident.edit_incident', incident_id=incident.id) }}" class="hawkeye-btn-secondary w-100">
+                  <i class="bi bi-pencil-square"></i> Edit
                 </a>
-              </td>
-            </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+              {% endif %}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
     </div>
   {% else %}
-    <p class="text-muted">You have not reported any incidents yet.</p>
+    <div class="resident-empty-state-card">
+      <div class="resident-empty-state-inner">
+        <i class="bi bi-inbox resident-empty-icon"></i>
+        <h3>No incidents found</h3>
+        <p>
+          {% if request.args.get('status') %}
+            No incidents match the selected status filter yet.
+          {% else %}
+            You have not reported any incidents yet.
+          {% endif %}
+        </p>
+        <a href="{{ url_for('resident.report_incident') }}" class="hawkeye-btn-primary">
+          <i class="bi bi-plus-circle"></i> Report your first incident
+        </a>
+      </div>
+    </div>
   {% endif %}
+</div>
 {% endblock %}

@@ -1,41 +1,41 @@
 {% extends "layout.html" %}
 
+{% block title %}Hawkeye | Home{% endblock %}
+
 {% block content %}
-  <div class="row justify-content-center">
-    <div class="col-lg-8">
-      <div class="text-center my-5">
-        <h1 class="display-5 fw-bold mb-3">{{ APP_NAME }}</h1>
-        <p class="lead mb-4">{{ APP_TAGLINE }}</p>
-        <div class="d-flex justify-content-center gap-3 flex-wrap">
-          {% if current_user.is_authenticated %}
-            {% if current_user.role == "resident" %}
-              <a href="{{ url_for('resident.report_incident') }}" class="btn btn-primary btn-lg">
-                Report an Incident
-              </a>
-              <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-outline-light btn-lg border">
-                My Incidents
-              </a>
-            {% elif current_user.role in ("authority", "admin") %}
-              <a href="{{ url_for('authority.dashboard') }}" class="btn btn-primary btn-lg">
-                Open Dashboard
-              </a>
-              {% if current_user.role == "admin" %}
-                <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-light btn-lg border">
-                  Admin Overview
-                </a>
-              {% endif %}
-            {% endif %}
-          {% else %}
-            <a href="{{ url_for('auth.register') }}" class="btn btn-primary btn-lg">
-              Get Started
-            </a>
-            <a href="{{ url_for('auth.login') }}" class="btn btn-outline-light btn-lg border">
-              Login
-            </a>
-          {% endif %}
+<section class="hawkeye-public-page">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-hero">
+      <div class="hawkeye-hero-copy">
+        <span class="hawkeye-kicker">Community Incident Reporting</span>
+        <h1 class="hawkeye-title-xl">Hawkeye</h1>
+        <p class="hawkeye-subtitle">
+          Report. Track. Respond. A cleaner, faster way for residents to report local incidents and monitor progress from submission to resolution.
+        </p>
+        <div class="hawkeye-action-row">
+          <a href="{{ url_for('auth.register') }}" class="hawkeye-btn-primary">
+            <i class="bi bi-person-plus"></i> Get Started
+          </a>
+          <a href="{{ url_for('auth.login') }}" class="hawkeye-btn-secondary">
+            <i class="bi bi-box-arrow-in-right"></i> Login
+          </a>
+        </div>
+      </div>
+      <div class="hawkeye-feature-stack">
+        <div class="hawkeye-feature-card">
+          <h3><i class="bi bi-megaphone me-2"></i>Report Fast</h3>
+          <p>Submit incidents with descriptions, severity, and photo evidence in a few steps.</p>
+        </div>
+        <div class="hawkeye-feature-card">
+          <h3><i class="bi bi-clipboard-data me-2"></i>Track Progress</h3>
+          <p>Residents can follow status changes from pending to in progress and resolved.</p>
+        </div>
+        <div class="hawkeye-feature-card">
+          <h3><i class="bi bi-shield-check me-2"></i>Built for Response</h3>
+          <p>Structured dashboards support a more organized and accountable response process.</p>
         </div>
       </div>
     </div>
   </div>
+</section>
 {% endblock %}
-
