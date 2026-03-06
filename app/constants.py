@@ -1,16 +1,16 @@
-from enum import Enum
+from enum import StrEnum
 
 APP_NAME = "Hawkeye"
 APP_TAGLINE = "Report. Track. Respond."
 
 
-class Roles(str, Enum):
+class Roles(StrEnum):
     RESIDENT = "resident"
     AUTHORITY = "authority"
     ADMIN = "admin"
 
 
-class IncidentStatus(str, Enum):
+class IncidentStatus(StrEnum):
     PENDING = "pending"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"

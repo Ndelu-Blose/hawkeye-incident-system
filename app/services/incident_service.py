@@ -144,8 +144,7 @@ class IncidentService:
     def can_resident_edit(incident: Incident, user: User) -> bool:
         """True if the resident is the reporter and status is Pending (Option B)."""
         return (
-            incident.reported_by_id == user.id
-            and incident.status == IncidentStatus.PENDING.value
+            incident.reported_by_id == user.id and incident.status == IncidentStatus.PENDING.value
         )
 
     def update_incident_by_resident(

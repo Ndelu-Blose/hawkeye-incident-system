@@ -6,7 +6,6 @@ import pytest
 from app import create_app
 from app.extensions import db
 
-
 # Minimal 1x1 PNG (valid image for upload tests)
 MINIMAL_PNG_BYTES = (
     b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
@@ -40,6 +39,7 @@ def app():
         shutil.rmtree(tmp_upload)
     except OSError:
         pass
+
 
 @pytest.fixture()
 def client(app):

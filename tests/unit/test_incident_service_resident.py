@@ -10,7 +10,6 @@ from app.models.incident import Incident
 from app.models.user import User
 from app.services.auth_service import auth_service
 from app.services.incident_service import incident_service
-
 from tests.conftest import MINIMAL_PNG_BYTES
 
 
@@ -94,7 +93,9 @@ def test_update_incident_by_resident_success(app):
 
 def test_update_incident_by_resident_rejected_when_not_pending(app):
     with app.app_context():
-        user, _ = auth_service.register_user("Res", "nopend@example.com", "pass", Roles.RESIDENT.value)
+        user, _ = auth_service.register_user(
+            "Res", "nopend@example.com", "pass", Roles.RESIDENT.value
+        )
         incident = Incident(
             reported_by_id=user.id,
             title="In Progress",

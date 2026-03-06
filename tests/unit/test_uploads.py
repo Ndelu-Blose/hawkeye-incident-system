@@ -1,9 +1,5 @@
 """Unit tests for upload validation."""
 
-import io
-
-from werkzeug.datastructures import FileStorage
-
 from app.utils.uploads import allowed_image
 
 

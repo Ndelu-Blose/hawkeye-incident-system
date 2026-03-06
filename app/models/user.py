@@ -17,9 +17,7 @@ class User(UserMixin, db.Model):
     role = db.Column(db.String(32), nullable=False, default=Roles.RESIDENT.value)
 
     created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=utc_now, onupdate=utc_now, nullable=False
-    )
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     incidents_reported = db.relationship(
         "Incident",

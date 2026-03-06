@@ -1,14 +1,10 @@
 """Tests for Resident MVP: create with evidence, edit rule, dashboard, access control."""
 
-import io
-
 from app.constants import IncidentStatus, Roles
 from app.extensions import db
 from app.models.incident import Incident
 from app.services.auth_service import auth_service
 from app.services.incident_service import incident_service
-
-from tests.conftest import MINIMAL_PNG_BYTES
 
 
 def test_resident_dashboard_requires_login(client):
@@ -25,7 +21,9 @@ def test_resident_dashboard_and_my_incidents(app, client):
             password="pass",
             role=Roles.RESIDENT.value,
         )
-    client.post("/auth/login", data={"email": "r1@example.com", "password": "pass"}, follow_redirects=True)
+    client.post(
+        "/auth/login", data={"email": "r1@example.com", "password": "pass"}, follow_redirects=True
+    )
     resp = client.get("/resident/dashboard")
     assert resp.status_code == 200
     assert b"Resident One" in resp.data or b"Welcome" in resp.data
@@ -41,7 +39,9 @@ def test_resident_create_incident_requires_evidence(app, client):
             password="pass",
             role=Roles.RESIDENT.value,
         )
-    client.post("/auth/login", data={"email": "res@example.com", "password": "pass"}, follow_redirects=True)
+    client.post(
+        "/auth/login", data={"email": "res@example.com", "password": "pass"}, follow_redirects=True
+    )
     resp = client.post(
         "/resident/incidents/new",
         data={
@@ -56,7 +56,11 @@ def test_resident_create_incident_requires_evidence(app, client):
         follow_redirects=True,
     )
     assert resp.status_code == 200
-    assert b"evidence" in resp.data.lower() or b"image" in resp.data.lower() or b"required" in resp.data.lower()
+    assert (
+        b"evidence" in resp.data.lower()
+        or b"image" in resp.data.lower()
+        or b"required" in resp.data.lower()
+    )
 
 
 def test_resident_can_edit_only_pending_incident(app, client):
@@ -82,7 +86,9 @@ def test_resident_can_edit_only_pending_incident(app, client):
         db.session.commit()
         incident_id = incident.id
 
-    client.post("/auth/login", data={"email": "edit@example.com", "password": "pass"}, follow_redirects=True)
+    client.post(
+        "/auth/login", data={"email": "edit@example.com", "password": "pass"}, follow_redirects=True
+    )
 
     resp = client.get(f"/resident/incidents/{incident_id}/edit")
     assert resp.status_code == 200
@@ -129,7 +135,11 @@ def test_resident_cannot_edit_non_pending_incident(app, client):
         db.session.commit()
         incident_id = incident.id
 
-    client.post("/auth/login", data={"email": "noedit@example.com", "password": "pass"}, follow_redirects=True)
+    client.post(
+        "/auth/login",
+        data={"email": "noedit@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
     resp = client.get(f"/resident/incidents/{incident_id}/edit", follow_redirects=True)
     assert resp.status_code == 200
     assert b"no longer be edited" in resp.data or b"redirect" in resp.data.lower()
@@ -164,7 +174,9 @@ def test_resident_cannot_view_other_residents_incident(app, client):
         db.session.commit()
         incident_id = incident.id
 
-    client.post("/auth/login", data={"email": "a@example.com", "password": "pass"}, follow_redirects=True)
+    client.post(
+        "/auth/login", data={"email": "a@example.com", "password": "pass"}, follow_redirects=True
+    )
     resp = client.get(f"/resident/incidents/{incident_id}", follow_redirects=True)
     assert resp.status_code == 200
     assert b"do not have access" in resp.data or b"not found" in resp.data.lower()

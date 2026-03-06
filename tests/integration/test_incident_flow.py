@@ -2,7 +2,6 @@ import io
 
 from app.constants import Roles
 from app.services.auth_service import auth_service
-
 from tests.conftest import MINIMAL_PNG_BYTES
 
 

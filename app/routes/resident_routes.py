@@ -2,7 +2,16 @@ from __future__ import annotations
 
 import os
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, send_from_directory, url_for
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user, login_required
 from werkzeug.datastructures import FileStorage
 
@@ -31,9 +40,7 @@ def dashboard():
     )
     counts = {
         "pending": sum(1 for i in incidents if i.status == IncidentStatus.PENDING.value),
-        "in_progress": sum(
-            1 for i in incidents if i.status == IncidentStatus.IN_PROGRESS.value
-        ),
+        "in_progress": sum(1 for i in incidents if i.status == IncidentStatus.IN_PROGRESS.value),
         "resolved": sum(1 for i in incidents if i.status == IncidentStatus.RESOLVED.value),
         "rejected": sum(1 for i in incidents if i.status == IncidentStatus.REJECTED.value),
     }

@@ -38,9 +38,7 @@ class Incident(db.Model):
     version = db.Column(db.Integer, nullable=False, default=1)
 
     created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
-    updated_at = db.Column(
-        db.DateTime, default=utc_now, onupdate=utc_now, nullable=False
-    )
+    updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     reporter = db.relationship(
         "User",

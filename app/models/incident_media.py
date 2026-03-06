@@ -30,4 +30,3 @@ class IncidentMedia(db.Model):
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<IncidentMedia id={self.id} incident_id={self.incident_id}>"
-
