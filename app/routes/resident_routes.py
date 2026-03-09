@@ -18,6 +18,7 @@ from werkzeug.datastructures import FileStorage
 from app.constants import IncidentStatus, Roles
 from app.extensions import db, limiter
 from app.models import IncidentCategory
+from app.services.incident_presets import get_preset
 from app.services.incident_service import incident_service
 from app.services.resident_profile_service import (
     get_or_create_profile,
@@ -27,6 +28,25 @@ from app.services.resident_profile_service import (
 from app.utils.decorators import role_required
 
 resident_bp = Blueprint("resident", __name__, template_folder="../templates/resident")
+
+
+def _build_preset_for_template(preset: dict) -> dict:
+    """Flatten preset for Jinja: suggested_title, urgency_value, helper_prompts, safety_tip, ask_*."""
+    default_urgency = preset.get("default_urgency")
+    urgency_value = (
+        getattr(default_urgency, "value", default_urgency)
+        if default_urgency is not None
+        else "soon"
+    )
+    return {
+        "suggested_title": preset.get("suggested_title") or "Incident reported",
+        "urgency_value": urgency_value,
+        "helper_prompts": preset.get("helper_prompts") or [],
+        "safety_tip": preset.get("safety_tip") or "",
+        "ask_is_happening_now": preset.get("ask_is_happening_now", False),
+        "ask_is_anyone_in_danger": preset.get("ask_is_anyone_in_danger", False),
+        "ask_is_issue_still_present": preset.get("ask_is_issue_still_present", False),
+    }
 
 
 def _resident_rate_key() -> str:
@@ -41,6 +61,7 @@ def _resident_rate_key() -> str:
 @login_required
 @role_required(Roles.RESIDENT)
 def profile():
+    profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
     if request.method == "POST":
         profile_obj, errors = update_profile(
             current_user,  # type: ignore[arg-type]
@@ -49,16 +70,22 @@ def profile():
         if errors:
             for e in errors:
                 flash(e, "danger")
-        else:
-            flash("Profile saved.", "success")
+            # Re-render with submitted form data so resident doesn't lose edits
+            return render_template(
+                "resident/profile.html",
+                profile=profile_obj,
+                form_data=request.form,
+                next_url=request.args.get("next") or request.form.get("next"),
+            )
+        flash("Profile saved.", "success")
         next_url = request.args.get("next") or request.form.get("next")
         if next_url and next_url.startswith("/"):
             return redirect(next_url)
         return redirect(url_for("resident.profile"))
-    profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
     return render_template(
         "resident/profile.html",
         profile=profile_obj,
+        form_data=None,
         next_url=request.args.get("next"),
     )
 
@@ -119,10 +146,19 @@ def report_incident():
             for error in errors:
                 flash(error, "danger")
             similar = []
-            if payload.get("category") or payload.get("suburb_or_ward"):
+            category_name = payload.get("category", "")
+            suburb = payload.get("suburb_or_ward", "")
+            if payload.get("category_id"):
+                try:
+                    cat_obj = db.session.get(IncidentCategory, int(payload["category_id"]))
+                    if cat_obj is not None:
+                        category_name = cat_obj.name
+                except (TypeError, ValueError):
+                    pass
+            if category_name or suburb:
                 similar = incident_service.suggest_similar_for_resident(
-                    payload.get("category", ""),
-                    payload.get("suburb_or_ward", ""),
+                    category_name,
+                    suburb,
                 )
             categories = (
                 db.session.query(IncidentCategory)
@@ -131,17 +167,20 @@ def report_incident():
                 .all()
             )
             profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
-            prefill = {
+            saved_address = {
                 "suburb": getattr(profile_obj, "suburb", None) or "",
                 "street": getattr(profile_obj, "street_address_1", None) or "",
-                "ward": getattr(profile_obj, "ward_id", None),
             }
+            presets = {c.id: _build_preset_for_template(get_preset(c)) for c in categories}
+            other_preset = _build_preset_for_template(get_preset("other"))
             return render_template(
                 "resident/report_incident.html",
                 form_data=payload,
                 similar_incidents=similar,
                 categories=categories,
-                prefill=prefill,
+                saved_address=saved_address,
+                presets=presets,
+                other_preset=other_preset,
             )
 
         flash("Incident reported successfully.", "success")
@@ -160,16 +199,19 @@ def report_incident():
         .all()
     )
     profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
-    prefill = {
+    saved_address = {
         "suburb": getattr(profile_obj, "suburb", None) or "",
         "street": getattr(profile_obj, "street_address_1", None) or "",
-        "ward": getattr(profile_obj, "ward_id", None),
     }
+    presets = {c.id: _build_preset_for_template(get_preset(c)) for c in categories}
+    other_preset = _build_preset_for_template(get_preset("other"))
     return render_template(
         "resident/report_incident.html",
         similar_incidents=similar,
         categories=categories,
-        prefill=prefill,
+        saved_address=saved_address,
+        presets=presets,
+        other_preset=other_preset,
     )
 
 

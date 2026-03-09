@@ -143,6 +143,8 @@ class IncidentRepository:
             reported_at = inc.reported_at
             if reported_at is None:
                 continue
+            if reported_at.tzinfo is None:
+                reported_at = reported_at.replace(tzinfo=UTC)
             sla_hours = 72
             if inc.category_rel is not None and inc.category_rel.default_sla_hours is not None:
                 sla_hours = inc.category_rel.default_sla_hours

@@ -2,101 +2,239 @@
 
 {% set resident_active_page = "report_incident" %}
 {% set resident_page_title = "Report an Incident" %}
-{% set resident_page_subtitle = "Describe the issue clearly and attach evidence so it can be resolved faster." %}
-
-{% block resident_top_actions %}
-<a href="{{ url_for('resident.my_incidents') }}" class="btn btn-outline-light resident-link-btn">
-  <i class="bi bi-folder2-open"></i> My Incidents
-</a>
-{% endblock %}
+{% set resident_page_subtitle = "Choose the type of issue, add details, and attach evidence so it can be resolved faster." %}
 
 {% block resident_content %}
-<div class="hawkeye-form-card" style="max-width: 980px;">
-  <h2 class="hawkeye-card-title mb-2">New Incident Report</h2>
-  <p class="hawkeye-card-subtitle">Provide clear details and at least one image as evidence.</p>
+  {% set fd = form_data or {} %}
+  {% set selected_cat_id = fd.category_id if fd and fd.category_id else '' %}
+  {% set current_preset = presets.get(selected_cat_id | int, other_preset) if selected_cat_id else other_preset %}
 
-  {% if similar_incidents %}
-    <div class="resident-panel mb-4">
-      <strong>Similar incidents in this area</strong>
-      <p class="mb-0 small text-secondary">You or neighbours may have already reported similar issues in this area (same category/suburb in the last 24 hours). You can still submit if this is a separate incident.</p>
-      <ul class="mb-0 mt-2 small">
-        {% for sim in similar_incidents %}
-          <li>#{{ sim.id }} – {{ sim.title }} ({{ sim.created_at.strftime('%Y-%m-%d %H:%M') if sim.created_at }})</li>
-        {% endfor %}
-      </ul>
+  <div class="row justify-content-center">
+    <div class="col-lg-8">
+      <h2 class="mb-4">Report an Incident</h2>
+
+      {% if similar_incidents %}
+        <div class="alert alert-info mb-4">
+          <strong>Similar incidents in this area</strong>
+          <p class="mb-0 small">You or neighbours may have already reported similar issues in this area (same category/suburb in the last 24 hours). You can still submit if this is a separate incident.</p>
+          <ul class="mb-0 mt-2 small">
+            {% for sim in similar_incidents %}
+              <li>#{{ sim.id }} – {{ sim.title }} ({{ sim.created_at.strftime('%Y-%m-%d %H:%M') if sim.created_at }})</li>
+            {% endfor %}
+          </ul>
+        </div>
+      {% endif %}
+
+      <form method="post" novalidate enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="mb-4">
+          <label for="category_id" class="form-label fw-bold">What type of issue is this?</label>
+          <select class="form-select form-select-lg" id="category_id" name="category_id" required>
+            <option value="">Select a category</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}" {% if fd and fd.category_id == c.id | string %}selected{% endif %}>{{ c.name | replace('_', ' ') | title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="title" class="form-label">Title</label>
+          <input
+            type="text"
+            class="form-control"
+            id="title"
+            name="title"
+            value="{{ fd.title if (fd and fd.title is defined and fd.title != '') else (current_preset.suggested_title if selected_cat_id else '') }}"
+            placeholder="{{ current_preset.suggested_title if selected_cat_id else 'Select a category first' }}"
+          />
+          <div class="form-text">You can edit this or leave it blank; we'll use a suggested title from the category.</div>
+        </div>
+
+        <div class="mb-3">
+          <label for="description" class="form-label">Description</label>
+          {% if selected_cat_id and current_preset.helper_prompts %}
+            <p class="small text-muted mb-1">Things that help us respond:</p>
+            <ul class="small text-muted mb-2">
+              {% for prompt in current_preset.helper_prompts %}
+                <li>{{ prompt }}</li>
+              {% endfor %}
+            </ul>
+          {% endif %}
+          <textarea
+            class="form-control"
+            id="description"
+            name="description"
+            rows="4"
+            required
+          >{{ fd.description if fd and fd.description is defined else '' }}</textarea>
+          {% if selected_cat_id and current_preset.safety_tip %}
+            <div class="form-text mt-1">{{ current_preset.safety_tip }}</div>
+          {% endif %}
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label fw-bold">How urgent is it?</label>
+          <select class="form-select" id="urgency_level" name="urgency_level" required>
+            <option value="urgent_now" {% if (fd.urgency_level if fd else '') == 'urgent_now' %}selected{% elif not fd and current_preset.urgency_value == 'urgent_now' %}selected{% endif %}>Urgent – happening now or someone at risk</option>
+            <option value="soon" {% if (fd.urgency_level if fd else '') == 'soon' %}selected{% elif not fd and current_preset.urgency_value == 'soon' %}selected{% endif %}>Soon – needs attention in the next few days</option>
+            <option value="scheduled" {% if (fd.urgency_level if fd else '') == 'scheduled' %}selected{% elif not fd and current_preset.urgency_value == 'scheduled' %}selected{% endif %}>Can be scheduled – not time-critical</option>
+          </select>
+        </div>
+
+        <div class="mb-4">
+          <label class="form-label fw-bold">Where did it happen?</label>
+          <div class="mb-2">
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="location_mode" id="location_saved" value="saved" {% if (fd.location_mode if fd else '') == 'saved' or (not fd and saved_address.suburb) %}checked{% endif %} required />
+              <label class="form-check-label" for="location_saved">Use my saved address</label>
+            </div>
+            <div class="form-check">
+              <input class="form-check-input" type="radio" name="location_mode" id="location_other" value="other" {% if fd and fd.location_mode == 'other' %}checked{% endif %} />
+              <label class="form-check-label" for="location_other">A different location</label>
+            </div>
+          </div>
+
+          <div id="saved_address_display" class="small text-muted mb-2">
+            {% if saved_address.suburb or saved_address.street %}
+              We'll use: {{ saved_address.street }}{% if saved_address.street and saved_address.suburb %}, {% endif %}{{ saved_address.suburb }}
+            {% else %}
+              Add your address in <a href="{{ url_for('resident.profile') }}">My Profile</a> to use this option.
+            {% endif %}
+          </div>
+
+          <div class="row" id="other_location_fields">
+            <div class="col-md-6 mb-3">
+              <label for="suburb_or_ward" class="form-label">Suburb / Ward</label>
+              <input
+                type="text"
+                class="form-control"
+                id="suburb_or_ward"
+                name="suburb_or_ward"
+                value="{{ fd.suburb_or_ward if (fd and fd.location_mode == 'other' and fd.suburb_or_ward is defined) else saved_address.suburb }}"
+              />
+            </div>
+            <div class="col-md-6 mb-3">
+              <label for="street_or_landmark" class="form-label">Street / Landmark</label>
+              <input
+                type="text"
+                class="form-control"
+                id="street_or_landmark"
+                name="street_or_landmark"
+                value="{{ fd.street_or_landmark if (fd and fd.location_mode == 'other' and fd.street_or_landmark is defined) else saved_address.street }}"
+              />
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="nearest_place" class="form-label">Nearest place (optional)</label>
+            <input
+              type="text"
+              class="form-control"
+              id="nearest_place"
+              name="nearest_place"
+              value="{{ fd.nearest_place if fd and fd.nearest_place is defined else '' }}"
+            />
+          </div>
+        </div>
+
+        {% if selected_cat_id and (current_preset.ask_is_happening_now or current_preset.ask_is_anyone_in_danger or current_preset.ask_is_issue_still_present) %}
+          <div class="mb-3">
+            <label class="form-label">Quick details</label>
+            {% if current_preset.ask_is_happening_now %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="is_happening_now" name="is_happening_now" value="1" {% if fd and fd.is_happening_now %}checked{% endif %} />
+                <label class="form-check-label" for="is_happening_now">Is it happening right now?</label>
+              </div>
+            {% endif %}
+            {% if current_preset.ask_is_anyone_in_danger %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="is_anyone_in_danger" name="is_anyone_in_danger" value="1" {% if fd and fd.is_anyone_in_danger %}checked{% endif %} />
+                <label class="form-check-label" for="is_anyone_in_danger">Is anyone in danger?</label>
+              </div>
+            {% endif %}
+            {% if current_preset.ask_is_issue_still_present %}
+              <div class="form-check">
+                <input class="form-check-input" type="checkbox" id="is_issue_still_present" name="is_issue_still_present" value="1" {% if fd and fd.is_issue_still_present %}checked{% endif %} />
+                <label class="form-check-label" for="is_issue_still_present">Is the issue still there?</label>
+              </div>
+            {% endif %}
+          </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label for="evidence" class="form-label">Evidence (at least one image required)</label>
+          <input
+            type="file"
+            class="form-control"
+            id="evidence"
+            name="evidence"
+            accept=".jpg,.jpeg,.png,.webp"
+            multiple
+          />
+          <div class="form-text">Accepted: JPG, PNG, WebP. Max 5 images, 5 MB each.</div>
+        </div>
+
+        <div class="mb-3 form-check">
+          <input
+            type="checkbox"
+            class="form-check-input"
+            id="confirm_real"
+            name="confirm_real"
+            value="1"
+            required
+          />
+          <label class="form-check-label" for="confirm_real">
+            I confirm this is a real incident and the information is accurate to the best of my knowledge.
+          </label>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Submit incident</button>
+      </form>
     </div>
-  {% endif %}
+  </div>
 
-  <form method="post" novalidate enctype="multipart/form-data">
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+  <script>
+    (function() {
+      var savedRadio = document.getElementById('location_saved');
+      var otherRadio = document.getElementById('location_other');
+      var otherFields = document.getElementById('other_location_fields');
+      var suburbInput = document.getElementById('suburb_or_ward');
+      var streetInput = document.getElementById('street_or_landmark');
+      var savedDisplay = document.getElementById('saved_address_display');
 
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="title">Title</label>
-      <input class="hawkeye-input" type="text" id="title" name="title" value="{{ (form_data.title if form_data is defined else '') | default('') }}" required />
-    </div>
+      function updateLocationFields() {
+        if (!otherFields || !savedDisplay) return;
+        var useOther = otherRadio && otherRadio.checked;
+        otherFields.style.display = useOther ? 'flex' : 'none';
+        if (suburbInput) suburbInput.required = useOther;
+        if (streetInput) streetInput.required = useOther;
+        if (useOther) {
+          suburbInput.removeAttribute('readonly');
+          streetInput.removeAttribute('readonly');
+        } else {
+          suburbInput.setAttribute('readonly', 'readonly');
+          streetInput.setAttribute('readonly', 'readonly');
+          if (suburbInput) {
+            suburbInput.value = savedDisplay.dataset.suburb || '';
+          }
+          if (streetInput) {
+            streetInput.value = savedDisplay.dataset.street || '';
+          }
+        }
+      }
 
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="description">Description</label>
-      <textarea class="hawkeye-textarea" id="description" name="description" required>{{ (form_data.description if form_data is defined else '') | default('') }}</textarea>
-    </div>
+      if (savedDisplay && savedDisplay.dataset) {
+        savedDisplay.dataset.suburb = "{{ saved_address.suburb | e }}";
+        savedDisplay.dataset.street = "{{ saved_address.street | e }}";
+      }
+      if (savedRadio && savedRadio.checked) {
+        if (suburbInput) suburbInput.value = "{{ saved_address.suburb | e }}";
+        if (streetInput) streetInput.value = "{{ saved_address.street | e }}";
+      }
 
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="category_id">Category</label>
-      <select class="hawkeye-select" id="category_id" name="category_id" required>
-        <option value="">Select category</option>
-        {% for c in (categories or []) %}
-          <option value="{{ c.id }}" {% if form_data is defined and (form_data.category_id | default('') | string) == (c.id | string) %}selected{% endif %}>{{ c.name }}</option>
-        {% endfor %}
-      </select>
-    </div>
-
-    <div class="hawkeye-form-grid-2">
-      <div class="hawkeye-form-group">
-        <label class="hawkeye-form-label" for="suburb_or_ward">Suburb / Ward (incident location)</label>
-        <input class="hawkeye-input" type="text" id="suburb_or_ward" name="suburb_or_ward" value="{{ (form_data.suburb_or_ward if form_data is defined else (prefill.suburb if prefill is defined else '')) | default('') }}" placeholder="Where did it happen?" required />
-      </div>
-      <div class="hawkeye-form-group">
-        <label class="hawkeye-form-label" for="street_or_landmark">Street / Landmark (incident location)</label>
-        <input class="hawkeye-input" type="text" id="street_or_landmark" name="street_or_landmark" value="{{ (form_data.street_or_landmark if form_data is defined else (prefill.street if prefill is defined else '')) | default('') }}" placeholder="Street or landmark" required />
-      </div>
-    </div>
-
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="nearest_place">Nearest place (optional)</label>
-      <input class="hawkeye-input" type="text" id="nearest_place" name="nearest_place" value="{{ (form_data.nearest_place if form_data is defined else '') | default('') }}" />
-    </div>
-
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="severity">Severity</label>
-      <select class="hawkeye-select" id="severity" name="severity" required>
-        {% set selected = (form_data.severity if form_data is defined else '') | default('') %}
-        <option value="">Select severity</option>
-        <option value="low" {% if selected == 'low' %}selected{% endif %}>Low</option>
-        <option value="medium" {% if selected == 'medium' %}selected{% endif %}>Medium</option>
-        <option value="high" {% if selected == 'high' %}selected{% endif %}>High</option>
-        <option value="critical" {% if selected == 'critical' %}selected{% endif %}>Critical</option>
-      </select>
-    </div>
-
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="evidence">Evidence (at least one image)</label>
-      <input class="hawkeye-file" type="file" id="evidence" name="evidence" accept=".jpg,.jpeg,.png,.webp" multiple required />
-      <small class="text-secondary">Accepted: JPG, PNG, WebP. Max 5 images, 5 MB each.</small>
-    </div>
-
-    <div class="form-check my-3">
-      <input class="form-check-input" type="checkbox" id="confirm_real" name="confirm_real" required />
-      <label class="form-check-label text-light" for="confirm_real">
-        I confirm this is a real incident and the information is accurate to the best of my knowledge.
-      </label>
-    </div>
-
-    <div class="hawkeye-form-actions">
-      <button type="submit" class="hawkeye-btn-primary">
-        <i class="bi bi-send"></i> Submit incident
-      </button>
-      <a href="{{ url_for('resident.dashboard') }}" class="hawkeye-btn-secondary">Cancel</a>
-    </div>
-  </form>
-</div>
+      if (savedRadio) savedRadio.addEventListener('change', updateLocationFields);
+      if (otherRadio) otherRadio.addEventListener('change', updateLocationFields);
+      updateLocationFields();
+    })();
+  </script>
 {% endblock %}

@@ -80,6 +80,13 @@ class Incident(db.Model):
     resolved_at = db.Column(db.DateTime, nullable=True)
     closed_at = db.Column(db.DateTime, nullable=True)
 
+    # Guided incident wizard fields
+    location_mode = db.Column(db.String(32), nullable=True)  # saved | current | other
+    is_happening_now = db.Column(db.Boolean, nullable=True)
+    is_anyone_in_danger = db.Column(db.Boolean, nullable=True)
+    is_issue_still_present = db.Column(db.Boolean, nullable=True)
+    urgency_level = db.Column(db.String(32), nullable=True)  # urgent_now | soon | scheduled
+
     created_at = db.Column(db.DateTime, default=utc_now, nullable=False)
     updated_at = db.Column(db.DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 

@@ -1,4 +1,4 @@
-"""Unit tests for IncidentService resident flows: create with media, edit by resident."""
+"""Unit tests for IncidentService resident flows: create with media, edit by resident, guided wizard."""
 
 import io
 
@@ -7,6 +7,8 @@ from werkzeug.datastructures import FileStorage
 from app.constants import IncidentStatus, Roles
 from app.extensions import db
 from app.models.incident import Incident
+from app.models.incident_category import IncidentCategory
+from app.models.resident_profile import ResidentProfile
 from app.models.user import User
 from app.services.auth_service import auth_service
 from app.services.incident_service import incident_service
@@ -120,3 +122,140 @@ def test_update_incident_by_resident_rejected_when_not_pending(app):
         updated, errors = incident_service.update_incident_by_resident(incident.id, user, payload)
         assert updated is None
         assert any("pending" in e.lower() for e in errors)
+
+
+def test_create_incident_preset_title_and_urgency(app):
+    """With category_id and no title, title is filled from preset; urgency_level maps to severity."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="preset@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        cat = IncidentCategory(
+            name="dumping",
+            description="Illegal dumping",
+            is_active=True,
+        )
+        db.session.add(cat)
+        db.session.commit()
+        payload = {
+            "category_id": str(cat.id),
+            "category": "dumping",
+            "title": "",
+            "description": "Dump in the park",
+            "suburb_or_ward": "North",
+            "street_or_landmark": "Park Rd",
+            "urgency_level": "soon",
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="e.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None
+        assert not errors
+        assert incident.title == "Illegal dumping reported"
+        assert incident.severity == "medium"
+        assert incident.urgency_level == "soon"
+
+
+def test_create_incident_guided_fields_persisted(app):
+    """location_mode, is_happening_now, is_anyone_in_danger, urgency_level are stored."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="guided@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        payload = {
+            "title": "Suspicious person",
+            "description": "Seen near the school",
+            "category": "Other",
+            "suburb_or_ward": "Sub",
+            "street_or_landmark": "St",
+            "severity": "high",
+            "location_mode": "other",
+            "urgency_level": "urgent_now",
+            "is_happening_now": "1",
+            "is_anyone_in_danger": "0",
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="e.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None
+        assert not errors
+        assert incident.location_mode == "other"
+        assert incident.urgency_level == "urgent_now"
+        assert incident.is_happening_now is True
+        # Boolean questions that apply should persist False when the box was shown but not checked
+        assert incident.is_anyone_in_danger is False
+
+
+def test_create_incident_location_mode_saved_fills_from_profile(app):
+    """When location_mode=saved and suburb/street empty, fill from resident profile."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="savedloc@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        profile = ResidentProfile(
+            user_id=user.id,
+            suburb="Amanzimtoti",
+            street_address_1="140229 Nkanyisweni",
+            profile_completed=True,
+            consent_location=True,
+        )
+        db.session.add(profile)
+        db.session.commit()
+        payload = {
+            "title": "Pothole",
+            "description": "Large pothole",
+            "category": "Other",
+            "suburb_or_ward": "",
+            "street_or_landmark": "",
+            "severity": "medium",
+            "location_mode": "saved",
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="e.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None
+        assert not errors
+        assert incident.suburb_or_ward == "Amanzimtoti"
+        assert incident.street_or_landmark == "140229 Nkanyisweni"
+        assert incident.location_mode == "saved"
+
+
+def test_guided_boolean_none_when_question_not_asked(app):
+    """If a preset marks a question as not applicable, the DB field stays None."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="guided-none@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        # Category with ask_is_anyone_in_danger = False in presets (e.g. vandalism)
+        cat = IncidentCategory(
+            name="vandalism",
+            description="Damage to property",
+            is_active=True,
+        )
+        db.session.add(cat)
+        db.session.commit()
+        payload = {
+            "category_id": str(cat.id),
+            "category": "vandalism",
+            "title": "Graffiti",
+            "description": "Graffiti on the wall",
+            "suburb_or_ward": "North",
+            "street_or_landmark": "Main Rd",
+            "severity": "medium",
+            # No guided boolean fields submitted; question is not asked by preset.
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="e.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None
+        assert not errors
+        # For vandalism, we only ask "is_issue_still_present", not "is_anyone_in_danger".
+        assert incident.is_anyone_in_danger is None

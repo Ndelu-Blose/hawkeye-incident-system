@@ -13,40 +13,42 @@
     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
     {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
 
+    {% set fd = form_data or {} %}
     <div class="hawkeye-form-group">
       <label class="hawkeye-form-label" for="phone_number">Phone number</label>
-      <input class="hawkeye-input" type="tel" id="phone_number" name="phone_number" value="{{ profile.phone_number or '' }}" placeholder="e.g. 081 234 5678" />
+      <input class="hawkeye-input" type="tel" id="phone_number" name="phone_number" value="{{ fd.get('phone_number') or profile.phone_number or '' }}" placeholder="e.g. 081 234 5678" />
     </div>
 
     <div class="hawkeye-form-group">
       <label class="hawkeye-form-label" for="street_address_1">Street address</label>
-      <input class="hawkeye-input" type="text" id="street_address_1" name="street_address_1" value="{{ profile.street_address_1 or '' }}" placeholder="Street number and name" />
+      <input class="hawkeye-input" type="text" id="street_address_1" name="street_address_1" value="{{ fd.get('street_address_1') or profile.street_address_1 or '' }}" placeholder="Street number and name" />
     </div>
 
     <div class="hawkeye-form-group">
       <label class="hawkeye-form-label" for="street_address_2">Address line 2 (optional)</label>
-      <input class="hawkeye-input" type="text" id="street_address_2" name="street_address_2" value="{{ profile.street_address_2 or '' }}" />
+      <input class="hawkeye-input" type="text" id="street_address_2" name="street_address_2" value="{{ fd.get('street_address_2') or profile.street_address_2 or '' }}" />
     </div>
 
     <div class="hawkeye-form-grid-2">
       <div class="hawkeye-form-group">
         <label class="hawkeye-form-label" for="suburb">Suburb</label>
-        <input class="hawkeye-input" type="text" id="suburb" name="suburb" value="{{ profile.suburb or '' }}" required />
+        <input class="hawkeye-input" type="text" id="suburb" name="suburb" value="{{ fd.get('suburb') or profile.suburb or '' }}" required />
       </div>
       <div class="hawkeye-form-group">
         <label class="hawkeye-form-label" for="city">City</label>
-        <input class="hawkeye-input" type="text" id="city" name="city" value="{{ profile.city or '' }}" />
+        <input class="hawkeye-input" type="text" id="city" name="city" value="{{ fd.get('city') or profile.city or '' }}" />
       </div>
     </div>
 
     <div class="hawkeye-form-group">
       <label class="hawkeye-form-label" for="postal_code">Postal code (optional)</label>
-      <input class="hawkeye-input" type="text" id="postal_code" name="postal_code" value="{{ profile.postal_code or '' }}" />
+      <input class="hawkeye-input" type="text" id="postal_code" name="postal_code" value="{{ fd.get('postal_code') or profile.postal_code or '' }}" />
     </div>
 
     <div class="hawkeye-form-group mt-4">
       <div class="form-check">
-        <input class="form-check-input" type="checkbox" id="consent_location" name="consent_location" value="1" {% if profile.consent_location %}checked{% endif %} />
+        {% set consent_checked = fd.get('consent_location') in ('1', 'on', 'yes') or (not fd and profile.consent_location) %}
+        <input class="form-check-input" type="checkbox" id="consent_location" name="consent_location" value="1" {% if consent_checked %}checked{% endif %} />
         <label class="form-check-label" for="consent_location">I consent to use my location to route and display my reports</label>
       </div>
     </div>

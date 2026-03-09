@@ -4,7 +4,7 @@ from collections.abc import Iterable
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from app.constants import IncidentStatus
+from app.constants import IncidentStatus, LocationMode
 from app.extensions import db
 from app.models import (
     Incident,
@@ -16,6 +16,7 @@ from app.models.incident_update import IncidentUpdate
 from app.models.user import User
 from app.repositories.incident_repo import IncidentRepository
 from app.repositories.incident_update_repo import IncidentUpdateRepository
+from app.services.incident_presets import get_preset, urgency_to_severity
 from app.services.notification_service import notification_service
 from app.services.routing_service import routing_service
 from app.utils.uploads import save_incident_media
@@ -50,6 +51,24 @@ class IncidentService:
         street_or_landmark = (payload.get("street_or_landmark") or "").strip()
         nearest_place = (payload.get("nearest_place") or "").strip() or None
         severity = (payload.get("severity") or "").strip()
+        urgency_level = (payload.get("urgency_level") or "").strip() or None
+        location_mode = (payload.get("location_mode") or "").strip() or None
+        # Raw guided booleans from the form; unchecked checkboxes are missing from payload
+        is_happening_now = payload.get("is_happening_now") in (True, "1", "on", "yes", "true")
+        is_anyone_in_danger = payload.get("is_anyone_in_danger") in (
+            True,
+            "1",
+            "on",
+            "yes",
+            "true",
+        )
+        is_issue_still_present = payload.get("is_issue_still_present") in (
+            True,
+            "1",
+            "on",
+            "yes",
+            "true",
+        )
 
         # Optional structured fields
         category_id_raw = payload.get("category_id")
@@ -61,19 +80,6 @@ class IncidentService:
         location_obj: Location | None = None
         latitude = None
         longitude = None
-
-        if not title:
-            errors.append("Title is required.")
-        if not description:
-            errors.append("Description is required.")
-        if not category:
-            errors.append("Category is required.")
-        if not suburb_or_ward:
-            errors.append("Suburb/ward is required.")
-        if not street_or_landmark:
-            errors.append("Street/landmark is required.")
-        if not severity:
-            errors.append("Severity is required.")
 
         if category_id_raw:
             try:
@@ -90,8 +96,46 @@ class IncidentService:
                 errors.append("Invalid category selected.")
                 category_obj = None
 
+        # Apply presets: suggested title and default urgency when category is known
+        preset = get_preset(category_obj) if category_obj else None
+        if category_obj is not None and preset:
+            if not title:
+                title = preset.get("suggested_title") or "Incident reported"
+            if not severity and not urgency_level:
+                urgency_level = getattr(
+                    preset.get("default_urgency"),
+                    "value",
+                    preset.get("default_urgency"),
+                )
+            if not severity:
+                severity = urgency_to_severity(urgency_level)
+        if urgency_level and not severity:
+            severity = urgency_to_severity(urgency_level)
+
+        if not title:
+            errors.append("Title is required.")
+        if not description:
+            errors.append("Description is required.")
         if not category and not category_obj:
             errors.append("Category is required.")
+        if category_obj is not None:
+            category = category_obj.name
+
+        # When location_mode is saved, fill from resident profile if fields are empty
+        if location_mode == LocationMode.SAVED.value:
+            profile = getattr(resident_user, "resident_profile", None)
+            if profile:
+                if not suburb_or_ward:
+                    suburb_or_ward = (getattr(profile, "suburb", None) or "").strip()
+                if not street_or_landmark:
+                    street_or_landmark = (getattr(profile, "street_address_1", None) or "").strip()
+
+        if not suburb_or_ward:
+            errors.append("Suburb/ward is required.")
+        if not street_or_landmark:
+            errors.append("Street/landmark is required.")
+        if not severity:
+            errors.append("Severity is required.")
 
         if location_id_raw:
             try:
@@ -113,11 +157,48 @@ class IncidentService:
                 latitude = None
                 longitude = None
 
+        if location_mode and location_mode not in (
+            LocationMode.SAVED.value,
+            LocationMode.CURRENT.value,
+            LocationMode.OTHER.value,
+        ):
+            location_mode = None
+
         if errors:
             return None, errors
 
         if category_obj is not None:
             category = category_obj.name
+
+        # Decide how to store guided boolean fields:
+        # - If the preset marks a question as applicable (ask_is_* = True), persist
+        #   True or False explicitly so we can distinguish "asked but answered no".
+        # - If the question does not apply (ask_is_* = False) and no preset exists,
+        #   keep the DB value as None ("not asked").
+        ask_is_happening_now = False
+        ask_is_anyone_in_danger = False
+        ask_is_issue_still_present = False
+        if preset:
+            ask_is_happening_now = bool(preset.get("ask_is_happening_now", False))
+            ask_is_anyone_in_danger = bool(preset.get("ask_is_anyone_in_danger", False))
+            ask_is_issue_still_present = bool(preset.get("ask_is_issue_still_present", False))
+        else:
+            # For non-preset flows, treat presence of the field as "question was asked".
+            ask_is_happening_now = "is_happening_now" in payload
+            ask_is_anyone_in_danger = "is_anyone_in_danger" in payload
+            ask_is_issue_still_present = "is_issue_still_present" in payload
+
+        is_happening_now_value: bool | None = None
+        is_anyone_in_danger_value: bool | None = None
+        is_issue_still_present_value: bool | None = None
+        if ask_is_happening_now:
+            # Checkbox checked -> True, unchecked (missing) -> False
+            is_happening_now_value = is_happening_now
+        if ask_is_anyone_in_danger:
+            is_anyone_in_danger_value = is_anyone_in_danger
+        if ask_is_issue_still_present:
+            is_issue_still_present_value = is_issue_still_present
+
         location = f"{street_or_landmark}, {suburb_or_ward}"
         reported_at = datetime.now(UTC)
 
@@ -142,6 +223,11 @@ class IncidentService:
             severity=severity,
             status=IncidentStatus.PENDING.value,
             reported_at=reported_at,
+            location_mode=location_mode,
+            is_happening_now=is_happening_now_value,
+            is_anyone_in_danger=is_anyone_in_danger_value,
+            is_issue_still_present=is_issue_still_present_value,
+            urgency_level=urgency_level or None,
         )
         self.incident_repo.add(incident)
         update = IncidentUpdate(

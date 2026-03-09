@@ -1,6 +1,9 @@
 import io
 
 from app.constants import Roles
+from app.extensions import db
+from app.models.incident_category import IncidentCategory
+from app.models.resident_profile import ResidentProfile
 from app.services.auth_service import auth_service
 from tests.conftest import MINIMAL_PNG_BYTES
 
@@ -23,6 +26,25 @@ def test_incident_lifecycle(app, client):
         assert not errors_resident
         assert not errors_authority
 
+        # Resident needs completed profile and a category to use the guided report form
+        profile = ResidentProfile(
+            user_id=resident.id,
+            phone_number="0812345678",
+            street_address_1="123 Main St",
+            suburb="Downtown",
+            profile_completed=True,
+            consent_location=True,
+        )
+        cat = IncidentCategory(
+            name="broken_streetlight",
+            description="Street light not working",
+            is_active=True,
+        )
+        db.session.add(profile)
+        db.session.add(cat)
+        db.session.commit()
+        category_id = cat.id
+
     # Log in as resident through the real login route
     resp = client.post(
         "/auth/login",
@@ -31,16 +53,17 @@ def test_incident_lifecycle(app, client):
     )
     assert resp.status_code == 200
 
-    # Resident creates incident (structured location + at least one evidence image)
+    # Resident creates incident via guided form (category_id, urgency_level, location_mode, evidence)
     resp = client.post(
         "/resident/incidents/new",
         data={
+            "category_id": str(category_id),
             "title": "Broken street light",
             "description": "Street light not working",
-            "category": "Lighting",
+            "urgency_level": "soon",
+            "location_mode": "other",
             "suburb_or_ward": "Downtown",
             "street_or_landmark": "Main street",
-            "severity": "low",
             "confirm_real": "1",
             "evidence": (io.BytesIO(MINIMAL_PNG_BYTES), "evidence.png"),
         },
