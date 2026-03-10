@@ -15,4 +15,4 @@ ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 EXPOSE 5000
-CMD ["python", "-m", "flask", "--app", "run.py", "run", "--host=0.0.0.0", "--port=5000"]
+CMD python -m flask --app run.py db upgrade && python -m flask --app run.py run --host=0.0.0.0 --port=5000
