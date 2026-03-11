@@ -1,4 +1,3 @@
-
 from app.constants import IncidentStatus, Roles
 from app.extensions import db
 from app.models.incident import Incident
