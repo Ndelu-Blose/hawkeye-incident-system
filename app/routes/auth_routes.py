@@ -77,6 +77,32 @@ def login():
     return render_template("auth/login.html")
 
 
+@auth_bp.route("/set-password", methods=["GET", "POST"])
+def set_password():
+    """Public page: user sets their own password via invite link (admin never sees it)."""
+    token = request.args.get("token") or (request.form.get("token") or "").strip()
+    if not token and request.method == "GET":
+        flash("Invalid or missing link.", "danger")
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        token = request.form.get("token") or ""
+        new_password = (request.form.get("password") or "").strip()
+        confirm = (request.form.get("password_confirm") or "").strip()
+        if new_password != confirm:
+            flash("Passwords do not match.", "danger")
+            return render_template("auth/set_password.html", token=token)
+        ok, errors = auth_service.set_password_by_token(token, new_password)
+        if not ok:
+            for e in errors:
+                flash(e, "danger")
+            return render_template("auth/set_password.html", token=token)
+        flash("Password set. You can now log in.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template("auth/set_password.html", token=token)
+
+
 @auth_bp.route("/logout")
 @login_required
 def logout():

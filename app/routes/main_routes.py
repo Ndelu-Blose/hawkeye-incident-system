@@ -4,6 +4,8 @@ from flask import Blueprint, redirect, render_template, url_for
 from flask_login import current_user
 
 from app.constants import Roles
+from app.extensions import db
+from app.models.admin_preference import AdminPreference
 
 main_bp = Blueprint("main", __name__)
 
@@ -25,6 +27,19 @@ def home():
         if role == Roles.AUTHORITY.value:
             return redirect(url_for("authority.dashboard"))
         if role == Roles.ADMIN.value:
-            return redirect(url_for("admin.dashboard"))
+            prefs = (
+                db.session.query(AdminPreference)
+                .filter(AdminPreference.user_id == getattr(current_user, "id", 0))
+                .first()
+            )
+            landing = (prefs.default_landing_page if prefs else "dashboard") or "dashboard"
+            endpoint_map = {
+                "dashboard": "admin.dashboard",
+                "incidents": "admin.incidents",
+                "users": "admin.users",
+                "authorities": "admin.authorities",
+                "routing_rules": "admin.routing_rules",
+            }
+            return redirect(url_for(endpoint_map.get(landing, "admin.dashboard")))
 
     return render_template("home.html")

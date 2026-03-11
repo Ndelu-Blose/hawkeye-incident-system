@@ -1,1 +1,1 @@
-"""Flask blueprints for the Hawkeye web application."""
+"""Flask blueprints for the Alertweb Solutions web application."""

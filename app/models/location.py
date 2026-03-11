@@ -38,5 +38,21 @@ class Location(db.Model):
         backref="children",
     )
 
+    @property
+    def name(self) -> str:
+        """Human-friendly label for templates and dropdowns."""
+        for value in (
+            self.area_name,
+            self.suburb,
+            self.ward,
+            self.municipality,
+            self.district,
+            self.province,
+            self.country,
+        ):
+            if value:
+                return str(value).strip()
+        return f"Location #{self.id}"
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Location id={self.id} area={self.area_name!r}>"

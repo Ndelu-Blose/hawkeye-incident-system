@@ -2,7 +2,7 @@
 
 {% set admin_active_page = "users" %}
 {% set admin_page_title = "Create user" %}
-{% set admin_page_subtitle = "Create a new Hawkeye account with the appropriate role." %}
+{% set admin_page_subtitle = "Create a new Alertweb Solutions account with the appropriate role." %}
 
 {% block admin_top_actions %}
   <a href="{{ url_for('admin.users') }}" class="btn btn-outline-light btn-sm">
@@ -13,7 +13,7 @@
 {% block admin_content %}
   <div class="row justify-content-center">
     <div class="col-lg-8 col-xl-7">
-      <div class="card bg-dark border-secondary shadow-sm">
+      <div class="card hawkeye-admin-panel shadow-sm">
         <div class="card-body">
           <h5 class="card-title mb-3">Account details</h5>
           <form method="post">
@@ -44,7 +44,7 @@
             </div>
 
             <div class="row">
-              <div class="col-md-4 mb-3">
+              <div class="col-md-12 mb-3">
                 <label class="form-label" for="role">Role</label>
                 <select class="form-select" id="role" name="role" required>
                   {% set current_role = (form_data.role if form_data else 'resident') %}
@@ -53,31 +53,11 @@
                   <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Admin</option>
                 </select>
               </div>
-              <div class="col-md-4 mb-3">
-                <label class="form-label" for="password">Initial password</label>
-                <input
-                  class="form-control"
-                  id="password"
-                  name="password"
-                  type="password"
-                  required
-                />
-              </div>
-              <div class="col-md-4 mb-3">
-                <label class="form-label" for="password_confirm">Confirm password</label>
-                <input
-                  class="form-control"
-                  id="password_confirm"
-                  name="password_confirm"
-                  type="password"
-                  required
-                />
-              </div>
             </div>
 
             <div class="alert alert-secondary mt-2 small mb-4">
-              This password will be used for the user's first login only. They should change it
-              from their own profile after signing in.
+              No password is set by you. After you create the account, you will get a one-time link to share
+              with the user. They open the link and set their own password. You never see or store it—better security.
             </div>
 
             <button type="submit" class="btn btn-primary">

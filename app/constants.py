@@ -1,7 +1,7 @@
 from enum import StrEnum
 
-APP_NAME = "Hawkeye"
-APP_TAGLINE = "Report. Track. Respond."
+APP_NAME = "Alertweb Solutions"
+APP_TAGLINE = "Modern incident reporting and response."
 
 
 class Roles(StrEnum):

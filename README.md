@@ -1,6 +1,6 @@
-## Hawkeye – Neighbourhood Safety & Incident Reporting
+## Alertweb Solutions – Neighbourhood Safety & Incident Reporting
 
-Hawkeye is a Flask + SQLAlchemy + PostgreSQL web application for reporting and managing neighbourhood safety incidents. It supports **Resident**, **Authority**, and **Admin** roles with secure authentication, audit trails, and email-based notifications.
+Alertweb Solutions is a Flask + SQLAlchemy + PostgreSQL web application for reporting and managing neighbourhood safety incidents. It supports **Resident**, **Authority**, and **Admin** roles with secure authentication, audit trails, and email-based notifications.
 
 ### Getting started (development)
 
@@ -28,7 +28,7 @@ Hawkeye is a Flask + SQLAlchemy + PostgreSQL web application for reporting and m
    **Secret key and cookie security**
 
    - `SECRET_KEY` **must** be set to a long random value in any non-demo deployment. Flask uses it to sign session cookies and CSRF tokens.
-   - In production, Hawkeye enables secure cookie settings (see `app/config.py`):
+  - In production, Alertweb Solutions enables secure cookie settings (see `app/config.py`):
      - `SESSION_COOKIE_SECURE=True` and `REMEMBER_COOKIE_SECURE=True` (requires HTTPS)
      - `SESSION_COOKIE_HTTPONLY=True` / `REMEMBER_COOKIE_HTTPONLY=True`
      - `SESSION_COOKIE_SAMESITE='Strict'` in production (`'Lax'` in development)
@@ -36,7 +36,7 @@ Hawkeye is a Flask + SQLAlchemy + PostgreSQL web application for reporting and m
 
    **Bootstrap admin (for demos)**
 
-   On startup (except in tests), Hawkeye will ensure there is at least one admin user:
+  On startup (except in tests), Alertweb Solutions will ensure there is at least one admin user:
 
    - By default it will create:
      - Email: `admin@example.com`
@@ -75,11 +75,11 @@ Hawkeye is a Flask + SQLAlchemy + PostgreSQL web application for reporting and m
 - `worker/` – background worker for email notifications (to be implemented)
 - `tests/` – unit and integration tests
 
-Further details are documented in the Hawkeye implementation plan.
+Further details are documented in the Alertweb Solutions implementation plan.
 
 ### Security model (Phase 1)
 
-Hawkeye is designed so that sensitive authentication and admin capabilities behave more like a real SaaS product than a demo app:
+Alertweb Solutions is designed so that sensitive authentication and admin capabilities behave more like a real SaaS product than a demo app:
 
 - **Password storage**
   - User passwords are never stored in plain text.
@@ -103,5 +103,5 @@ Hawkeye is designed so that sensitive authentication and admin capabilities beha
     - incident status changes made from the admin console.
   - Only high‑level metadata is stored (no passwords or other secrets), and the table can be extended in future phases with a UI or additional actions if needed.
 
-These measures are intentionally lightweight but give Hawkeye a credible security story for Phase 1 while leaving room to evolve toward full email‑based password reset flows, richer audit logging, and finer‑grained permissions in later phases.
+These measures are intentionally lightweight but give Alertweb Solutions a credible security story for Phase 1 while leaving room to evolve toward full email‑based password reset flows, richer audit logging, and finer‑grained permissions in later phases.
 

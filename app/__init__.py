@@ -9,7 +9,7 @@ from .extensions import bcrypt, csrf, db, limiter, login_manager, mail, migrate
 
 
 def create_app(config_name: str | None = None) -> Flask:
-    """Application factory for Hawkeye."""
+    """Application factory for Alertweb Solutions."""
     app = Flask(__name__, instance_relative_config=False)
 
     # Select configuration
@@ -110,13 +110,13 @@ def _bootstrap_admin(app: Flask) -> None:
     Uses environment variables for credentials, with dev-friendly defaults:
     - ADMIN_EMAIL (default: admin@example.com)
     - ADMIN_PASSWORD (default: Admin123!)
-    - ADMIN_NAME (default: Hawkeye Admin)
+    - ADMIN_NAME (default: Alertweb Solutions Admin)
     """
     from app.services.auth_service import auth_service  # local import to avoid cycles
 
     email = os.getenv("ADMIN_EMAIL", "admin@example.com").strip().lower()
     password = os.getenv("ADMIN_PASSWORD", "Admin123!")
-    name = os.getenv("ADMIN_NAME", "Hawkeye Admin").strip() or "Hawkeye Admin"
+    name = os.getenv("ADMIN_NAME", "Alertweb Solutions Admin").strip() or "Alertweb Solutions Admin"
 
     # In testing we let tests control users explicitly.
     if app.config.get("TESTING"):

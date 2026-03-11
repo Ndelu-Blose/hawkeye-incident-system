@@ -24,6 +24,10 @@ class User(UserMixin, db.Model):
     phone_verified = db.Column(db.Boolean, nullable=False, default=False)
     last_login_at = db.Column(db.DateTime, nullable=True)
 
+    # Invite flow: one-time token for user to set their own password (admin never sees it)
+    invite_token = db.Column(db.String(64), nullable=True, index=True)
+    invite_expires_at = db.Column(db.DateTime, nullable=True)
+
     incidents_reported = db.relationship(
         "Incident",
         back_populates="reporter",

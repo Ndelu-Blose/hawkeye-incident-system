@@ -1,13 +1,26 @@
 from __future__ import annotations
 
-from flask import Blueprint, current_app, flash, redirect, render_template, request, url_for
+import os
+
+from flask import (
+    Blueprint,
+    current_app,
+    flash,
+    redirect,
+    render_template,
+    request,
+    send_from_directory,
+    url_for,
+)
 from flask_login import current_user, login_required
 from sqlalchemy import func
 
 from app.constants import IncidentStatus, Roles
 from app.extensions import db
 from app.models.admin_audit_log import AdminAuditLog
+from app.models.admin_preference import AdminPreference
 from app.models.authority import Authority
+from app.models.incident import Incident
 from app.models.incident_category import IncidentCategory
 from app.models.location import Location
 from app.models.routing_rule import RoutingRule
@@ -16,13 +29,22 @@ from app.services.auth_service import auth_service
 from app.services.dashboard_service import dashboard_service
 from app.services.incident_service import incident_service
 from app.utils.decorators import role_required
-from app.utils.security import hash_password
 from app.utils.validators import (
-    validate_admin_create_user_form,
+    validate_admin_create_user_invite,
     validate_admin_update_user_form,
 )
 
 admin_bp = Blueprint("admin", __name__, template_folder="../templates/admin")
+
+
+def _get_or_create_admin_prefs(user_id: int) -> AdminPreference:
+    prefs = db.session.query(AdminPreference).filter(AdminPreference.user_id == user_id).first()
+    if prefs is not None:
+        return prefs
+    prefs = AdminPreference(user_id=user_id)
+    db.session.add(prefs)
+    db.session.commit()
+    return prefs
 
 
 def _parse_status_filter(raw: str | None) -> IncidentStatus | None:
@@ -38,6 +60,7 @@ def _parse_status_filter(raw: str | None) -> IncidentStatus | None:
 @login_required
 @role_required(Roles.ADMIN)
 def dashboard():
+    prefs = _get_or_create_admin_prefs(getattr(current_user, "id", 0))
     overview = dashboard_service.get_overview()
     recent_incidents = dashboard_service.get_recent_incidents(limit=5)
     overdue_incidents = dashboard_service.get_overdue_incidents(limit=5)
@@ -68,12 +91,67 @@ def dashboard():
 
     return render_template(
         "admin/dashboard.html",
+        prefs=prefs,
         overview=overview,
         recent_incidents=recent_incidents,
         overdue_incidents=overdue_incidents,
         authority_overview=authority_overview,
         user_stats=user_stats,
     )
+
+
+@admin_bp.route("/controls", methods=["GET", "POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def controls():
+    prefs = _get_or_create_admin_prefs(getattr(current_user, "id", 0))
+
+    if request.method == "POST":
+        form_data = request.form.to_dict()
+
+        def _bool(name: str) -> bool:
+            return form_data.get(name) in ("1", "on", "yes", "true", True)
+
+        prefs.show_kpi_cards = _bool("show_kpi_cards")
+        prefs.show_recent_incidents = _bool("show_recent_incidents")
+        prefs.show_overdue_panel = _bool("show_overdue_panel")
+        prefs.show_user_stats = _bool("show_user_stats")
+
+        prefs.notify_new_incident = _bool("notify_new_incident")
+        prefs.notify_overdue_incident = _bool("notify_overdue_incident")
+        prefs.daily_summary_enabled = _bool("daily_summary_enabled")
+
+        landing = (form_data.get("default_landing_page") or "dashboard").strip().lower()
+        if landing not in ("dashboard", "incidents", "users", "authorities", "routing_rules"):
+            landing = "dashboard"
+        prefs.default_landing_page = landing
+
+        sort = (form_data.get("default_incident_sort") or "newest").strip().lower()
+        if sort not in ("newest", "oldest"):
+            sort = "newest"
+        prefs.default_incident_sort = sort
+
+        rows_raw = (form_data.get("default_rows_per_page") or "").strip()
+        prefs.default_rows_per_page = int(rows_raw) if rows_raw.isdigit() else 25
+
+        db.session.add(
+            AdminAuditLog(
+                admin_user_id=getattr(current_user, "id", None),
+                action="admin_preferences_updated",
+                target_type="admin_preferences",
+                target_id=prefs.id,
+                details={
+                    "default_landing_page": prefs.default_landing_page,
+                    "default_incident_sort": prefs.default_incident_sort,
+                    "default_rows_per_page": prefs.default_rows_per_page,
+                },
+            )
+        )
+        db.session.commit()
+        flash("Admin controls updated.", "success")
+        return redirect(url_for("admin.controls"))
+
+    return render_template("admin/controls.html", prefs=prefs)
 
 
 @admin_bp.route("/incidents")
@@ -266,25 +344,27 @@ def users():
 def user_new():
     if request.method == "POST":
         form_data = request.form.to_dict()
-        errors = validate_admin_create_user_form(form_data)
+        errors = validate_admin_create_user_invite(form_data)
         if errors:
             for e in errors:
                 flash(e, "danger")
             return render_template("admin/users/new.html", form_data=form_data)
 
-        user, service_errors = auth_service.register_user(
+        user, invite_token, service_errors = auth_service.create_user_invite(
             name=form_data.get("name", ""),
             email=form_data.get("email", ""),
-            password=form_data.get("password", ""),
             role=form_data.get("role", Roles.RESIDENT.value),
         )
-        if service_errors:
-            for e in service_errors:
+        if service_errors or user is None:
+            for e in service_errors or ["Failed to create user."]:
                 flash(e, "danger")
             return render_template("admin/users/new.html", form_data=form_data)
 
-        flash("User created.", "success")
-        return redirect(url_for("admin.user_detail", user_id=user.id))
+        flash(
+            "User created. Share the set-password link with them; they choose their own password.",
+            "success",
+        )
+        return redirect(url_for("admin.user_detail", user_id=user.id, invite_token=invite_token))
 
     return render_template("admin/users/new.html", form_data=None)
 
@@ -297,7 +377,16 @@ def user_detail(user_id: int):
     if user is None:
         flash("User not found.", "warning")
         return redirect(url_for("admin.users"))
-    return render_template("admin/users/detail.html", user=user, form_data=None)
+    invite_url = None
+    invite_token = request.args.get("invite_token")
+    if invite_token:
+        invite_url = url_for("auth.set_password", token=invite_token, _external=True)
+    return render_template(
+        "admin/users/detail.html",
+        user=user,
+        form_data=None,
+        invite_url=invite_url,
+    )
 
 
 @admin_bp.route("/users/<int:user_id>", methods=["POST"])
@@ -334,10 +423,7 @@ def user_update(user_id: int):
         flash("You cannot deactivate your own account while signed in as admin.", "danger")
         return render_template("admin/users/detail.html", user=user, form_data=form_data)
     user.is_active = new_is_active
-    user.email_verified = form_data.get("email_verified") in ("1", "on", "yes", "true", True)
-    user.phone_verified = form_data.get("phone_verified") in ("1", "on", "yes", "true", True)
 
-    db.session.commit()
     db.session.add(
         AdminAuditLog(
             admin_user_id=getattr(current_user, "id", None),
@@ -355,48 +441,90 @@ def user_update(user_id: int):
     return redirect(url_for("admin.user_detail", user_id=user.id))
 
 
-@admin_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
+@admin_bp.route("/users/<int:user_id>/send-password-reset", methods=["POST"])
 @login_required
 @role_required(Roles.ADMIN)
-def reset_user_password(user_id: int):
-    """Generate a temporary password for the user.
-
-    In a real deployment this would send an email with a reset link.
-    For this MVP we generate a strong temporary password and hash it.
-    """
+def send_user_password_reset(user_id: int):
+    """Send a password reset email (tokenized set-password link)."""
     user = db.session.get(User, user_id)
     if user is None:
         flash("User not found.", "warning")
         return redirect(url_for("admin.users"))
 
-    import secrets
-    import string
-
-    alphabet = string.ascii_letters + string.digits + "!@#$%^&*"
-    temp_password = "".join(secrets.choice(alphabet) for _ in range(16))
-    user.password_hash = hash_password(temp_password)
-    db.session.commit()
+    ok, errors = auth_service.send_password_reset_email(user)
+    if not ok:
+        for e in errors:
+            flash(e, "danger")
+        return redirect(url_for("admin.user_detail", user_id=user.id))
 
     db.session.add(
         AdminAuditLog(
             admin_user_id=getattr(current_user, "id", None),
-            action="user_password_reset",
+            action="user_password_reset_requested",
             target_type="user",
             target_id=user.id,
-            details=None,
+            details={"email": user.email},
         )
     )
     db.session.commit()
 
-    if current_app.config.get("ENV") == "production":
-        flash(
-            "Temporary password generated. Ask the user to check their email or contact support.",
-            "warning",
-        )
-    else:
-        # In non-production environments, surface the temporary password to help with demos.
-        flash(f"Temporary password for {user.email}: {temp_password}", "warning")
+    flash("Password reset email sent (or queued).", "success")
+    return redirect(url_for("admin.user_detail", user_id=user.id))
 
+
+@admin_bp.route("/users/<int:user_id>/reset-password", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def reset_user_password(user_id: int):
+    """Back-compat route: forwards to the email reset flow."""
+    return send_user_password_reset(user_id)
+
+
+@admin_bp.route("/users/<int:user_id>/send-email-verification", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def send_user_email_verification(user_id: int):
+    user = db.session.get(User, user_id)
+    if user is None:
+        flash("User not found.", "warning")
+        return redirect(url_for("admin.users"))
+
+    # MVP: verification flows are system-driven; admin can only trigger actions.
+    # If/when verification tokens are implemented, wire them here.
+    db.session.add(
+        AdminAuditLog(
+            admin_user_id=getattr(current_user, "id", None),
+            action="user_email_verification_requested",
+            target_type="user",
+            target_id=user.id,
+            details={"email": user.email},
+        )
+    )
+    db.session.commit()
+    flash("Verification email flow is not configured yet.", "warning")
+    return redirect(url_for("admin.user_detail", user_id=user.id))
+
+
+@admin_bp.route("/users/<int:user_id>/send-phone-otp", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def send_user_phone_otp(user_id: int):
+    user = db.session.get(User, user_id)
+    if user is None:
+        flash("User not found.", "warning")
+        return redirect(url_for("admin.users"))
+
+    db.session.add(
+        AdminAuditLog(
+            admin_user_id=getattr(current_user, "id", None),
+            action="user_phone_otp_requested",
+            target_type="user",
+            target_id=user.id,
+            details={"email": user.email},
+        )
+    )
+    db.session.commit()
+    flash("Phone OTP flow is not configured yet.", "warning")
     return redirect(url_for("admin.user_detail", user_id=user.id))
 
 
@@ -439,16 +567,51 @@ def authority_detail(authority_id: int):
         flash("Department updated.", "success")
         return redirect(url_for("admin.authority_detail", authority_id=authority.id))
 
+    member_count = authority.members.count()
+    open_statuses = [
+        IncidentStatus.PENDING.value,
+        IncidentStatus.VERIFIED.value,
+        IncidentStatus.ASSIGNED.value,
+        IncidentStatus.IN_PROGRESS.value,
+    ]
+    open_incidents = (
+        db.session.query(func.count(Incident.id))
+        .filter(
+            Incident.current_authority_id == authority.id,
+            Incident.status.in_(open_statuses),
+        )
+        .scalar()
+        or 0
+    )
+    total_assigned = (
+        db.session.query(func.count(Incident.id))
+        .filter(Incident.current_authority_id == authority.id)
+        .scalar()
+        or 0
+    )
+
     routing_rule_count = (
         db.session.query(func.count(RoutingRule.id))
         .filter(RoutingRule.authority_id == authority.id)
         .scalar()
         or 0
     )
+
+    routing_rules = (
+        db.session.query(RoutingRule)
+        .filter(RoutingRule.authority_id == authority.id)
+        .order_by(RoutingRule.is_active.desc(), RoutingRule.id.desc())
+        .limit(10)
+        .all()
+    )
     return render_template(
         "admin/authorities/detail.html",
         authority=authority,
         routing_rule_count=routing_rule_count,
+        routing_rules=routing_rules,
+        member_count=member_count,
+        open_incidents=open_incidents,
+        total_assigned=total_assigned,
         form_data=request.form if request.method == "POST" else None,
     )
 
@@ -490,7 +653,7 @@ def authority_new():
         )
         db.session.commit()
         flash("Department created.", "success")
-        return redirect(url_for("admin.authority_detail", authority_id=authority.id))
+        return redirect(url_for("admin.authorities"))
 
     tmp_authority = Authority(name="")
     return render_template(
@@ -520,7 +683,7 @@ def routing_rules():
 @role_required(Roles.ADMIN)
 def routing_rule_new():
     categories = db.session.query(IncidentCategory).order_by(IncidentCategory.name.asc()).all()
-    locations = db.session.query(Location).order_by(Location.name.asc()).all()
+    locations = db.session.query(Location).order_by(Location.area_name.asc()).all()
     authorities = db.session.query(Authority).order_by(Authority.name.asc()).all()
 
     if request.method == "POST":
@@ -593,7 +756,7 @@ def routing_rule_detail(rule_id: int):
         return redirect(url_for("admin.routing_rules"))
 
     categories = db.session.query(IncidentCategory).order_by(IncidentCategory.name.asc()).all()
-    locations = db.session.query(Location).order_by(Location.name.asc()).all()
+    locations = db.session.query(Location).order_by(Location.area_name.asc()).all()
     authorities = db.session.query(Authority).order_by(Authority.name.asc()).all()
 
     if request.method == "POST":
@@ -652,3 +815,20 @@ def routing_rule_detail(rule_id: int):
             "is_active": "on" if rule.is_active else "",
         },
     )
+
+
+@admin_bp.route("/incidents/<int:incident_id>/media/<path:filename>")
+@login_required
+@role_required(Roles.ADMIN)
+def serve_incident_media_admin(incident_id: int, filename: str):
+    """Serve incident evidence to admins."""
+    incident = incident_service.incident_repo.get_by_id(incident_id)
+    if incident is None:
+        return "", 404
+
+    upload_folder = current_app.config["UPLOAD_FOLDER"]
+    incident_dir = os.path.join(upload_folder, "incidents", str(incident_id))
+    if not os.path.abspath(incident_dir).startswith(os.path.abspath(upload_folder)):
+        return "", 404
+
+    return send_from_directory(incident_dir, filename)

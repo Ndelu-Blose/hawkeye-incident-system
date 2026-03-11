@@ -26,7 +26,7 @@ def _process_batch(
             try:
                 if notification.recipient_email:
                     msg = Message(
-                        subject=f"[Hawkeye] {notification.type.replace('_', ' ').title()}",
+                        subject=f"[Alertweb Solutions] {notification.type.replace('_', ' ').title()}",
                         recipients=[notification.recipient_email],
                         body=f"Notification for incident #{notification.incident_id}",
                     )

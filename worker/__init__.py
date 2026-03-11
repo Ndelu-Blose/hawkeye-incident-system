@@ -1,1 +1,1 @@
-"""Background worker package for Hawkeye."""
+"""Background worker package for Alertweb Solutions."""

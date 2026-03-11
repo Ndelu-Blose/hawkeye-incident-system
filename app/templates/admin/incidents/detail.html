@@ -29,7 +29,7 @@
         <strong>Category:</strong> {{ incident.category_rel.name if incident.category_rel else incident.category }}
       </p>
 
-      <div class="card bg-dark border-secondary mb-3">
+      <div class="card hawkeye-admin-panel mb-3">
         <div class="card-body">
           <h3 class="h6 mb-2">Screening insight</h3>
           <p class="small mb-1">
@@ -107,9 +107,9 @@
         <div class="row g-2">
           {% for m in media %}
             <div class="col-6 col-md-4">
-              <a href="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}" target="_blank" rel="noopener">
+              <a href="{{ url_for('admin.serve_incident_media_admin', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}" target="_blank" rel="noopener">
                 <img
-                  src="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}"
+                  src="{{ url_for('admin.serve_incident_media_admin', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}"
                   alt="Evidence"
                   class="img-fluid rounded border"
                   style="max-height: 120px; object-fit: cover;"

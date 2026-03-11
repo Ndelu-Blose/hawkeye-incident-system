@@ -5,7 +5,7 @@ from datetime import timedelta
 class BaseConfig:
     """Shared configuration for all environments."""
 
-    APP_NAME = "Hawkeye"
+    APP_NAME = "Alertweb Solutions"
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-secret-key")
 
     SQLALCHEMY_DATABASE_URI = os.getenv("DATABASE_URL")
@@ -25,7 +25,7 @@ class BaseConfig:
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.getenv(
         "MAIL_DEFAULT_SENDER",
-        "hawkeye@example.com",
+        "alertweb@example.com",
     )
 
     # Rate limiting

@@ -1,13 +1,13 @@
 {% extends "layout.html" %}
 
-{% block title %}Hawkeye | Register{% endblock %}
+{% block title %}Alertweb Solutions | Register{% endblock %}
 
 {% block content %}
 <section class="hawkeye-public-page">
   <div class="hawkeye-public-container" style="max-width: 620px;">
     <div class="hawkeye-auth-card">
       <h1 class="hawkeye-card-title">Create account</h1>
-      <p class="hawkeye-card-subtitle">Join Hawkeye and start reporting incidents in your area.</p>
+      <p class="hawkeye-card-subtitle">Join Alertweb Solutions and start reporting incidents in your area.</p>
       <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div class="hawkeye-form-group">

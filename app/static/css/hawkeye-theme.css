@@ -128,9 +128,9 @@
   }
 }
 
-/* Public header – minimal strip, no full bar */
+/* Public header – sticky, premium nav bar */
 .hawkeye-public-header {
-  position: absolute;
+  position: fixed;
   top: 0;
   left: 0;
   right: 0;
@@ -138,12 +138,31 @@
   align-items: center;
   justify-content: space-between;
   padding: 1rem 1.5rem;
-  z-index: 10;
+  z-index: 50;
   pointer-events: none;
+  background: linear-gradient(
+    120deg,
+    rgba(6, 16, 41, 0.96),
+    rgba(6, 22, 60, 0.96)
+  );
+  border-bottom: 1px solid rgba(104, 142, 255, 0.25);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 20px 40px rgba(0, 0, 0, 0.45);
+  transition: background 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
 }
 
 .hawkeye-public-header > * {
   pointer-events: auto;
+}
+
+.hawkeye-public-header--scrolled {
+  background: linear-gradient(
+    120deg,
+    rgba(4, 14, 32, 0.98),
+    rgba(3, 12, 28, 0.98)
+  );
+  border-bottom-color: rgba(148, 187, 255, 0.35);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.6);
 }
 
 .hawkeye-public-logo {
@@ -504,16 +523,26 @@ body.resident-app-body {
 /* Public shell and auth */
 .hawkeye-public-page {
   min-height: 100vh;
-  padding-top: 3rem;
+  padding-top: 4.5rem;
   display: flex;
   align-items: center;
   justify-content: center;
   padding: 48px 20px;
 }
 
+/* Landing hero: distinct block with clear bottom rhythm */
+.hawkeye-landing-hero {
+  padding-bottom: 64px;
+}
+
+.hawkeye-landing-hero .hawkeye-public-container {
+  width: 100%;
+}
+
 .hawkeye-public-container {
   width: 100%;
-  max-width: 1180px;
+  max-width: 1120px;
+  margin: 0 auto;
 }
 
 .hawkeye-auth-page {
@@ -534,7 +563,7 @@ body.resident-app-body {
 .hawkeye-hero {
   display: grid;
   grid-template-columns: 1.2fr 0.8fr;
-  gap: 28px;
+  gap: 32px;
   align-items: center;
 }
 
@@ -549,32 +578,37 @@ body.resident-app-body {
 }
 
 .hawkeye-hero-copy {
-  padding: 56px;
+  padding: 56px 52px;
 }
 
 .hawkeye-kicker {
   display: inline-block;
-  font-size: 0.85rem;
-  letter-spacing: 0.14em;
+  font-size: 0.8rem;
+  letter-spacing: 0.16em;
   text-transform: uppercase;
   color: #8cb6ff;
-  margin-bottom: 14px;
+  margin-bottom: 18px;
 }
 
 .hawkeye-title-xl {
-  font-size: clamp(2.5rem, 5vw, 4.6rem);
-  line-height: 1;
+  font-size: clamp(2.5rem, 5vw, 4.2rem);
+  line-height: 1.08;
   font-weight: 900;
-  margin-bottom: 16px;
+  margin-bottom: 20px;
   color: #ffffff;
+  letter-spacing: -0.02em;
 }
 
 .hawkeye-subtitle {
-  font-size: 1.12rem;
+  font-size: 1.08rem;
   color: var(--hawkeye-text-soft);
-  line-height: 1.7;
-  margin-bottom: 30px;
-  max-width: 640px;
+  line-height: 1.65;
+  margin-bottom: 28px;
+  max-width: 54ch;
+}
+
+.hawkeye-hero-copy .hawkeye-action-row {
+  margin-bottom: 4px;
 }
 
 .hawkeye-feature-list {
@@ -788,23 +822,33 @@ body.resident-app-body {
 
 .hawkeye-feature-stack {
   display: grid;
-  gap: 18px;
+  gap: 20px;
 }
 
 .hawkeye-feature-card {
-  padding: 24px;
+  padding: 28px 26px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.hawkeye-feature-card:hover {
+  border-color: rgba(104, 142, 255, 0.28);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
 }
 
 .hawkeye-feature-card h3 {
-  font-size: 1.1rem;
-  margin-bottom: 8px;
+  font-size: 1.15rem;
+  margin-bottom: 12px;
   font-weight: 800;
   color: #fff;
+  letter-spacing: -0.02em;
 }
 
 .hawkeye-feature-card p {
   color: var(--hawkeye-text-soft);
   margin: 0;
+  line-height: 1.6;
+  max-width: 32ch;
 }
 
 .hawkeye-auth-links {
@@ -822,15 +866,23 @@ body.resident-app-body {
 }
 
 .hawkeye-section-title {
-  font-size: 3rem;
+  font-size: clamp(1.85rem, 3.5vw, 2.5rem);
   font-weight: 900;
-  margin-bottom: 6px;
+  line-height: 1.2;
+  margin-bottom: 12px;
   color: #fff;
 }
 
 .hawkeye-section-subtitle {
+  font-size: 1.05rem;
   color: var(--hawkeye-text-soft);
-  margin-bottom: 28px;
+  line-height: 1.65;
+  margin-bottom: 0;
+  max-width: 52ch;
+}
+
+.hawkeye-section-heading .hawkeye-section-subtitle {
+  margin: 0 auto;
 }
 
 .admin-stat-card {
@@ -855,18 +907,51 @@ body.resident-app-body {
   color: #ffffff;
 }
 
+/* Admin panels (cards) – consistent dark glass look */
+.hawkeye-admin-panel {
+  background: var(--hawkeye-panel);
+  border: 1px solid var(--hawkeye-border);
+  border-radius: var(--hawkeye-radius);
+  box-shadow: var(--hawkeye-shadow);
+  color: var(--hawkeye-text);
+}
+
+.hawkeye-admin-panel .card-header {
+  background: rgba(6, 16, 41, 0.55);
+  border-bottom: 1px solid rgba(104, 142, 255, 0.16);
+  color: var(--hawkeye-text);
+}
+
+.hawkeye-admin-panel .card-header .text-muted,
+.hawkeye-admin-panel .card-header small {
+  color: rgba(169, 187, 215, 0.9) !important;
+}
+
+.hawkeye-admin-panel .card-body {
+  padding: 1.25rem 1.25rem;
+}
+
+.hawkeye-admin-panel .text-muted {
+  color: rgba(169, 187, 215, 0.95) !important;
+}
+
 .hawkeye-hero-microtrust {
-  margin-top: 18px;
+  margin-top: 28px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(104, 142, 255, 0.12);
   color: rgba(226, 232, 240, 0.82);
   font-size: 0.95rem;
   line-height: 1.6;
+  max-width: 52ch;
 }
 
 .hawkeye-value-strip {
-  margin-top: 24px;
+  margin-top: 40px;
+  padding-top: 32px;
+  border-top: 1px solid rgba(104, 142, 255, 0.14);
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: 12px 16px;
   justify-content: center;
 }
 
@@ -874,200 +959,321 @@ body.resident-app-body {
   display: inline-flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
+  padding: 12px 18px;
   border-radius: 999px;
-  background: rgba(6, 16, 41, 0.8);
-  border: 1px solid rgba(104, 142, 255, 0.18);
-  color: rgba(226, 232, 240, 0.9);
-  font-weight: 650;
-  font-size: 0.92rem;
+  background: rgba(6, 16, 41, 0.85);
+  border: 1px solid rgba(104, 142, 255, 0.2);
+  color: rgba(226, 232, 240, 0.92);
+  font-weight: 600;
+  font-size: 0.9rem;
 }
 
+/* Section rhythm: consistent vertical spacing, content width, subtle contrast */
 .hawkeye-landing-section {
-  padding: 78px 20px;
+  padding: 88px 24px;
+}
+
+.hawkeye-landing-section:nth-of-type(even) {
+  background: rgba(4, 14, 28, 0.35);
 }
 
 .hawkeye-landing-section .hawkeye-public-container {
-  max-width: 1180px;
+  max-width: 1120px;
 }
 
 .hawkeye-section-heading {
-  max-width: 780px;
-  margin: 0 auto 34px;
+  max-width: 42rem;
+  margin: 0 auto 52px;
   text-align: center;
+}
+
+.hawkeye-section-heading .hawkeye-section-title {
+  margin-bottom: 14px;
 }
 
 .hawkeye-split {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 28px;
+  align-items: start;
 }
 
 .hawkeye-panel {
   background: rgba(6, 16, 41, 0.92);
   border: 1px solid rgba(104, 142, 255, 0.18);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
-  padding: 26px;
+  padding: 32px 28px;
 }
 
 .hawkeye-panel .hawkeye-section-title {
-  font-size: 2.2rem;
-  margin-bottom: 10px;
+  font-size: clamp(1.6rem, 2.5vw, 2rem);
+  margin-bottom: 12px;
 }
 
 .hawkeye-panel .hawkeye-section-subtitle {
   margin-bottom: 0;
+  max-width: 42ch;
 }
 
+/* Benefit cards: elevated panels, clear hierarchy, hover */
 .hawkeye-benefit-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 24px;
 }
 
 .hawkeye-benefit-card {
   background: rgba(6, 16, 41, 0.92);
   border: 1px solid rgba(104, 142, 255, 0.18);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
-  padding: 24px 24px 22px;
+  padding: 32px 28px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.hawkeye-benefit-card:hover {
+  border-color: rgba(104, 142, 255, 0.32);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
 }
 
 .hawkeye-benefit-card h3 {
-  font-size: 1.15rem;
-  font-weight: 850;
-  margin: 0 0 10px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0 0 14px;
   color: #fff;
+  letter-spacing: -0.02em;
 }
 
 .hawkeye-benefit-card p {
   margin: 0;
   color: rgba(169, 187, 215, 0.95);
-  line-height: 1.7;
+  line-height: 1.65;
+  max-width: 38ch;
 }
 
+/* Audience cards: icon, title, body — more breathing room */
 .hawkeye-audience-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 18px;
+  gap: 24px;
 }
 
 .hawkeye-audience-card {
   background: rgba(6, 16, 41, 0.92);
   border: 1px solid rgba(104, 142, 255, 0.18);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
-  padding: 24px;
+  padding: 32px 28px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
+}
+
+.hawkeye-audience-card:hover {
+  border-color: rgba(104, 142, 255, 0.32);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.35);
+  transform: translateY(-2px);
 }
 
 .hawkeye-audience-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: 14px;
+  width: 56px;
+  height: 56px;
+  border-radius: 16px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: rgba(59, 130, 246, 0.15);
   border: 1px solid rgba(59, 130, 246, 0.35);
   color: rgba(191, 219, 254, 0.95);
-  font-size: 1.25rem;
-  margin-bottom: 14px;
+  font-size: 1.35rem;
+  margin-bottom: 20px;
 }
 
 .hawkeye-audience-card h3 {
-  font-size: 1.15rem;
-  font-weight: 850;
-  margin: 0 0 10px;
+  font-size: 1.2rem;
+  font-weight: 800;
+  margin: 0 0 14px;
   color: #fff;
+  letter-spacing: -0.02em;
 }
 
 .hawkeye-audience-card p {
   margin: 0;
   color: rgba(169, 187, 215, 0.95);
-  line-height: 1.7;
+  line-height: 1.65;
+  max-width: 36ch;
 }
 
+/* How it works steps */
 .hawkeye-steps {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 18px;
+  gap: 24px;
 }
 
 .hawkeye-step {
   background: rgba(6, 16, 41, 0.92);
   border: 1px solid rgba(104, 142, 255, 0.18);
-  border-radius: 18px;
+  border-radius: 20px;
   box-shadow: 0 18px 40px rgba(0, 0, 0, 0.3);
-  padding: 22px;
+  padding: 28px 26px;
   display: flex;
-  gap: 14px;
+  gap: 20px;
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.hawkeye-step:hover {
+  border-color: rgba(104, 142, 255, 0.28);
+  box-shadow: 0 20px 48px rgba(0, 0, 0, 0.32);
 }
 
 .hawkeye-step-num {
-  width: 40px;
-  height: 40px;
-  border-radius: 12px;
+  width: 44px;
+  height: 44px;
+  border-radius: 14px;
   background: rgba(59, 130, 246, 0.18);
   border: 1px solid rgba(59, 130, 246, 0.35);
   display: inline-flex;
   align-items: center;
   justify-content: center;
   font-weight: 900;
+  font-size: 1.1rem;
   color: rgba(191, 219, 254, 0.95);
   flex: 0 0 auto;
 }
 
 .hawkeye-step h3 {
-  font-size: 1.1rem;
-  font-weight: 850;
-  margin: 0 0 8px;
+  font-size: 1.15rem;
+  font-weight: 800;
+  margin: 0 0 10px;
   color: #fff;
+  letter-spacing: -0.02em;
 }
 
 .hawkeye-step p {
   margin: 0;
   color: rgba(169, 187, 215, 0.95);
-  line-height: 1.7;
+  line-height: 1.65;
+  max-width: 38ch;
 }
 
 .hawkeye-final-cta {
-  padding-bottom: 90px;
+  padding-top: 72px;
+  padding-bottom: 96px;
+  background: linear-gradient(180deg, rgba(6, 22, 50, 0.5) 0%, rgba(4, 14, 28, 0.6) 100%) !important;
+  border-top: 1px solid rgba(104, 142, 255, 0.12);
 }
 
+/* Back-to-top button */
+.hawkeye-back-to-top {
+  position: fixed;
+  right: 1.5rem;
+  bottom: 1.5rem;
+  width: 44px;
+  height: 44px;
+  border-radius: 999px;
+  border: 1px solid rgba(148, 187, 255, 0.6);
+  background: radial-gradient(circle at 30% 0%, rgba(148, 187, 255, 0.4), transparent 55%),
+    linear-gradient(145deg, rgba(15, 23, 42, 0.96), rgba(15, 23, 52, 0.98));
+  color: #e5edff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 16px 40px rgba(15, 23, 42, 0.8);
+  cursor: pointer;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(12px);
+  transition: opacity 0.25s ease, transform 0.25s ease, box-shadow 0.2s ease,
+    background 0.2s ease, border-color 0.2s ease;
+  z-index: 60;
+}
+
+.hawkeye-back-to-top i {
+  font-size: 1.1rem;
+}
+
+.hawkeye-back-to-top:hover,
+.hawkeye-back-to-top:focus-visible {
+  outline: none;
+  border-color: rgba(191, 219, 254, 0.95);
+  background: radial-gradient(circle at 30% 0%, rgba(191, 219, 254, 0.55), transparent 55%),
+    linear-gradient(145deg, rgba(23, 37, 84, 0.98), rgba(15, 23, 52, 1));
+  box-shadow: 0 20px 50px rgba(15, 23, 42, 0.95);
+}
+
+.hawkeye-back-to-top.is-visible {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+
+/* CTA: one visual unit — left copy, right actions, vertically centered */
 .hawkeye-cta-card {
   background: rgba(6, 16, 41, 0.96);
   border: 1px solid rgba(104, 142, 255, 0.22);
   border-radius: 22px;
   box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
-  padding: 34px;
+  padding: 48px 56px;
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 20px;
+  gap: 48px;
+  max-width: 100%;
 }
 
-.hawkeye-cta-card .hawkeye-section-title {
-  font-size: 2.2rem;
-  margin-bottom: 10px;
+.hawkeye-cta-copy {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 52ch;
 }
 
-.hawkeye-cta-card .hawkeye-section-subtitle {
-  margin-bottom: 0;
+.hawkeye-cta-title {
+  font-size: clamp(1.75rem, 3vw, 2.25rem);
+  font-weight: 900;
+  line-height: 1.2;
+  color: #fff;
+  margin: 0 0 12px;
 }
 
+.hawkeye-cta-subtitle {
+  font-size: 1.05rem;
+  color: var(--hawkeye-text-soft);
+  line-height: 1.6;
+  margin: 0;
+}
+
+.hawkeye-cta-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-shrink: 0;
+}
+
+.hawkeye-cta-actions .hawkeye-btn-primary,
+.hawkeye-cta-actions .hawkeye-btn-secondary {
+  white-space: nowrap;
+}
+
+/* Footer: clear separation, structured spacing */
 .hawkeye-public-footer {
-  padding: 44px 20px 26px;
-  border-top: 1px solid rgba(104, 142, 255, 0.18);
-  background: rgba(2, 10, 26, 0.78);
+  padding: 56px 24px 28px;
+  border-top: 1px solid rgba(104, 142, 255, 0.2);
+  background: rgba(2, 10, 26, 0.92);
 }
 
 .hawkeye-footer-grid {
   display: grid;
-  grid-template-columns: 1.5fr 1fr;
-  gap: 22px;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 40px;
   align-items: start;
-  padding-bottom: 22px;
+  padding-bottom: 32px;
+  max-width: 1120px;
+  margin: 0 auto;
+}
+
+.hawkeye-footer-brand {
+  max-width: 36rem;
 }
 
 .hawkeye-footer-logo {
@@ -1078,30 +1284,33 @@ body.resident-app-body {
 }
 
 .hawkeye-footer-tagline {
-  margin-top: 6px;
+  margin-top: 8px;
   color: rgba(169, 187, 215, 0.95);
   font-weight: 650;
+  font-size: 0.95rem;
 }
 
 .hawkeye-footer-blurb {
-  margin-top: 10px;
+  margin-top: 14px;
   color: rgba(169, 187, 215, 0.85);
-  max-width: 520px;
+  max-width: 42ch;
   line-height: 1.65;
+  font-size: 0.95rem;
 }
 
 .hawkeye-footer-links {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 10px 16px;
-  justify-items: start;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 24px;
+  justify-content: flex-end;
 }
 
 .hawkeye-footer-links a {
   color: rgba(169, 187, 215, 0.95);
   text-decoration: none;
-  font-weight: 650;
-  padding: 6px 8px;
+  font-weight: 600;
+  font-size: 0.95rem;
+  padding: 8px 12px;
   border-radius: 10px;
   transition: background 0.2s ease, color 0.2s ease;
 }
@@ -1116,14 +1325,18 @@ body.resident-app-body {
   align-items: center;
   justify-content: space-between;
   gap: 14px;
+  padding-top: 24px;
+  border-top: 1px solid rgba(104, 142, 255, 0.12);
   color: rgba(169, 187, 215, 0.78);
-  font-size: 0.92rem;
+  font-size: 0.9rem;
+  max-width: 1120px;
+  margin: 0 auto;
 }
 
 .hawkeye-footer-bottom a {
   color: rgba(140, 182, 255, 0.95);
   text-decoration: none;
-  font-weight: 650;
+  font-weight: 600;
 }
 
 .hawkeye-footer-bottom a:hover {
@@ -1131,12 +1344,22 @@ body.resident-app-body {
 }
 
 @media (max-width: 992px) {
+  .hawkeye-landing-hero {
+    padding-bottom: 56px;
+  }
+
   .hawkeye-hero {
     grid-template-columns: 1fr;
+    gap: 28px;
   }
 
   .hawkeye-hero-copy {
-    padding: 34px;
+    padding: 40px 28px;
+  }
+
+  .hawkeye-value-strip {
+    margin-top: 32px;
+    padding-top: 28px;
   }
 
   .hawkeye-split {
@@ -1158,10 +1381,27 @@ body.resident-app-body {
   .hawkeye-cta-card {
     flex-direction: column;
     align-items: stretch;
+    gap: 32px;
+    padding: 36px 28px;
+    text-align: center;
+  }
+
+  .hawkeye-cta-copy {
+    max-width: none;
+  }
+
+  .hawkeye-cta-actions {
+    justify-content: center;
+    flex-wrap: wrap;
   }
 
   .hawkeye-footer-grid {
     grid-template-columns: 1fr;
+    gap: 32px;
+  }
+
+  .hawkeye-footer-links {
+    justify-content: flex-start;
   }
 }
 

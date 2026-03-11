@@ -1,6 +1,7 @@
 from app.extensions import db
 
 from .admin_audit_log import AdminAuditLog  # noqa: F401
+from .admin_preference import AdminPreference  # noqa: F401
 from .authority import Authority  # noqa: F401
 from .authority_user import AuthorityUser  # noqa: F401
 from .incident import Incident  # noqa: F401
@@ -29,4 +30,5 @@ __all__ = [
     "Location",
     "NotificationLog",
     "AdminAuditLog",
+    "AdminPreference",
 ]

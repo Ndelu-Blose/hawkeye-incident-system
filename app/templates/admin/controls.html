@@ -1,0 +1,306 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "controls" %}
+{% set admin_page_title = "Admin Controls" %}
+{% set admin_page_subtitle = "Configure how the Alertweb Solutions admin workspace behaves — dashboard visibility, alerts, and operational defaults." %}
+
+{% block admin_content %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="mb-3 pb-2 border-bottom border-secondary border-opacity-50"></div>
+
+    <div class="row g-3">
+      <div class="col-lg-7">
+        <div class="card hawkeye-admin-panel mb-3">
+          <div class="card-body">
+            <h3 class="h6 mb-2">
+              <i class="bi bi-layout-text-sidebar-reverse me-2 text-primary"></i>
+              Dashboard configuration
+            </h3>
+            <p class="text-muted small mb-3">
+              Control what appears on the admin overview so your console surfaces the right information first.
+            </p>
+
+            <div class="vstack gap-2">
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="show_kpi_cards"
+                    name="show_kpi_cards"
+                    {% if prefs.show_kpi_cards %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="show_kpi_cards">
+                    Show KPI cards
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Display incident volume and trend metrics at the top of the dashboard.
+                </div>
+              </div>
+
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="show_recent_incidents"
+                    name="show_recent_incidents"
+                    {% if prefs.show_recent_incidents %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="show_recent_incidents">
+                    Show recent incidents panel
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Display the latest reported incidents in an overview panel.
+                </div>
+              </div>
+
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="show_user_stats"
+                    name="show_user_stats"
+                    {% if prefs.show_user_stats %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="show_user_stats">
+                    Show user metrics
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Display counts for residents, authorities, and admins on the dashboard.
+                </div>
+              </div>
+
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="show_overdue_panel"
+                    name="show_overdue_panel"
+                    {% if prefs.show_overdue_panel %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="show_overdue_panel">
+                    Show overdue / urgent panel
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Highlight incidents that are breaching SLA or marked as urgent.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="card hawkeye-admin-panel mb-3">
+          <div class="card-body">
+            <h3 class="h6 mb-2">
+              <i class="bi bi-bell me-2 text-primary"></i>
+              Alerts &amp; notifications
+            </h3>
+            <p class="text-muted small mb-3">
+              Control when admins are notified about incident activity. Email delivery still depends on mail configuration.
+            </p>
+
+            <div class="vstack gap-2">
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="notify_new_incident"
+                    name="notify_new_incident"
+                    {% if prefs.notify_new_incident %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="notify_new_incident">
+                    New incident alerts
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Receive notifications when a new incident is reported.
+                </div>
+              </div>
+
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="notify_overdue_incident"
+                    name="notify_overdue_incident"
+                    {% if prefs.notify_overdue_incident %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="notify_overdue_incident">
+                    Overdue incident alerts
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Get alerts when incidents exceed their SLA thresholds.
+                </div>
+              </div>
+
+              <div class="form-check form-switch d-flex flex-column align-items-start">
+                <div>
+                  <input
+                    class="form-check-input me-2"
+                    type="checkbox"
+                    id="daily_summary_enabled"
+                    name="daily_summary_enabled"
+                    {% if prefs.daily_summary_enabled %}checked{% endif %}
+                  >
+                  <label class="form-check-label fw-semibold" for="daily_summary_enabled">
+                    Daily summary
+                  </label>
+                </div>
+                <div class="text-muted small">
+                  Receive a daily email summarising incident activity.
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card hawkeye-admin-panel mb-3">
+          <div class="card-body">
+            <h3 class="h6 mb-2">
+              <i class="bi bi-sliders me-2 text-primary"></i>
+              Workspace defaults
+            </h3>
+            <p class="text-muted small mb-3">
+              Define how the admin workspace behaves by default after login.
+            </p>
+
+            <div class="mb-3">
+              <label class="form-label" for="default_landing_page">Default landing page</label>
+              <select class="form-select" id="default_landing_page" name="default_landing_page">
+                <option value="dashboard" {% if prefs.default_landing_page == 'dashboard' %}selected{% endif %}>Overview</option>
+                <option value="incidents" {% if prefs.default_landing_page == 'incidents' %}selected{% endif %}>Incidents</option>
+                <option value="users" {% if prefs.default_landing_page == 'users' %}selected{% endif %}>Users</option>
+                <option value="authorities" {% if prefs.default_landing_page == 'authorities' %}selected{% endif %}>Departments</option>
+                <option value="routing_rules" {% if prefs.default_landing_page == 'routing_rules' %}selected{% endif %}>Routing rules</option>
+              </select>
+            </div>
+
+            <div class="mb-3">
+              <label class="form-label" for="default_incident_sort">Incident list sorting</label>
+              <select class="form-select" id="default_incident_sort" name="default_incident_sort">
+                <option value="newest" {% if prefs.default_incident_sort == 'newest' %}selected{% endif %}>Newest first</option>
+                <option value="oldest" {% if prefs.default_incident_sort == 'oldest' %}selected{% endif %}>Oldest first</option>
+              </select>
+            </div>
+
+            <div class="mb-0">
+              <label class="form-label" for="default_rows_per_page">Rows per page</label>
+              <select class="form-select" id="default_rows_per_page" name="default_rows_per_page">
+                {% for n in [10, 25, 50, 100] %}
+                  <option value="{{ n }}" {% if prefs.default_rows_per_page == n %}selected{% endif %}>{{ n }}</option>
+                {% endfor %}
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="card hawkeye-admin-panel">
+          <div class="card-body">
+            <h3 class="h6 mb-2">
+              <i class="bi bi-speedometer2 me-2 text-primary"></i>
+              Workspace summary
+            </h3>
+            <p class="text-muted small">
+              A quick view of how this configuration shapes your admin console.
+            </p>
+
+            <ul class="list-unstyled small mb-3">
+              <li class="mb-1">
+                <span class="text-muted">Landing page:</span>
+                <span class="fw-semibold">
+                  {% if prefs.default_landing_page == 'incidents' %}
+                    Incidents
+                  {% elif prefs.default_landing_page == 'users' %}
+                    Users
+                  {% elif prefs.default_landing_page == 'authorities' %}
+                    Departments
+                  {% elif prefs.default_landing_page == 'routing_rules' %}
+                    Routing rules
+                  {% else %}
+                    Overview
+                  {% endif %}
+                </span>
+              </li>
+              <li class="mb-1">
+                <span class="text-muted">Incident sorting:</span>
+                <span class="fw-semibold">
+                  {% if prefs.default_incident_sort == 'oldest' %}
+                    Oldest first
+                  {% else %}
+                    Newest first
+                  {% endif %}
+                </span>
+              </li>
+              <li class="mb-1">
+                <span class="text-muted">Rows per page:</span>
+                <span class="fw-semibold">{{ prefs.default_rows_per_page }}</span>
+              </li>
+              <li class="mb-1">
+                <span class="text-muted">Dashboard widgets enabled:</span>
+                <span class="fw-semibold">
+                  {% set widgets = [
+                    prefs.show_kpi_cards,
+                    prefs.show_recent_incidents,
+                    prefs.show_user_stats,
+                    prefs.show_overdue_panel
+                  ] %}
+                  {{ widgets | select | list | length }}
+                </span>
+              </li>
+              <li class="mb-1">
+                <span class="text-muted">Email notifications:</span>
+                <span class="fw-semibold">
+                  {% if prefs.notify_new_incident or prefs.notify_overdue_incident or prefs.daily_summary_enabled %}
+                    Enabled
+                  {% else %}
+                    Disabled
+                  {% endif %}
+                </span>
+              </li>
+            </ul>
+
+            <h3 class="h6 mb-2 mt-3">
+              <i class="bi bi-shield-lock me-2 text-primary"></i>
+              System rules (read-only)
+            </h3>
+            <p class="text-muted small mb-0">
+              Verification status (email/phone) remains system-controlled. Admins can trigger flows, but cannot manually mark verification as complete.
+            </p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="d-flex flex-column flex-md-row align-items-md-center gap-2 mt-3">
+      <div class="d-flex gap-2">
+        <button type="submit" class="btn btn-primary">Save changes</button>
+        <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-light">Cancel</a>
+      </div>
+      <div class="ms-md-3">
+        <button
+          type="submit"
+          name="action"
+          value="reset"
+          class="btn btn-link btn-sm text-muted p-0 align-baseline"
+        >
+          Reset workspace settings
+        </button>
+      </div>
+    </div>
+  </form>
+{% endblock %}
+

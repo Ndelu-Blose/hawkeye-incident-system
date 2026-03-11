@@ -1,1 +1,1 @@
-"""Service layer package for Hawkeye business logic."""
+"""Service layer package for Alertweb Solutions business logic."""

@@ -10,51 +10,39 @@
 {% block admin_content %}
   <div class="row mb-4">
     <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">New Today</h6>
-          <p class="h4 mb-0">{{ overview.new_today }}</p>
-        </div>
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">New today</div>
+        <div class="admin-stat-value">{{ overview.new_today }}</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Unassigned</h6>
-          <p class="h4 mb-0">{{ overview.unassigned }}</p>
-        </div>
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">Unassigned</div>
+        <div class="admin-stat-value">{{ overview.unassigned }}</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">In Progress</h6>
-          <p class="h4 mb-0">{{ overview.in_progress }}</p>
-        </div>
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">In progress</div>
+        <div class="admin-stat-value">{{ overview.in_progress }}</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center border-warning">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Overdue</h6>
-          <p class="h4 mb-0">{{ overview.overdue }}</p>
-        </div>
+      <div class="admin-stat-card text-center h-100 border border-warning">
+        <div class="admin-stat-label">Overdue</div>
+        <div class="admin-stat-value">{{ overview.overdue }}</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Resolved (week)</h6>
-          <p class="h4 mb-0">{{ overview.resolved_this_week }}</p>
-        </div>
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">Resolved (week)</div>
+        <div class="admin-stat-value">{{ overview.resolved_this_week }}</div>
       </div>
     </div>
     <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Total</h6>
-          <p class="h4 mb-0">{{ overview.total_incidents }}</p>
-        </div>
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">Total</div>
+        <div class="admin-stat-value">{{ overview.total_incidents }}</div>
       </div>
     </div>
   </div>
@@ -216,7 +204,7 @@
       </nav>
     {% endif %}
   {% else %}
-    <div class="card bg-dark border-secondary mt-3">
+    <div class="card hawkeye-admin-panel mt-3">
       <div class="card-body text-center text-muted">
         <p class="mb-1">No incidents match the current filters.</p>
         <p class="mb-3 small">
