@@ -3,39 +3,220 @@
 {% block title %}Hawkeye | Home{% endblock %}
 
 {% block content %}
-<section class="hawkeye-public-page">
+<section class="hawkeye-public-page hawkeye-landing-hero" id="top">
   <div class="hawkeye-public-container">
     <div class="hawkeye-hero">
       <div class="hawkeye-hero-copy">
-        <span class="hawkeye-kicker">Community Incident Reporting</span>
-        <h1 class="hawkeye-title-xl">Hawkeye</h1>
+        <span class="hawkeye-kicker">Incident reporting & response coordination</span>
+        <h1 class="hawkeye-title-xl">Smarter incident reporting for safer, more responsive communities</h1>
         <p class="hawkeye-subtitle">
-          Report. Track. Respond. A cleaner, faster way for residents to report local incidents and monitor progress from submission to resolution.
+          HawkEye is a digital incident reporting and response coordination platform for communities, estates, campuses,
+          municipalities, and private security operations—bringing structure, visibility, and accountability to every report.
         </p>
         <div class="hawkeye-action-row">
           <a href="{{ url_for('auth.register') }}" class="hawkeye-btn-primary">
-            <i class="bi bi-person-plus"></i> Get Started
+            <i class="bi bi-person-plus"></i> Get started
           </a>
           <a href="{{ url_for('auth.login') }}" class="hawkeye-btn-secondary">
             <i class="bi bi-box-arrow-in-right"></i> Login
           </a>
+          <a href="{{ url_for('auth.login', next=url_for('resident.report_incident')) }}" class="hawkeye-btn-ghost">
+            <i class="bi bi-plus-circle"></i> Report an incident
+          </a>
+        </div>
+        <div class="hawkeye-hero-microtrust">
+          Reduce response delays. Improve visibility. Keep communities informed—without relying on chats and calls.
         </div>
       </div>
+
       <div class="hawkeye-feature-stack">
         <div class="hawkeye-feature-card">
-          <h3><i class="bi bi-megaphone me-2"></i>Report Fast</h3>
-          <p>Submit incidents with descriptions, severity, and photo evidence in a few steps.</p>
+          <h3><i class="bi bi-lightning-charge me-2"></i>Faster reporting</h3>
+          <p>Capture the right details fast so response teams can act quickly and confidently.</p>
         </div>
         <div class="hawkeye-feature-card">
-          <h3><i class="bi bi-clipboard-data me-2"></i>Track Progress</h3>
-          <p>Residents can follow status changes from pending to in progress and resolved.</p>
+          <h3><i class="bi bi-eye me-2"></i>Better visibility</h3>
+          <p>Track progress from submission to resolution with clear status updates.</p>
         </div>
         <div class="hawkeye-feature-card">
-          <h3><i class="bi bi-shield-check me-2"></i>Built for Response</h3>
-          <p>Structured dashboards support a more organized and accountable response process.</p>
+          <h3><i class="bi bi-shield-check me-2"></i>Clear accountability</h3>
+          <p>Keep incident handling structured, traceable, and easier to manage at scale.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="hawkeye-value-strip" aria-label="Key outcomes">
+      <div class="hawkeye-value-pill"><i class="bi bi-stopwatch me-2"></i>Reduce response delays</div>
+      <div class="hawkeye-value-pill"><i class="bi bi-broadcast me-2"></i>Improve coordination</div>
+      <div class="hawkeye-value-pill"><i class="bi bi-clipboard-check me-2"></i>Increase accountability</div>
+      <div class="hawkeye-value-pill"><i class="bi bi-people me-2"></i>Keep communities informed</div>
+    </div>
+  </div>
+</section>
+
+<section class="hawkeye-landing-section" id="problem-solution">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-split">
+      <div class="hawkeye-panel">
+        <h2 class="hawkeye-section-title">The problem</h2>
+        <p class="hawkeye-section-subtitle">
+          Most incident reporting is fragmented—shared in calls, WhatsApp groups, and informal messages.
+          Details get missed, reports get lost, response is delayed, and residents have no clear visibility on progress.
+        </p>
+      </div>
+      <div class="hawkeye-panel">
+        <h2 class="hawkeye-section-title">The solution</h2>
+        <p class="hawkeye-section-subtitle">
+          HawkEye centralises reporting into one structured workflow where incidents are logged with the right details,
+          routed to the right teams, tracked from submission to resolution, and updated with clarity.
+        </p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hawkeye-landing-section" id="solutions">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-section-heading">
+      <h2 class="hawkeye-section-title">Solutions that deliver outcomes</h2>
+      <p class="hawkeye-section-subtitle">
+        Not just features—real improvements in speed, visibility, and operational control.
+      </p>
+    </div>
+
+    <div class="hawkeye-benefit-grid">
+      <div class="hawkeye-benefit-card">
+        <h3><i class="bi bi-pencil-square me-2"></i>Easy incident reporting</h3>
+        <p>Residents and staff can submit incidents quickly with the right information—so teams can act faster.</p>
+      </div>
+      <div class="hawkeye-benefit-card">
+        <h3><i class="bi bi-graph-up-arrow me-2"></i>Real-time visibility</h3>
+        <p>Track the progress of reported issues from submission to resolution and reduce repeated follow-ups.</p>
+      </div>
+      <div class="hawkeye-benefit-card">
+        <h3><i class="bi bi-diagram-3 me-2"></i>Structured response management</h3>
+        <p>Review, prioritise, and manage incidents with a clearer workflow—improving turnaround and consistency.</p>
+      </div>
+      <div class="hawkeye-benefit-card">
+        <h3><i class="bi bi-chat-dots me-2"></i>Centralised communication</h3>
+        <p>Keep reporting and response activity in one place instead of scattered across calls and messages.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hawkeye-landing-section" id="who-its-for">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-section-heading">
+      <h2 class="hawkeye-section-title">Who HawkEye is for</h2>
+      <p class="hawkeye-section-subtitle">
+        A platform built to create value across the entire reporting and response environment.
+      </p>
+    </div>
+
+    <div class="hawkeye-audience-grid">
+      <div class="hawkeye-audience-card">
+        <div class="hawkeye-audience-icon"><i class="bi bi-house-door"></i></div>
+        <h3>Residents &amp; Community Members</h3>
+        <p>Report incidents quickly, share accurate details, and stay informed—without chasing updates across informal channels.</p>
+      </div>
+      <div class="hawkeye-audience-card">
+        <div class="hawkeye-audience-icon"><i class="bi bi-badge-tm"></i></div>
+        <h3>Security &amp; Response Teams</h3>
+        <p>Receive higher-quality reports, manage priorities more effectively, and coordinate response with greater structure.</p>
+      </div>
+      <div class="hawkeye-audience-card">
+        <div class="hawkeye-audience-icon"><i class="bi bi-building"></i></div>
+        <h3>Administrators &amp; Operations Leaders</h3>
+        <p>Maintain oversight of reporting activity, workflows, and performance—improving accountability across your environment.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hawkeye-landing-section" id="how-it-works">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-section-heading">
+      <h2 class="hawkeye-section-title">How it works</h2>
+      <p class="hawkeye-section-subtitle">A clear flow from report to resolution—built for real-world response.</p>
+    </div>
+
+    <div class="hawkeye-steps">
+      <div class="hawkeye-step">
+        <div class="hawkeye-step-num">1</div>
+        <div>
+          <h3>Submit</h3>
+          <p>Log an incident with key details: what happened, where, urgency, and evidence.</p>
+        </div>
+      </div>
+      <div class="hawkeye-step">
+        <div class="hawkeye-step-num">2</div>
+        <div>
+          <h3>Review</h3>
+          <p>Incidents are triaged and prepared for action with clearer prioritisation.</p>
+        </div>
+      </div>
+      <div class="hawkeye-step">
+        <div class="hawkeye-step-num">3</div>
+        <div>
+          <h3>Respond</h3>
+          <p>Teams assign, manage, and progress incidents through resolution.</p>
+        </div>
+      </div>
+      <div class="hawkeye-step">
+        <div class="hawkeye-step-num">4</div>
+        <div>
+          <h3>Track to resolution</h3>
+          <p>Everyone stays informed with visible status updates and a consistent record.</p>
         </div>
       </div>
     </div>
   </div>
 </section>
+
+<section class="hawkeye-landing-section hawkeye-final-cta" id="get-started">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-cta-card">
+      <div>
+        <h2 class="hawkeye-section-title">Ready to modernise how incidents are reported and managed?</h2>
+        <p class="hawkeye-section-subtitle">Improve visibility, accountability, and response coordination with HawkEye.</p>
+      </div>
+      <div class="hawkeye-action-row">
+        <a href="{{ url_for('auth.register') }}" class="hawkeye-btn-primary">
+          <i class="bi bi-person-plus"></i> Get started
+        </a>
+        <a href="{{ url_for('auth.login') }}" class="hawkeye-btn-secondary">
+          <i class="bi bi-box-arrow-in-right"></i> Login
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
+
+{% block footer %}
+<footer class="hawkeye-public-footer" aria-label="Footer">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-footer-grid">
+      <div class="hawkeye-footer-brand">
+        <div class="hawkeye-footer-logo">HawkEye</div>
+        <div class="hawkeye-footer-tagline">Report. Track. Respond.</div>
+        <div class="hawkeye-footer-blurb">
+          A structured platform for incident reporting and response coordination.
+        </div>
+      </div>
+      <div class="hawkeye-footer-links">
+        <a href="#solutions">Solutions</a>
+        <a href="#how-it-works">How it works</a>
+        <a href="#who-its-for">Who it’s for</a>
+        <a href="{{ url_for('auth.login') }}">Login</a>
+        <a href="{{ url_for('auth.register') }}">Get started</a>
+      </div>
+    </div>
+    <div class="hawkeye-footer-bottom">
+      <span>© 2026 HawkEye. All rights reserved.</span>
+      <a href="#top">Back to top</a>
+    </div>
+  </div>
+</footer>
 {% endblock %}

@@ -1,41 +1,239 @@
-{% extends "layout.html" %}
+{% extends "admin/admin_app.html" %}
 
-{% block content %}
-  <h2 class="mb-4">Admin Dashboard</h2>
+{% set admin_active_page = "dashboard" %}
+{% set admin_page_title = "Admin Dashboard" %}
+{% set admin_page_subtitle = "Monitor incident volume, track resolution performance, and manage your team." %}
 
-  <div class="row">
-    <div class="col-md-3 mb-3">
-      <div class="card text-center">
-        <div class="card-body">
-          <h6 class="card-title text-muted text-uppercase">Total Incidents</h6>
-          <p class="display-6 mb-0">{{ overview.total_incidents }}</p>
+{% block admin_content %}
+  <div class="row g-3">
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Total incidents</div>
+        <div class="admin-stat-value">{{ overview.total_incidents }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Pending</div>
+        <div class="admin-stat-value">{{ overview.pending }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">In progress</div>
+        <div class="admin-stat-value">{{ overview.in_progress }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Resolved</div>
+        <div class="admin-stat-value">{{ overview.resolved }}</div>
+      </div>
+    </div>
+  </div>
+  <div class="row g-3 mt-2">
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">New today</div>
+        <div class="admin-stat-value">{{ overview.new_today }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Unassigned</div>
+        <div class="admin-stat-value">{{ overview.unassigned }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Overdue</div>
+        <div class="admin-stat-value">{{ overview.overdue }}</div>
+      </div>
+    </div>
+    <div class="col-md-3">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Resolved this week</div>
+        <div class="admin-stat-value">{{ overview.resolved_this_week }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4 g-3">
+    <div class="col-lg-8">
+      <div class="card bg-dark border-secondary h-100">
+        <div class="card-header d-flex justify-content-between align-items-center">
+          <div>
+            <h5 class="mb-0">Recent incidents</h5>
+            <small class="text-muted">Latest reports across all authorities.</small>
+          </div>
+          <a href="{{ url_for('admin.incidents') }}" class="btn btn-sm btn-outline-light">
+            Open console
+          </a>
+        </div>
+        <div class="card-body p-0">
+          {% if recent_incidents %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped table-hover mb-0 align-middle">
+                <thead>
+                  <tr>
+                    <th>Ref</th>
+                    <th>Title</th>
+                    <th>Category</th>
+                    <th>Priority</th>
+                    <th>Status</th>
+                    <th>Reported</th>
+                    <th></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for incident in recent_incidents %}
+                    <tr>
+                      <td>
+                        <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}">
+                          {{ incident.reference_no or ('#%d' % incident.id) }}
+                        </a>
+                      </td>
+                      <td class="text-truncate" style="max-width: 220px;">
+                        {{ incident.title }}
+                      </td>
+                      <td>
+                        {{ incident.category_rel.name if incident.category_rel else incident.category }}
+                      </td>
+                      <td>
+                        {% if incident.severity %}
+                          {% set sev = incident.severity.lower() %}
+                          {% if sev == 'critical' %}
+                            <span class="badge bg-danger text-uppercase">Critical</span>
+                          {% elif sev == 'high' %}
+                            <span class="badge bg-warning text-dark text-uppercase">High</span>
+                          {% elif sev == 'medium' %}
+                            <span class="badge bg-info text-dark text-uppercase">Medium</span>
+                          {% else %}
+                            <span class="badge bg-secondary text-uppercase">Low</span>
+                          {% endif %}
+                        {% else %}
+                          <span class="text-muted">—</span>
+                        {% endif %}
+                      </td>
+                      <td>{{ render_status_badge(incident.status) }}</td>
+                      <td>
+                        {{ incident.reported_at.strftime('%Y-%m-%d %H:%M') if incident.reported_at else (incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at else '—') }}
+                      </td>
+                      <td class="text-end">
+                        <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">
+                          View
+                        </a>
+                      </td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-muted">
+              No incidents have been reported yet.
+            </div>
+          {% endif %}
         </div>
       </div>
     </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center">
+    <div class="col-lg-4">
+      <div class="card bg-dark border-secondary mb-3">
+        <div class="card-header">
+          <h5 class="mb-0">Overdue / urgent</h5>
+        </div>
         <div class="card-body">
-          <h6 class="card-title text-muted text-uppercase">Pending</h6>
-          <p class="display-6 mb-0">{{ overview.pending }}</p>
+          {% if overdue_incidents %}
+            <ul class="list-unstyled mb-0 small">
+              {% for incident in overdue_incidents %}
+                <li class="mb-2">
+                  <div class="d-flex justify-content-between align-items-start">
+                    <div>
+                      <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}">
+                        {{ incident.reference_no or ('#%d' % incident.id) }}
+                      </a>
+                      <div class="text-muted text-truncate" style="max-width: 220px;">
+                        {{ incident.title }}
+                      </div>
+                    </div>
+                    <span class="badge bg-danger ms-2">Overdue</span>
+                  </div>
+                  <div class="text-muted">
+                    {{ incident.category_rel.name if incident.category_rel else incident.category }} &middot;
+                    SLA due {{ (incident | sla_due).strftime('%Y-%m-%d %H:%M') if (incident | sla_due) else '—' }}
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">No incidents are breaching SLA right now.</p>
+          {% endif %}
         </div>
       </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center">
+
+      <div class="card bg-dark border-secondary mb-3">
+        <div class="card-header">
+          <h5 class="mb-0">User overview</h5>
+        </div>
         <div class="card-body">
-          <h6 class="card-title text-muted text-uppercase">In Progress</h6>
-          <p class="display-6 mb-0">{{ overview.in_progress }}</p>
+          <div class="row g-2 small">
+            <div class="col-6">
+              <div class="admin-stat-card text-center mb-0">
+                <div class="admin-stat-label">Total users</div>
+                <div class="admin-stat-value">{{ user_stats.total }}</div>
+              </div>
+            </div>
+            <div class="col-6">
+              <div class="admin-stat-card text-center mb-0">
+                <div class="admin-stat-label">Residents</div>
+                <div class="admin-stat-value">{{ user_stats.residents }}</div>
+              </div>
+            </div>
+            <div class="col-6 mt-2">
+              <div class="admin-stat-card text-center mb-0">
+                <div class="admin-stat-label">Authorities</div>
+                <div class="admin-stat-value">{{ user_stats.authorities }}</div>
+              </div>
+            </div>
+            <div class="col-6 mt-2">
+              <div class="admin-stat-card text-center mb-0">
+                <div class="admin-stat-label">Admins</div>
+                <div class="admin-stat-value">{{ user_stats.admins }}</div>
+              </div>
+            </div>
+            <div class="col-12 mt-2">
+              <div class="admin-stat-card text-center mb-0">
+                <div class="admin-stat-label">Inactive</div>
+                <div class="admin-stat-value">{{ user_stats.inactive }}</div>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-    <div class="col-md-3 mb-3">
-      <div class="card text-center">
+
+      <div class="card bg-dark border-secondary">
+        <div class="card-header">
+          <h5 class="mb-0">Top departments (open / overdue)</h5>
+        </div>
         <div class="card-body">
-          <h6 class="card-title text-muted text-uppercase">Resolved</h6>
-          <p class="display-6 mb-0">{{ overview.resolved }}</p>
+          {% if authority_overview %}
+            <ul class="list-unstyled small mb-0">
+              {% for auth, open_count, overdue_count in authority_overview %}
+                <li class="d-flex justify-content-between align-items-center mb-2">
+                  <div>
+                    <strong>{{ auth.name }}</strong>
+                    <div class="text-muted">
+                      Open: {{ open_count }} &middot; Overdue: {{ overdue_count }}
+                    </div>
+                  </div>
+                </li>
+              {% endfor %}
+            </ul>
+          {% else %}
+            <p class="text-muted mb-0">No departmental data yet.</p>
+          {% endif %}
         </div>
       </div>
     </div>
   </div>
 {% endblock %}
-

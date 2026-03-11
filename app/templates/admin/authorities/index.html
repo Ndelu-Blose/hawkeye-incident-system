@@ -1,0 +1,56 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "authorities" %}
+{% set admin_page_title = "Departments" %}
+{% set admin_page_subtitle = "Configure which departments receive routed incidents." %}
+
+{% block admin_top_actions %}
+  <a href="{{ url_for('admin.authority_new') }}" class="btn btn-outline-light btn-sm">
+    <i class="bi bi-plus-circle"></i>
+    New department
+  </a>
+{% endblock %}
+
+{% block admin_content %}
+  <div class="card bg-dark border-secondary">
+    <div class="card-body">
+      {% if authorities %}
+        <div class="table-responsive">
+          <table class="table table-dark table-striped align-middle mb-0">
+            <thead>
+              <tr>
+                <th>Name</th>
+                <th>Type</th>
+                <th>Status</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for auth in authorities %}
+                <tr>
+                  <td>{{ auth.name }}</td>
+                  <td>{{ auth.authority_type or '—' }}</td>
+                  <td>
+                    {% if auth.is_active %}
+                      <span class="badge bg-success">Active</span>
+                    {% else %}
+                      <span class="badge bg-secondary">Inactive</span>
+                    {% endif %}
+                  </td>
+                  <td class="text-end">
+                    <a href="{{ url_for('admin.authority_detail', authority_id=auth.id) }}" class="btn btn-sm btn-outline-light">
+                      View
+                    </a>
+                  </td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+      {% else %}
+        <p class="text-muted mb-0">No departments have been configured yet.</p>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}
+

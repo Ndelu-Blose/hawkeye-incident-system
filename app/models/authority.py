@@ -32,7 +32,15 @@ class Authority(db.Model):
 
     incidents = db.relationship(
         "Incident",
+        foreign_keys="Incident.current_authority_id",
         back_populates="current_authority",
+        lazy="dynamic",
+    )
+
+    suggested_incidents = db.relationship(
+        "Incident",
+        foreign_keys="Incident.suggested_authority_id",
+        back_populates="suggested_authority",
         lazy="dynamic",
     )
 

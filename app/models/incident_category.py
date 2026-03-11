@@ -25,6 +25,7 @@ class IncidentCategory(db.Model):
 
     incidents = db.relationship(
         "Incident",
+        foreign_keys="Incident.category_id",
         back_populates="category_rel",
         lazy="dynamic",
     )

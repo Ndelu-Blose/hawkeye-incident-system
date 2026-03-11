@@ -1,0 +1,194 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "incidents" %}
+{% set admin_page_title = "Incident details" %}
+{% set admin_page_subtitle = "Review full history, evidence, and status for this incident." %}
+
+{% block admin_top_actions %}
+  <a href="{{ url_for('admin.incidents') }}" class="btn btn-outline-light btn-sm">
+    &larr; Back to incident console
+  </a>
+{% endblock %}
+
+{% block admin_content %}
+  <div class="row">
+    <div class="col-lg-7 mb-4">
+      <h2 class="mb-3">Incident #{{ incident.id }} – {{ incident.title }}</h2>
+
+      <p class="mb-2">
+        Status:
+        {{ render_status_badge(incident.status) }}
+      </p>
+
+      <p class="mb-2">
+        <strong>Severity:</strong>
+        <span class="text-capitalize">{{ incident.severity }}</span>
+      </p>
+
+      <p class="mb-2">
+        <strong>Category:</strong> {{ incident.category_rel.name if incident.category_rel else incident.category }}
+      </p>
+
+      <div class="card bg-dark border-secondary mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2">Screening insight</h3>
+          <p class="small mb-1">
+            <strong>Resident category:</strong>
+            {{ incident.category_rel.name if incident.category_rel else incident.category }}
+          </p>
+          <p class="small mb-1">
+            <strong>System category:</strong>
+            {% if incident.system_category_id %}
+              ID {{ incident.system_category_id }}
+            {% else %}
+              <span class="text-muted">Not determined</span>
+            {% endif %}
+          </p>
+          <p class="small mb-1">
+            <strong>Suggested priority:</strong>
+            {% if incident.suggested_priority %}
+              <span class="text-capitalize">{{ incident.suggested_priority }}</span>
+            {% else %}
+              <span class="text-muted">None</span>
+            {% endif %}
+          </p>
+          <p class="small mb-1">
+            <strong>Screening confidence:</strong>
+            {% if incident.screening_confidence is not none %}
+              {{ (incident.screening_confidence * 100) | round(0) }}%
+            {% else %}
+              <span class="text-muted">N/A</span>
+            {% endif %}
+          </p>
+          {% if incident.screening_notes %}
+            <p class="small mb-1">
+              <strong>Flags:</strong> {{ incident.screening_notes }}
+            </p>
+          {% endif %}
+          {% if incident.requires_admin_review %}
+            <p class="small mb-0 text-warning">
+              This incident has been flagged for routing review before final assignment.
+            </p>
+          {% else %}
+            <p class="small mb-0 text-muted">
+              Screening suggestion recorded for analytics; admin remains in control of routing.
+            </p>
+          {% endif %}
+        </div>
+      </div>
+
+      <p class="mb-2">
+        <strong>Location:</strong> {{ incident.location or (incident.street_or_landmark ~ ', ' ~ incident.suburb_or_ward) }}
+      </p>
+
+      <p class="mb-2">
+        <strong>Reported by:</strong> {{ incident.reporter.name if incident.reporter else '—' }}
+      </p>
+
+      <p class="mb-2">
+        <strong>Reported at:</strong>
+        {{ (incident.reported_at or incident.created_at).strftime('%Y-%m-%d %H:%M') if (incident.reported_at or incident.created_at) }}
+      </p>
+
+      <p class="mb-2">
+        <strong>Assigned to:</strong>
+        {{ incident.current_authority.name if incident.current_authority else 'Unassigned' }}
+      </p>
+
+      <p class="mb-2">
+        <strong>Ref:</strong> {{ incident.reference_no or ('#%d' % incident.id) }}
+      </p>
+
+      <hr />
+      <p>{{ incident.description }}</p>
+
+      {% if media %}
+        <h3 class="h6 mt-4 mb-2">Evidence</h3>
+        <div class="row g-2">
+          {% for m in media %}
+            <div class="col-6 col-md-4">
+              <a href="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}" target="_blank" rel="noopener">
+                <img
+                  src="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}"
+                  alt="Evidence"
+                  class="img-fluid rounded border"
+                  style="max-height: 120px; object-fit: cover;"
+                />
+              </a>
+            </div>
+          {% endfor %}
+        </div>
+      {% endif %}
+
+      <hr class="my-4" />
+
+      <h3 class="h5 mb-3">Update status</h3>
+      <form method="post" action="{{ url_for('admin.update_incident_status', incident_id=incident.id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="mb-3">
+          <label for="status" class="form-label">New status</label>
+          <select class="form-select" id="status" name="status" required>
+            <option value="">Select status</option>
+            <option value="pending" {% if incident.status == 'pending' %}selected{% endif %}>Reported</option>
+            <option value="verified" {% if incident.status == 'verified' %}selected{% endif %}>Verified</option>
+            <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
+            <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+            <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
+            <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
+            <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
+          </select>
+        </div>
+
+        <div class="mb-3">
+          <label for="note" class="form-label">Resolution / progress note</label>
+          <textarea class="form-control" id="note" name="note" rows="3"></textarea>
+        </div>
+
+        <button type="submit" class="btn btn-primary">Save status</button>
+      </form>
+    </div>
+
+    <div class="col-lg-5">
+      <h3 class="h5 mb-3">Status history</h3>
+      {% if updates %}
+        <ul class="list-group">
+          {% for update in updates %}
+            <li class="list-group-item bg-dark text-light">
+              <div class="d-flex justify-content-between">
+                <div>
+                  {% if update.from_status %}
+                    <strong>{{ update.from_status|replace('_',' ')|title }}</strong>
+                    &rarr;
+                  {% endif %}
+                  <strong>{{ update.to_status|replace('_',' ')|title }}</strong>
+                </div>
+                <small class="text-muted">
+                  {{ update.created_at.strftime('%Y-%m-%d %H:%M') if update.created_at }}
+                </small>
+              </div>
+              {% if update.note %}
+                <div class="mt-1 text-muted">
+                  {{ update.note }}
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% else %}
+        <p class="text-muted">No history recorded yet.</p>
+      {% endif %}
+
+      {% if incident.requires_admin_review %}
+        <div class="mt-4">
+          <form method="post" action="{{ url_for('admin.confirm_screening', incident_id=incident.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <button type="submit" class="btn btn-outline-warning btn-sm">
+              Confirm screening suggestion
+            </button>
+          </form>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+{% endblock %}

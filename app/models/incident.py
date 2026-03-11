@@ -32,6 +32,18 @@ class Incident(db.Model):
         nullable=True,
     )
 
+    # Screening & routing insight fields
+    resident_category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    system_category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
     # Structured location fields
     suburb_or_ward = db.Column(db.String(120), nullable=False)
     street_or_landmark = db.Column(db.String(255), nullable=False)
@@ -67,6 +79,17 @@ class Incident(db.Model):
         nullable=True,
     )
 
+    suggested_authority_id = db.Column(
+        db.Integer,
+        db.ForeignKey("authorities.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+
+    suggested_priority = db.Column(db.String(50), nullable=True)
+    screening_confidence = db.Column(db.Float, nullable=True)
+    requires_admin_review = db.Column(db.Boolean, nullable=False, default=False)
+    screening_notes = db.Column(db.Text, nullable=True)
+
     is_anonymous = db.Column(db.Boolean, nullable=False, default=False)
     duplicate_of_incident_id = db.Column(
         db.Integer,
@@ -99,6 +122,7 @@ class Incident(db.Model):
 
     category_rel = db.relationship(
         "IncidentCategory",
+        foreign_keys=[category_id],
         back_populates="incidents",
     )
 
@@ -106,7 +130,14 @@ class Incident(db.Model):
 
     current_authority = db.relationship(
         "Authority",
+        foreign_keys=[current_authority_id],
         back_populates="incidents",
+    )
+
+    suggested_authority = db.relationship(
+        "Authority",
+        foreign_keys=[suggested_authority_id],
+        back_populates="suggested_incidents",
     )
 
     duplicate_of = db.relationship(

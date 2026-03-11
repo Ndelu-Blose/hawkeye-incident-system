@@ -9,20 +9,30 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/hawkeye-theme.css') }}" />
 </head>
 <body>
-  {% if request.endpoint != 'main.home' %}
   <header class="hawkeye-public-header">
-    <a class="hawkeye-public-logo" href="{{ url_for('main.home') }}">Hawkeye</a>
-    <div class="hawkeye-public-links">
-      {% if current_user.is_authenticated %}
+  <a class="hawkeye-public-logo" href="{{ url_for('main.home') }}">Hawkeye</a>
+  <div class="hawkeye-public-links">
+  {% if current_user.is_authenticated %}
         <span class="hawkeye-public-user">Signed in as {{ current_user.name }}</span>
         <a class="hawkeye-public-link" href="{{ url_for('auth.logout') }}">Logout</a>
       {% else %}
-        <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
-        <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Register</a>
+        {% if request.endpoint == 'main.home' %}
+          <a class="hawkeye-public-link" href="#solutions">Solutions</a>
+          <a class="hawkeye-public-link" href="#how-it-works">How it works</a>
+          <a class="hawkeye-public-link" href="#who-its-for">Who it’s for</a>
+          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
+          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
+        {% elif request.endpoint == 'auth.login' %}
+          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
+        {% elif request.endpoint == 'auth.register' %}
+          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
+        {% else %}
+          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
+          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
+        {% endif %}
       {% endif %}
     </div>
   </header>
-  {% endif %}
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}
@@ -39,21 +49,75 @@
   {% endwith %}
 
   {% block content %}{% endblock %}
+  {% block footer %}{% endblock %}
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <script>
-    (function() {
+    (function () {
+      // Toast auto-dismiss
       var container = document.querySelector('.hawkeye-toast-container');
-      if (!container) return;
-      var toasts = container.querySelectorAll('.hawkeye-toast[data-autodismiss]');
-      toasts.forEach(function(toast) {
-        var close = toast.querySelector('[data-toast-close]');
-        function dismiss() {
-          toast.classList.add('hawkeye-toast-out');
-          setTimeout(function() { toast.remove(); if (container.children.length === 0) container.remove(); }, 260);
-        }
-        if (close) close.addEventListener('click', dismiss);
-        setTimeout(dismiss, 5000);
+      if (container) {
+        var toasts = container.querySelectorAll('.hawkeye-toast[data-autodismiss]');
+        toasts.forEach(function (toast) {
+          var close = toast.querySelector('[data-toast-close]');
+          function dismiss() {
+            toast.classList.add('hawkeye-toast-out');
+            setTimeout(function () {
+              toast.remove();
+              if (container.children.length === 0) container.remove();
+            }, 260);
+          }
+          if (close) close.addEventListener('click', dismiss);
+          setTimeout(dismiss, 5000);
+        });
+      }
+
+      // Password visibility toggle
+      document.querySelectorAll('[data-password-toggle]').forEach(function (btn) {
+        var targetSelector = btn.getAttribute('data-password-toggle');
+        var input = document.querySelector(targetSelector);
+        if (!input) return;
+        btn.addEventListener('click', function () {
+          var isPassword = input.getAttribute('type') === 'password';
+          input.setAttribute('type', isPassword ? 'text' : 'password');
+          var icon = btn.querySelector('i');
+          if (icon) {
+            icon.classList.toggle('bi-eye');
+            icon.classList.toggle('bi-eye-slash');
+          }
+          btn.setAttribute('aria-label', isPassword ? 'Hide password' : 'Show password');
+        });
+      });
+
+      // Caps Lock indicator on password fields
+      document.querySelectorAll('input[type="password"]').forEach(function (input) {
+        var helper = input
+          .closest('.hawkeye-form-group')
+          ?.querySelector('[data-password-caps-lock]');
+        if (!helper) return;
+
+        input.addEventListener('keydown', function (e) {
+          var caps = e.getModifierState && e.getModifierState('CapsLock');
+          helper.classList.toggle('d-none', !caps);
+        });
+        input.addEventListener('blur', function () {
+          helper.classList.add('d-none');
+        });
+      });
+
+      // Button loading state for auth forms
+      document.querySelectorAll('form[data-hawkeye-auth-form]').forEach(function (form) {
+        form.addEventListener('submit', function () {
+          var btn = form.querySelector('[data-submit-loading-text]');
+          if (!btn) return;
+          var textEl = btn.querySelector('.btn-text');
+          var spinner = btn.querySelector('.spinner-border');
+          var loadingText = btn.getAttribute('data-submit-loading-text') || 'Signing in...';
+          if (textEl) textEl.textContent = loadingText;
+          if (spinner) spinner.classList.remove('d-none');
+          btn.classList.add('loading');
+          btn.setAttribute('disabled', 'disabled');
+        });
       });
     })();
   </script>

@@ -1,14 +1,37 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import joinedload
 
 from app.constants import IncidentStatus
 from app.extensions import db
 from app.models.incident import Incident
+
+
+@dataclass(frozen=True)
+class Page:
+    items: list[Incident]
+    total: int
+    page: int
+    per_page: int
+
+    @property
+    def pages(self) -> int:
+        if self.per_page <= 0:
+            return 0
+        return max(1, (self.total + self.per_page - 1) // self.per_page)
+
+    @property
+    def has_prev(self) -> bool:
+        return self.page > 1
+
+    @property
+    def has_next(self) -> bool:
+        return self.page < self.pages
 
 
 def _start_of_today_utc() -> datetime:
@@ -84,6 +107,67 @@ class IncidentRepository:
             )
         return db.session.execute(stmt).scalars().unique().all()
 
+    def list_for_admin(
+        self,
+        *,
+        status: IncidentStatus | None = None,
+        category: str | None = None,
+        severity: str | None = None,
+        authority_id: int | None = None,
+        unassigned_only: bool = False,
+        q: str | None = None,
+        page: int = 1,
+        per_page: int = 25,
+        load_relations: bool = True,
+    ) -> Page:
+        """Admin incident list with simple filters + pagination."""
+        page = max(1, int(page or 1))
+        per_page = min(100, max(1, int(per_page or 25)))
+
+        stmt = select(Incident)
+
+        if status is not None:
+            stmt = stmt.where(Incident.status == status.value)
+        if category:
+            stmt = stmt.where(Incident.category == category)
+        if severity:
+            stmt = stmt.where(Incident.severity == severity)
+        if authority_id is not None:
+            stmt = stmt.where(Incident.current_authority_id == authority_id)
+        if unassigned_only:
+            stmt = stmt.where(Incident.current_authority_id.is_(None))
+
+        q_norm = (q or "").strip()
+        if q_norm:
+            like = f"%{q_norm.lower()}%"
+            filters = [
+                func.lower(Incident.title).like(like),
+                func.lower(Incident.reference_no).like(like),
+            ]
+            if q_norm.isdigit():
+                try:
+                    filters.append(Incident.id == int(q_norm))
+                except ValueError:
+                    pass
+            stmt = stmt.where(or_(*filters))
+
+        if load_relations:
+            stmt = stmt.options(
+                joinedload(Incident.category_rel),
+                joinedload(Incident.location_rel),
+                joinedload(Incident.current_authority),
+                joinedload(Incident.reporter),
+            )
+
+        count_stmt = stmt.with_only_columns(func.count(Incident.id)).order_by(None)
+        total = int(db.session.execute(count_stmt).scalar() or 0)
+
+        stmt = (
+            stmt.order_by(Incident.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        )
+        items = list(db.session.execute(stmt).scalars().unique().all())
+        return Page(items=items, total=total, page=page, per_page=per_page)
+
     def count_new_today(self) -> int:
         since = _start_of_today_utc()
         stmt = select(func.count(Incident.id)).where(
@@ -134,10 +218,7 @@ class IncidentRepository:
             .where(Incident.reported_at.isnot(None))
             .options(joinedload(Incident.category_rel))
         )
-        incidents = [
-            row[0] if isinstance(row, tuple) else row
-            for row in db.session.execute(stmt).scalars().unique().all()
-        ]
+        incidents = list(db.session.execute(stmt).scalars().unique().all())
         count = 0
         for inc in incidents:
             reported_at = inc.reported_at
@@ -156,3 +237,59 @@ class IncidentRepository:
             if due < now:
                 count += 1
         return count
+
+    def list_recent(self, *, limit: int = 5, load_relations: bool = True) -> list[Incident]:
+        """Return the most recently created incidents for dashboard views."""
+        stmt = select(Incident)
+        if load_relations:
+            stmt = stmt.options(
+                joinedload(Incident.category_rel),
+                joinedload(Incident.location_rel),
+                joinedload(Incident.current_authority),
+                joinedload(Incident.reporter),
+            )
+        stmt = stmt.order_by(Incident.created_at.desc()).limit(limit)
+        return list(db.session.execute(stmt).scalars().unique().all())
+
+    def list_overdue(self, *, limit: int = 5) -> list[Incident]:
+        """Return a small list of overdue incidents for dashboards."""
+        from app.models import IncidentCategory
+
+        closed_statuses = (
+            IncidentStatus.RESOLVED.value,
+            IncidentStatus.REJECTED.value,
+            IncidentStatus.CLOSED.value,
+        )
+        now = datetime.now(UTC)
+        stmt = (
+            select(Incident)
+            .outerjoin(IncidentCategory, Incident.category_id == IncidentCategory.id)
+            .where(Incident.status.notin_(closed_statuses))
+            .where(Incident.reported_at.isnot(None))
+            .options(
+                joinedload(Incident.category_rel),
+                joinedload(Incident.location_rel),
+                joinedload(Incident.current_authority),
+                joinedload(Incident.reporter),
+            )
+        )
+        overdue: list[Incident] = []
+        for inc in db.session.execute(stmt).scalars().unique().all():
+            reported_at = inc.reported_at
+            if reported_at is None:
+                continue
+            if reported_at.tzinfo is None:
+                reported_at = reported_at.replace(tzinfo=UTC)
+            sla_hours = 72
+            if inc.category_rel is not None and inc.category_rel.default_sla_hours is not None:
+                sla_hours = inc.category_rel.default_sla_hours
+            elif inc.category_id:
+                cat = db.session.get(IncidentCategory, inc.category_id)
+                if cat and cat.default_sla_hours is not None:
+                    sla_hours = cat.default_sla_hours
+            due = reported_at + timedelta(hours=sla_hours)
+            if due < now:
+                overdue.append(inc)
+                if len(overdue) >= limit:
+                    break
+        return overdue

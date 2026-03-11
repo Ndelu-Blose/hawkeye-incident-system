@@ -1,0 +1,91 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "users" %}
+{% set admin_page_title = "Create user" %}
+{% set admin_page_subtitle = "Create a new Hawkeye account with the appropriate role." %}
+
+{% block admin_top_actions %}
+  <a href="{{ url_for('admin.users') }}" class="btn btn-outline-light btn-sm">
+    &larr; Back to users
+  </a>
+{% endblock %}
+
+{% block admin_content %}
+  <div class="row justify-content-center">
+    <div class="col-lg-8 col-xl-7">
+      <div class="card bg-dark border-secondary shadow-sm">
+        <div class="card-body">
+          <h5 class="card-title mb-3">Account details</h5>
+          <form method="post">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="name">Name</label>
+                <input
+                  class="form-control"
+                  id="name"
+                  name="name"
+                  value="{{ (form_data.name if form_data else '') }}"
+                  required
+                />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="email">Email</label>
+                <input
+                  class="form-control"
+                  id="email"
+                  name="email"
+                  type="email"
+                  value="{{ (form_data.email if form_data else '') }}"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label" for="role">Role</label>
+                <select class="form-select" id="role" name="role" required>
+                  {% set current_role = (form_data.role if form_data else 'resident') %}
+                  <option value="resident" {% if current_role == 'resident' %}selected{% endif %}>Resident</option>
+                  <option value="authority" {% if current_role == 'authority' %}selected{% endif %}>Authority</option>
+                  <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Admin</option>
+                </select>
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label" for="password">Initial password</label>
+                <input
+                  class="form-control"
+                  id="password"
+                  name="password"
+                  type="password"
+                  required
+                />
+              </div>
+              <div class="col-md-4 mb-3">
+                <label class="form-label" for="password_confirm">Confirm password</label>
+                <input
+                  class="form-control"
+                  id="password_confirm"
+                  name="password_confirm"
+                  type="password"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="alert alert-secondary mt-2 small mb-4">
+              This password will be used for the user's first login only. They should change it
+              from their own profile after signing in.
+            </div>
+
+            <button type="submit" class="btn btn-primary">
+              Create user
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

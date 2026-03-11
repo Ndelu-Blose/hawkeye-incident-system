@@ -19,6 +19,7 @@ from app.repositories.incident_update_repo import IncidentUpdateRepository
 from app.services.incident_presets import get_preset, urgency_to_severity
 from app.services.notification_service import notification_service
 from app.services.routing_service import routing_service
+from app.services.screening_service import screening_service
 from app.utils.uploads import save_incident_media
 
 if TYPE_CHECKING:
@@ -229,15 +230,41 @@ class IncidentService:
             is_issue_still_present=is_issue_still_present_value,
             urgency_level=urgency_level or None,
         )
+        # Run screening to capture system interpretation of the report.
+        screening_result = screening_service.screen_incident(
+            title=title,
+            description=description,
+            resident_category=category_obj,
+        )
+        incident.resident_category_id = category_obj.id if category_obj else None
+        incident.system_category_id = (
+            screening_result.system_category.id if screening_result.system_category else None
+        )
+        incident.suggested_authority_id = (
+            screening_result.suggested_authority.id
+            if screening_result.suggested_authority
+            else None
+        )
+        if screening_result.suggested_priority and not incident.severity:
+            incident.severity = screening_result.suggested_priority
+        incident.suggested_priority = screening_result.suggested_priority
+        incident.screening_confidence = screening_result.confidence
+        incident.requires_admin_review = (
+            screening_result.confidence < 0.7
+            or "multi_department_candidate" in screening_result.flags
+        )
+        if screening_result.flags:
+            incident.screening_notes = ", ".join(screening_result.flags)
+
         self.incident_repo.add(incident)
-        update = IncidentUpdate(
+        created_update = IncidentUpdate(
             incident=incident,
             updated_by_id=resident_user.id,
             from_status=None,
             to_status=IncidentStatus.PENDING.value,
             note="Incident created",
         )
-        self.update_repo.add(update)
+        self.update_repo.add(created_update)
 
         # Resolve routing based on category and location if possible (best-effort).
         routing_decision = None
@@ -251,6 +278,34 @@ class IncidentService:
                 incident.assigned_at = reported_at
                 if not severity and routing_decision.priority:
                     incident.severity = routing_decision.priority
+                routing_update = IncidentUpdate(
+                    incident=incident,
+                    updated_by_id=resident_user.id,
+                    from_status=IncidentStatus.PENDING.value,
+                    to_status=IncidentStatus.PENDING.value,
+                    note=f"Incident auto-routed to {routing_decision.authority.name}",
+                )
+                self.update_repo.add(routing_update)
+
+        # Record screening decision in history for later analytics.
+        if screening_result is not None:
+            details = []
+            if screening_result.system_category is not None:
+                details.append(f"system_category={screening_result.system_category.name}")
+            if screening_result.suggested_priority:
+                details.append(f"suggested_priority={screening_result.suggested_priority}")
+            details.append(f"confidence={screening_result.confidence:.2f}")
+            if screening_result.flags:
+                details.append(f"flags={','.join(screening_result.flags)}")
+            screening_note = "Screened incident: " + "; ".join(details)
+            screening_update = IncidentUpdate(
+                incident=incident,
+                updated_by_id=resident_user.id,
+                from_status=IncidentStatus.PENDING.value,
+                to_status=IncidentStatus.PENDING.value,
+                note=screening_note,
+            )
+            self.update_repo.add(screening_update)
 
         db.session.flush()
 

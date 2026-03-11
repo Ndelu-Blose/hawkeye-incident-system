@@ -1,0 +1,132 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "users" %}
+{% set admin_page_title = "User details" %}
+{% set admin_page_subtitle = "Review and update this user’s account, role, and status." %}
+
+{% block admin_top_actions %}
+  <a href="{{ url_for('admin.users') }}" class="btn btn-outline-light btn-sm">
+    &larr; Back to users
+  </a>
+{% endblock %}
+
+{% block admin_content %}
+  <form method="post">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+    <div class="row">
+      <div class="col-lg-7 mb-4">
+        <div class="card bg-dark border-secondary">
+          <div class="card-body">
+            <div class="row">
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="name">Name</label>
+                <input
+                  class="form-control"
+                  id="name"
+                  name="name"
+                  value="{{ (form_data.name if form_data else user.name) }}"
+                  required
+                />
+              </div>
+              <div class="col-md-6 mb-3">
+                <label class="form-label" for="email">Email</label>
+                <input
+                  class="form-control"
+                  id="email"
+                  name="email"
+                  type="email"
+                  value="{{ (form_data.email if form_data else user.email) }}"
+                  required
+                />
+              </div>
+            </div>
+
+            <div class="row">
+              <div class="col-md-4 mb-3">
+                <label class="form-label" for="role">Role</label>
+                {% set current_role = (form_data.role if form_data else user.role) %}
+                <select class="form-select" id="role" name="role" required>
+                  <option value="resident" {% if current_role == 'resident' %}selected{% endif %}>Resident</option>
+                  <option value="authority" {% if current_role == 'authority' %}selected{% endif %}>Authority</option>
+                  <option value="admin" {% if current_role == 'admin' %}selected{% endif %}>Admin</option>
+                </select>
+              </div>
+
+              <div class="col-md-8 mb-3 d-flex align-items-end gap-3 flex-wrap">
+                <div class="form-check">
+                  {% set active_checked = (form_data.is_active if form_data else (user.is_active and 'on')) %}
+                  <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if active_checked %}checked{% endif %}>
+                  <label class="form-check-label" for="is_active">Active</label>
+                </div>
+                <div class="form-check">
+                  {% set email_checked = (form_data.email_verified if form_data else (user.email_verified and 'on')) %}
+                  <input class="form-check-input" type="checkbox" id="email_verified" name="email_verified" {% if email_checked %}checked{% endif %}>
+                  <label class="form-check-label" for="email_verified">Email verified</label>
+                </div>
+                <div class="form-check">
+                  {% set phone_checked = (form_data.phone_verified if form_data else (user.phone_verified and 'on')) %}
+                  <input class="form-check-input" type="checkbox" id="phone_verified" name="phone_verified" {% if phone_checked %}checked{% endif %}>
+                  <label class="form-check-label" for="phone_verified">Phone verified</label>
+                </div>
+              </div>
+            </div>
+
+            <hr class="border-secondary" />
+
+            <button type="submit" class="btn btn-primary">Save changes</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="col-lg-5">
+        <div class="card bg-dark border-secondary mb-4">
+          <div class="card-body">
+            <h3 class="h6 mb-3">Account details</h3>
+            <p class="mb-2"><strong>Created:</strong> {{ user.created_at.strftime('%Y-%m-%d %H:%M') if user.created_at else '—' }}</p>
+            <p class="mb-2"><strong>Last login:</strong> {{ user.last_login_at.strftime('%Y-%m-%d %H:%M') if user.last_login_at else '—' }}</p>
+            <p class="mb-0"><strong>Updated:</strong> {{ user.updated_at.strftime('%Y-%m-%d %H:%M') if user.updated_at else '—' }}</p>
+          </div>
+        </div>
+
+        {% if user.role == 'authority' %}
+          <div class="card bg-dark border-secondary mb-4">
+            <div class="card-body">
+              <h3 class="h6 mb-2">Department membership</h3>
+              {% set memberships = user.authority_memberships.all() %}
+              {% if memberships %}
+                <ul class="small mb-0">
+                  {% for m in memberships %}
+                    <li>{{ m.authority.name }}</li>
+                  {% endfor %}
+                </ul>
+              {% else %}
+                <p class="text-muted small mb-0">
+                  This authority user is not yet linked to any department. They will not receive routed incidents until a membership is created.
+                </p>
+              {% endif %}
+            </div>
+          </div>
+        {% endif %}
+
+        <div class="card bg-dark border-secondary">
+          <div class="card-body">
+            <h3 class="h6 mb-2">Password</h3>
+            <p class="text-muted small mb-3">
+              Passwords are stored as secure hashes and can never be viewed, even by admins.
+              You can trigger a reset if this user is locked out.
+            </p>
+            <form method="post" action="{{ url_for('admin.reset_user_password', user_id=user.id) }}">
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <button type="submit" class="btn btn-outline-warning btn-sm">
+                <i class="bi bi-shield-lock"></i>
+                Reset password
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    </div>
+  </form>
+{% endblock %}
+

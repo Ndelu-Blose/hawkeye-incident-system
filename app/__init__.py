@@ -4,7 +4,7 @@ from typing import Any
 from flask import Flask, render_template
 
 from .config import DevelopmentConfig, ProductionConfig, TestingConfig
-from .constants import APP_NAME, APP_TAGLINE
+from .constants import APP_NAME, APP_TAGLINE, Roles
 from .extensions import bcrypt, csrf, db, limiter, login_manager, mail, migrate
 
 
@@ -28,6 +28,7 @@ def create_app(config_name: str | None = None) -> Flask:
     _register_blueprints(app)
     _register_error_handlers(app)
     _register_template_globals(app)
+    _bootstrap_admin(app)
 
     from .utils.template_helpers import render_status_badge, sla_due
 
@@ -101,3 +102,39 @@ def _register_template_globals(app: Flask) -> None:
     def inject_csrf() -> dict[str, Any]:
         # Expose generate_csrf as csrf_token() in templates
         return {"csrf_token": generate_csrf}
+
+
+def _bootstrap_admin(app: Flask) -> None:
+    """Ensure there is at least one admin user.
+
+    Uses environment variables for credentials, with dev-friendly defaults:
+    - ADMIN_EMAIL (default: admin@example.com)
+    - ADMIN_PASSWORD (default: Admin123!)
+    - ADMIN_NAME (default: Hawkeye Admin)
+    """
+    from app.services.auth_service import auth_service  # local import to avoid cycles
+
+    email = os.getenv("ADMIN_EMAIL", "admin@example.com").strip().lower()
+    password = os.getenv("ADMIN_PASSWORD", "Admin123!")
+    name = os.getenv("ADMIN_NAME", "Hawkeye Admin").strip() or "Hawkeye Admin"
+
+    # In testing we let tests control users explicitly.
+    if app.config.get("TESTING"):
+        return
+
+    if not email or not password:
+        return
+
+    with app.app_context():
+        existing = auth_service.user_repo.get_by_email(email)
+        if existing is not None:
+            return
+
+        user, errors = auth_service.register_user(
+            name=name,
+            email=email,
+            password=password,
+            role=Roles.ADMIN.value,
+        )
+        if errors:
+            app.logger.warning("Failed to bootstrap admin user: %s", "; ".join(errors))
