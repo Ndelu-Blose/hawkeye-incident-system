@@ -102,39 +102,112 @@
   - [x] `assemble_timeline(incident_id)` that merges history, dispatches, and actions
   - [x] Resident incident detail timeline UI
   - [x] Admin incident detail timeline UI
-  - [ ] Public area incident view (anonymised)
+  - [x] Public area incident view (anonymised)
 
 ---
 
-### Operational Backbone
+### Operational Backbone Hardening (Current Priority)
 
-- [ ] **Lifecycle & ownership**
-  - [ ] All code paths that change `Incident.status` go through a single `IncidentService.change_status(...)` (or equivalent) method.
-  - [ ] `IncidentService.change_status` validates transitions against the v3 lifecycle (`reported → screened → assigned → acknowledged → in_progress → resolved → closed` + `rejected`) and rejects invalid moves.
-  - [ ] `IncidentService.change_status` always writes an `incident_events` row describing the change.
-  - [ ] `IncidentService.change_status` writes an `audit_logs` row for sensitive transitions (manual close, rejection, overrides).
-  - [ ] Ownership is represented only via `incident_ownership_history` with exactly one `is_current = true` row per incident.
-  - [ ] No direct writes to `Incident.status` exist outside `IncidentService.change_status(...)` (enforced by code review and tests).
+> **Milestone:** Event Ledger, Ownership, Audit, Acknowledgment
+>
+> Phase 3 is functionally progressing, but the Operational Backbone is not yet enterprise-safe.
+> The application can display workflow but lacks auditability, traceability, and lifecycle guarantees required for a municipal-grade system.
+>
+> This milestone must be completed before deeper analytics or additional resident-facing features.
 
-- [ ] **Dispatch & delivery**
-  - [x] Every new `IncidentAssignment` (or routing event) creates an `incident_dispatches` row.
-  - [x] `dispatch_method` (`internal_queue | email | sms | api`) and `delivery_status` (`pending | sent | delivered | failed`) are recorded for each dispatch.
-  - [ ] Department queues are ultimately driven from `incident_dispatches` + `Incident.status`, not only `incident.current_authority_id`.
-  - [ ] Acknowledgment from departments updates `incident_dispatches.ack_status`, `ack_user_id`, and `ack_at`.
+**Implementation order:**
+Event ledger → Unified status engine → Ownership history → Audit logging → Acknowledgment flow → Department queue refactor → Timeline refactor → Tests
 
-- [ ] **Acknowledgment**
-  - [ ] Department UI exposes an **Acknowledge incident** action that writes an `incident_events` entry and updates the relevant `incident_dispatches` row.
-  - [ ] Incident timelines surface acknowledgment events (who acknowledged, when, via which channel).
+---
 
-- [ ] **Event ledger**
-  - [ ] For incident creation, screening, routing, status changes, and evidence uploads, corresponding `incident_events` rows are written.
-  - [ ] Resident and admin incident timelines are rendered from `incident_events` (no hard‑coded or fake history lines).
+## Operational Backbone (Refactored)
 
-- [ ] **Audit**
-  - [ ] Routing rule CRUD operations write `audit_logs` entries with `before_json` and `after_json` snapshots.
-  - [ ] User role and activation/disablement changes write `audit_logs` rows.
-  - [ ] Manual incident closes, reopens, and rejections write `audit_logs` entries with a non‑empty `reason`.
-  - [ ] Tests assert that legal status transitions produce one `incident_events` row, the expected ownership change, and one `audit_logs` row; illegal transitions raise a domain error.
+### Sprint 1 — Canonical Workflow Core
+
+- [ ] Create `incident_events` table, model, repository, and event type constants
+- [ ] Refactor `IncidentService.change_status(...)` to be the ONLY path for status changes
+- [ ] Add `acknowledged` to lifecycle and transition map
+- [ ] Create `incident_ownership_history` with one-current-row constraint per incident
+- [ ] Remove all direct writes to `Incident.status` (including `create_incident`)
+
+---
+
+### Sprint 2 — Audit and Compliance
+
+- [ ] Create unified `audit_logs` table and logger service
+- [ ] Audit sensitive actions:
+  - Manual close
+  - Rejection
+  - Reopen
+  - Override transitions
+  - Routing rule CRUD
+  - User role and activation changes
+- [ ] Enforce mandatory non-empty `reason` for:
+  - Reject
+  - Manual close
+  - Reopen
+  - Override
+
+---
+
+### Sprint 3 — Dispatch and Acknowledgment
+
+- [ ] Implement `acknowledge_dispatch(dispatch_id, actor_user_id, note, channel)` service method
+- [ ] Update department queue logic:
+  - Driven by `incident_dispatches + status + ownership`
+  - NOT only `current_authority_id`
+
+---
+
+### Sprint 4 — Timeline Refactor
+
+- [ ] Render timelines primarily from `incident_events`
+- [ ] Use `IncidentUpdate` as legacy fallback during migration
+- [ ] Remove synthetic timeline entries
+
+---
+
+### Sprint 5 — UI and Tests
+
+- [ ] Department UI: "Acknowledge incident" action
+- [ ] Add contract tests:
+  - Valid transitions succeed
+  - Invalid transitions fail
+  - Each valid transition writes `incident_events`
+  - Sensitive actions write `audit_logs`
+  - No direct status writes exist outside service layer
+
+---
+
+### Data Model Direction
+
+- **Keep**
+  - `IncidentDispatch`
+  - `DepartmentActionLog`
+
+- **Transitional**
+  - `IncidentUpdate` → legacy only, then retire
+
+- **Add**
+  - `IncidentEvent`
+  - `IncidentOwnershipHistory`
+  - `AuditLog`
+
+---
+
+### Architectural Discipline
+
+Do not allow `incident_events` to become a loose logging table.
+
+Rules:
+- One row per domain event
+- Immutable after insert
+- Event type constants centrally controlled
+- Status changes always recorded consistently
+- Actor and timestamp always present
+- Reasons required where policy dictates
+
+This table forms the authoritative operational ledger of the system.
 
 ---
 

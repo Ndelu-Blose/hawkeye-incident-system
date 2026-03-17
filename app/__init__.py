@@ -72,9 +72,11 @@ def _register_blueprints(app: Flask) -> None:
     from .routes.auth_routes import auth_bp
     from .routes.authority_routes import authority_bp
     from .routes.main_routes import main_bp
+    from .routes.public_routes import public_bp
     from .routes.resident_routes import resident_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(resident_bp, url_prefix="/resident")
     app.register_blueprint(authority_bp, url_prefix="/authority")
