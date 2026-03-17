@@ -27,6 +27,8 @@
 
       <form method="post" novalidate enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <input type="hidden" id="latitude" name="latitude" value="{{ fd.latitude if fd and fd.latitude is defined else '' }}">
+        <input type="hidden" id="longitude" name="longitude" value="{{ fd.longitude if fd and fd.longitude is defined else '' }}">
 
         <div class="mb-4">
           <label for="category_id" class="form-label fw-bold">What type of issue is this?</label>
@@ -48,7 +50,7 @@
             value="{{ fd.title if (fd and fd.title is defined and fd.title != '') else (current_preset.suggested_title if selected_cat_id else '') }}"
             placeholder="{{ current_preset.suggested_title if selected_cat_id else 'Select a category first' }}"
           />
-          <div class="form-text">You can edit this or leave it blank; we'll use a suggested title from the category.</div>
+          <div class="form-text">Auto-filled from the selected issue type. You can edit this title if needed.</div>
         </div>
 
         <div class="mb-3">
@@ -90,10 +92,16 @@
               <label class="form-check-label" for="location_saved">Use my saved address</label>
             </div>
             <div class="form-check">
+              <input class="form-check-input" type="radio" name="location_mode" id="location_current" value="current" {% if fd and fd.location_mode == 'current' %}checked{% endif %} />
+              <label class="form-check-label" for="location_current">Use my current location</label>
+            </div>
+            <div class="form-check">
               <input class="form-check-input" type="radio" name="location_mode" id="location_other" value="other" {% if fd and fd.location_mode == 'other' %}checked{% endif %} />
               <label class="form-check-label" for="location_other">A different location</label>
             </div>
           </div>
+
+          <div id="location-help" class="mb-2" style="display:none;"></div>
 
           <div id="saved_address_display" class="small text-muted mb-2">
             {% if saved_address.suburb or saved_address.street %}
@@ -111,7 +119,7 @@
                 class="form-control"
                 id="suburb_or_ward"
                 name="suburb_or_ward"
-                value="{{ fd.suburb_or_ward if (fd and fd.location_mode == 'other' and fd.suburb_or_ward is defined) else saved_address.suburb }}"
+                value="{{ fd.suburb_or_ward if (fd and fd.location_mode in ('other', 'current') and fd.suburb_or_ward is defined) else saved_address.suburb }}"
               />
             </div>
             <div class="col-md-6 mb-3">
@@ -121,8 +129,21 @@
                 class="form-control"
                 id="street_or_landmark"
                 name="street_or_landmark"
-                value="{{ fd.street_or_landmark if (fd and fd.location_mode == 'other' and fd.street_or_landmark is defined) else saved_address.street }}"
+                value="{{ fd.street_or_landmark if (fd and fd.location_mode in ('other', 'current') and fd.street_or_landmark is defined) else saved_address.street }}"
               />
+            </div>
+            <div class="col-12 mb-3">
+              <div id="location-status" class="small mb-2" style="display:none;"></div>
+              <div id="incident_map" class="rounded border" style="width: 100%; height: 260px; display: none;"></div>
+              <div class="form-text mb-2">
+                You can drag the pin to adjust the exact spot (when the map is available).
+              </div>
+              <div id="location-autofill-helper" class="small text-muted mb-2" style="display:none;">
+                Auto-filled from your current location. You can edit these details or drag the pin.
+              </div>
+              <button type="button" id="detect-again-btn" class="btn btn-sm btn-outline-secondary mt-2" style="display:none;">
+                Detect again
+              </button>
             </div>
           </div>
           <div class="mb-3">
@@ -195,7 +216,42 @@
 
   <script>
     (function() {
+      var titleInput = document.getElementById('title');
+      var categorySelect = document.getElementById('category_id');
+      var lastAutoTitle = titleInput ? titleInput.value : '';
+
+      var titleMap = {
+        'Blocked Drain': 'Blocked Drain Reported',
+        'Pothole': 'Pothole Reported',
+        'Broken Streetlight': 'Broken Street Light Reported',
+        'Water Leak': 'Water Leak Reported',
+      };
+
+      function getSuggestedTitle(category) {
+        return titleMap[category] || (category + ' Reported');
+      }
+
+      if (categorySelect && titleInput) {
+        categorySelect.addEventListener('change', function() {
+          if (categorySelect.value === '') return;
+          var opt = categorySelect.options[categorySelect.selectedIndex];
+          var category = opt ? opt.text : '';
+          if (!category) return;
+
+          var suggested = getSuggestedTitle(category);
+
+          if (titleInput.value.trim() === '' || titleInput.value === lastAutoTitle) {
+            titleInput.value = suggested;
+            lastAutoTitle = suggested;
+          }
+        });
+      }
+    })();
+  </script>
+  <script>
+    (function() {
       var savedRadio = document.getElementById('location_saved');
+      var currentRadio = document.getElementById('location_current');
       var otherRadio = document.getElementById('location_other');
       var otherFields = document.getElementById('other_location_fields');
       var suburbInput = document.getElementById('suburb_or_ward');
@@ -204,22 +260,39 @@
 
       function updateLocationFields() {
         if (!otherFields || !savedDisplay) return;
-        var useOther = otherRadio && otherRadio.checked;
-        otherFields.style.display = useOther ? 'flex' : 'none';
-        if (suburbInput) suburbInput.required = useOther;
-        if (streetInput) streetInput.required = useOther;
-        if (useOther) {
-          suburbInput.removeAttribute('readonly');
-          streetInput.removeAttribute('readonly');
-        } else {
+        var useSaved = savedRadio && savedRadio.checked;
+        var useCurrent = currentRadio && currentRadio.checked;
+        var useMap = useCurrent || (otherRadio && otherRadio.checked);
+        otherFields.style.display = useMap ? 'flex' : 'none';
+        savedDisplay.style.display = useSaved ? 'block' : 'none';
+        var helpEl = document.getElementById('location-help');
+        if (helpEl && !useCurrent) helpEl.style.display = 'none';
+        var statusEl = document.getElementById('location-status');
+        var helperEl = document.getElementById('location-autofill-helper');
+        var detectBtn = document.getElementById('detect-again-btn');
+        if (statusEl && !useCurrent) statusEl.style.display = 'none';
+        if (helperEl && !useCurrent) helperEl.style.display = 'none';
+        if (detectBtn) detectBtn.style.display = useCurrent ? 'inline-block' : 'none';
+        var mapEl = document.getElementById('incident_map');
+        if (mapEl) {
+          mapEl.style.display = useMap ? 'block' : 'none';
+          if (useMap && window.incidentMapInstance && window.google && google.maps) {
+            setTimeout(function() { google.maps.event.trigger(window.incidentMapInstance, 'resize'); }, 100);
+          }
+          if (useCurrent && window.useCurrentLocation && window.incidentMapInstance && window.incidentMarkerInstance) {
+            setTimeout(function() { window.useCurrentLocation(window.incidentMapInstance, window.incidentMarkerInstance); }, 150);
+          }
+        }
+        if (suburbInput) suburbInput.required = useMap;
+        if (streetInput) streetInput.required = useMap;
+        if (useSaved) {
           suburbInput.setAttribute('readonly', 'readonly');
           streetInput.setAttribute('readonly', 'readonly');
-          if (suburbInput) {
-            suburbInput.value = savedDisplay.dataset.suburb || '';
-          }
-          if (streetInput) {
-            streetInput.value = savedDisplay.dataset.street || '';
-          }
+          if (suburbInput) suburbInput.value = savedDisplay.dataset.suburb || '';
+          if (streetInput) streetInput.value = savedDisplay.dataset.street || '';
+        } else {
+          suburbInput.removeAttribute('readonly');
+          streetInput.removeAttribute('readonly');
         }
       }
 
@@ -233,8 +306,217 @@
       }
 
       if (savedRadio) savedRadio.addEventListener('change', updateLocationFields);
+      if (currentRadio) currentRadio.addEventListener('change', updateLocationFields);
       if (otherRadio) otherRadio.addEventListener('change', updateLocationFields);
       updateLocationFields();
     })();
   </script>
+  {% if google_maps_api_key %}
+  <script>
+    window.initIncidentMap = function initIncidentMap() {
+      if (!window.google || !google.maps) return;
+      var mapEl = document.getElementById('incident_map');
+      var suburbInput = document.getElementById('suburb_or_ward');
+      var streetInput = document.getElementById('street_or_landmark');
+      var latInput = document.getElementById('latitude');
+      var lngInput = document.getElementById('longitude');
+      if (!mapEl || !streetInput || !latInput || !lngInput) return;
+
+      var defaultLatLng = { lat: -29.8587, lng: 31.0218 };
+      var existingLat = parseFloat(latInput.value);
+      var existingLng = parseFloat(lngInput.value);
+      if (!isNaN(existingLat) && !isNaN(existingLng)) {
+        defaultLatLng = { lat: existingLat, lng: existingLng };
+      }
+
+      var map = new google.maps.Map(mapEl, {
+        center: defaultLatLng,
+        zoom: 14,
+      });
+      window.incidentMapInstance = map;
+
+      var marker = new google.maps.Marker({
+        position: defaultLatLng,
+        map: map,
+        draggable: true,
+      });
+      window.incidentMarkerInstance = marker;
+
+      function updateLatLng(latLng) {
+        if (!latLng) return;
+        latInput.value = latLng.lat();
+        lngInput.value = latLng.lng();
+      }
+
+      marker.addListener('dragend', function (evt) {
+        updateLatLng(evt.latLng);
+      });
+
+      if (google.maps.places) {
+        var autocomplete = new google.maps.places.Autocomplete(streetInput, {
+          fields: ['geometry', 'formatted_address', 'address_components'],
+        });
+        autocomplete.addListener('place_changed', function () {
+          var place = autocomplete.getPlace();
+          if (!place.geometry || !place.geometry.location) return;
+          map.panTo(place.geometry.location);
+          marker.setPosition(place.geometry.location);
+          updateLatLng(place.geometry.location);
+          if (suburbInput && place.address_components) {
+            var suburbComp = place.address_components.find(function (c) {
+              return c.types.includes('sublocality_level_1') || c.types.includes('locality');
+            });
+            if (suburbComp) suburbInput.value = suburbComp.long_name;
+          }
+        });
+      }
+
+      window.showLocationHelp = function showLocationHelp(message) {
+        var box = document.getElementById('location-help');
+        if (!box) return;
+        box.innerHTML = '<div class="alert alert-warning mb-0">' +
+          '<p class="mb-2">' + message + '</p>' +
+          '<p class="small mb-1"><strong>Chrome:</strong> Click the padlock or site icon near the address bar → Site settings → Location → Allow.</p>' +
+          '<p class="small mb-0"><strong>If location is still blocked:</strong> Turn on device or system location settings, then refresh and try again. You can also place the pin manually on the map.</p>' +
+          '</div>';
+        box.style.display = 'block';
+      };
+
+      function showLocationStatus(msg, isSuccess) {
+        var el = document.getElementById('location-status');
+        if (!el) return;
+        el.style.display = 'block';
+        el.className = 'small mb-2 ' + (isSuccess ? 'text-success' : 'text-muted');
+        el.innerHTML = msg;
+      }
+
+      function parseNearestPlace(addr) {
+        var parts = addr.address_components || [];
+        var order = ['point_of_interest', 'establishment', 'neighborhood', 'sublocality_level_2', 'sublocality'];
+        for (var i = 0; i < order.length; i++) {
+          var comp = parts.find(function(c) { return c.types.includes(order[i]); });
+          if (comp && comp.long_name && comp.long_name.length < 80) return comp.long_name;
+        }
+        if (addr.formatted_address) {
+          var parts2 = addr.formatted_address.split(',');
+          if (parts2.length >= 2 && parts2[1]) return parts2[1].trim();
+          return parts2[0].trim();
+        }
+        return '';
+      }
+
+      window.useCurrentLocation = function useCurrentLocation(map, marker) {
+        var latInput = document.getElementById('latitude');
+        var lngInput = document.getElementById('longitude');
+        var suburbInput = document.getElementById('suburb_or_ward');
+        var streetInput = document.getElementById('street_or_landmark');
+        var nearestInput = document.getElementById('nearest_place');
+        var statusEl = document.getElementById('location-status');
+        var helperEl = document.getElementById('location-autofill-helper');
+        var detectBtn = document.getElementById('detect-again-btn');
+        if (!latInput || !lngInput) return;
+
+        if (helperEl) helperEl.style.display = 'none';
+
+        if (!('geolocation' in navigator)) {
+          window.showLocationHelp('This browser does not support location access. Please place the pin manually on the map.');
+          return;
+        }
+
+        (async function checkPermissionThenGetPosition() {
+          try {
+            if ('permissions' in navigator && navigator.permissions && navigator.permissions.query) {
+              var permStatus = await navigator.permissions.query({ name: 'geolocation' });
+              if (permStatus.state === 'denied') {
+                window.showLocationHelp('Location access is blocked for this site. Please allow location in your browser site settings, then try again.');
+                return;
+              }
+            }
+          } catch (e) {
+          }
+
+          showLocationStatus('Detecting your current location...', false);
+
+          navigator.geolocation.getCurrentPosition(
+            function(position) {
+              var helpEl = document.getElementById('location-help');
+              if (helpEl) helpEl.style.display = 'none';
+              showLocationStatus('Getting address details...', false);
+              var lat = position.coords.latitude;
+              var lng = position.coords.longitude;
+              var currentPos = { lat: lat, lng: lng };
+              map.setCenter(currentPos);
+              map.setZoom(17);
+              marker.setPosition(currentPos);
+              latInput.value = lat;
+              lngInput.value = lng;
+
+              var geocoder = new google.maps.Geocoder();
+              geocoder.geocode({ location: currentPos }, function(results, status) {
+                if (status === 'OK' && results && results[0]) {
+                  var addr = results[0];
+                  var parts = addr.address_components || [];
+                  if (streetInput) {
+                    var sn = parts.find(function(c) { return c.types.includes('street_number'); });
+                    var route = parts.find(function(c) { return c.types.includes('route'); });
+                    var streetStr = (sn ? sn.long_name + ' ' : '') + (route ? route.long_name : '');
+                    streetInput.value = streetStr.trim() || (addr.formatted_address ? addr.formatted_address.split(',')[0].trim() : '');
+                  }
+                  if (suburbInput) {
+                    var suburbComp = parts.find(function(c) {
+                      return c.types.includes('sublocality_level_1') || c.types.includes('locality') || c.types.includes('administrative_area_level_2');
+                    });
+                    suburbInput.value = suburbComp ? suburbComp.long_name : '';
+                  }
+                  if (nearestInput) {
+                    var place = parseNearestPlace(addr);
+                    nearestInput.value = place || '';
+                    if (!place && addr.formatted_address) nearestInput.placeholder = addr.formatted_address;
+                  }
+                }
+                showLocationStatus('Location detected successfully. You can edit the address or drag the pin if needed.', true);
+                if (helperEl) helperEl.style.display = 'block';
+                if (detectBtn) detectBtn.style.display = 'inline-block';
+              });
+            },
+            function(error) {
+              if (statusEl) statusEl.style.display = 'none';
+              console.error('Geolocation error:', error);
+              if (error.code === 1) {
+                window.showLocationHelp('Location permission was denied. Please allow location for this site in your browser and make sure device location is turned on.');
+              } else if (error.code === 2) {
+                window.showLocationHelp('Your location could not be determined. Please check device location services or place the pin manually on the map.');
+              } else if (error.code === 3) {
+                window.showLocationHelp('Location request timed out. Please try again or place the pin manually on the map.');
+              } else {
+                window.showLocationHelp('Unable to get your current location. Please place the pin manually on the map.');
+              }
+            },
+            { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
+          );
+        })();
+      };
+
+      document.getElementById('detect-again-btn') && document.getElementById('detect-again-btn').addEventListener('click', function() {
+        if (window.incidentMapInstance && window.incidentMarkerInstance) {
+          window.useCurrentLocation(window.incidentMapInstance, window.incidentMarkerInstance);
+        }
+      });
+
+      if (document.getElementById('location_current') && document.getElementById('location_current').checked) {
+        setTimeout(function() { window.useCurrentLocation(map, marker); }, 200);
+      }
+    };
+  </script>
+  <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&libraries=places&callback=initIncidentMap" async defer></script>
+  {% else %}
+  <script>
+    (function() {
+      var mapEl = document.getElementById('incident_map');
+      if (mapEl) {
+        mapEl.innerHTML = '<div class="p-3 text-muted small">Map unavailable. Set GOOGLE_MAPS_API_KEY in .env to enable.</div>';
+      }
+    })();
+  </script>
+  {% endif %}
 {% endblock %}

@@ -67,6 +67,72 @@ class IncidentRepository:
             stmt = stmt.where(Incident.status == status.value)
         return db.session.execute(stmt).scalars().all()
 
+    def search_for_resident(
+        self,
+        resident_id: int,
+        *,
+        status: IncidentStatus | None = None,
+        category_id: int | None = None,
+        q: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        area: str | None = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Page:
+        """Resident-facing incident explorer with search, filters, and pagination."""
+        page = max(1, int(page or 1))
+        per_page = min(100, max(1, int(per_page or 20)))
+
+        stmt = select(Incident).where(Incident.reported_by_id == resident_id)
+
+        if status is not None:
+            stmt = stmt.where(Incident.status == status.value)
+
+        if category_id is not None:
+            stmt = stmt.where(Incident.category_id == category_id)
+
+        q_norm = (q or "").strip()
+        if q_norm:
+            like = f"%{q_norm.lower()}%"
+            stmt = stmt.where(
+                or_(
+                    func.lower(Incident.title).like(like),
+                    func.lower(Incident.description).like(like),
+                    func.lower(Incident.reference_code).like(like),
+                    func.lower(Incident.location).like(like),
+                    func.lower(Incident.suburb_or_ward).like(like),
+                )
+            )
+
+        if date_from is not None:
+            stmt = stmt.where(
+                (Incident.reported_at >= date_from) | (Incident.created_at >= date_from)
+            )
+        if date_to is not None:
+            stmt = stmt.where((Incident.reported_at <= date_to) | (Incident.created_at <= date_to))
+
+        area_norm = (area or "").strip()
+        if area_norm:
+            area_like = f"%{area_norm.lower()}%"
+            # Prefer structured suburb/ward when available, but fall back to legacy field.
+            stmt = stmt.where(
+                or_(
+                    func.lower(Incident.suburb).like(area_like),
+                    func.lower(Incident.ward).like(area_like),
+                    func.lower(Incident.suburb_or_ward).like(area_like),
+                )
+            )
+
+        count_stmt = stmt.with_only_columns(func.count(Incident.id)).order_by(None)
+        total = int(db.session.execute(count_stmt).scalar() or 0)
+
+        stmt = (
+            stmt.order_by(Incident.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        )
+        items = list(db.session.execute(stmt).scalars().unique().all())
+        return Page(items=items, total=total, page=page, per_page=per_page)
+
     def find_recent_similar(
         self,
         category: str,
@@ -116,11 +182,15 @@ class IncidentRepository:
         authority_id: int | None = None,
         unassigned_only: bool = False,
         q: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        area: str | None = None,
+        sort: str | None = None,
         page: int = 1,
         per_page: int = 25,
         load_relations: bool = True,
     ) -> Page:
-        """Admin incident list with simple filters + pagination."""
+        """Admin incident list with filters (including date/area) + pagination."""
         page = max(1, int(page or 1))
         per_page = min(100, max(1, int(per_page or 25)))
 
@@ -142,7 +212,7 @@ class IncidentRepository:
             like = f"%{q_norm.lower()}%"
             filters = [
                 func.lower(Incident.title).like(like),
-                func.lower(Incident.reference_no).like(like),
+                func.lower(Incident.reference_code).like(like),
             ]
             if q_norm.isdigit():
                 try:
@@ -150,6 +220,18 @@ class IncidentRepository:
                 except ValueError:
                     pass
             stmt = stmt.where(or_(*filters))
+
+        if date_from is not None:
+            stmt = stmt.where(
+                (Incident.reported_at >= date_from) | (Incident.created_at >= date_from)
+            )
+        if date_to is not None:
+            stmt = stmt.where((Incident.reported_at <= date_to) | (Incident.created_at <= date_to))
+
+        area_norm = (area or "").strip()
+        if area_norm:
+            area_like = f"%{area_norm.lower()}%"
+            stmt = stmt.where(func.lower(Incident.suburb_or_ward).like(area_like))
 
         if load_relations:
             stmt = stmt.options(
@@ -162,9 +244,13 @@ class IncidentRepository:
         count_stmt = stmt.with_only_columns(func.count(Incident.id)).order_by(None)
         total = int(db.session.execute(count_stmt).scalar() or 0)
 
-        stmt = (
-            stmt.order_by(Incident.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
-        )
+        sort_key = (sort or "newest").lower()
+        if sort_key == "oldest":
+            order_clause = Incident.created_at.asc()
+        else:
+            order_clause = Incident.created_at.desc()
+
+        stmt = stmt.order_by(order_clause).offset((page - 1) * per_page).limit(per_page)
         items = list(db.session.execute(stmt).scalars().unique().all())
         return Page(items=items, total=total, page=page, per_page=per_page)
 

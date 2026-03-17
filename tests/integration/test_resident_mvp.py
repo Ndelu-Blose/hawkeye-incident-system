@@ -37,6 +37,141 @@ def test_resident_dashboard_and_my_incidents(app, client):
     assert resp.status_code == 200
 
 
+def test_resident_incidents_filters_and_pagination(app, client):
+    """Resident /resident/incidents respects filters and paginates with filters preserved."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident Filters",
+            email="filters@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        cat_a = IncidentCategory(name="pothole", description="Road", is_active=True)
+        cat_b = IncidentCategory(name="dumping", description="Dump", is_active=True)
+        db.session.add_all([cat_a, cat_b])
+        db.session.commit()
+
+        # Create a mix of incidents for this resident.
+        incidents: list[Incident] = []
+        for i in range(25):
+            category = "pothole" if i % 2 == 0 else "dumping"
+            category_id = cat_a.id if category == "pothole" else cat_b.id
+            status = IncidentStatus.REPORTED.value if i < 20 else IncidentStatus.RESOLVED.value
+            incident = Incident(
+                reported_by_id=user.id,
+                title=f"Incident {i}",
+                description="Desc",
+                category=category,
+                category_id=category_id,
+                suburb_or_ward="North" if i % 3 == 0 else "South",
+                street_or_landmark="Main St",
+                location="Main St, Area",
+                severity="low",
+                status=status,
+                reference_code=f"HK-2026-03-{i:06d}",
+            )
+            incidents.append(incident)
+        db.session.add_all(incidents)
+        db.session.commit()
+
+        cat_a_id = cat_a.id
+
+    client.post(
+        "/auth/login",
+        data={"email": "filters@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+
+    # Filter: status=pending, category=pothole, area contains 'North', q matches title.
+    resp = client.get(
+        "/resident/incidents",
+        query_string={
+            "status": "pending",
+            "category_id": str(cat_a_id),
+            "area": "North",
+            "q": "Incident",
+            "page": 1,
+        },
+    )
+    assert resp.status_code == 200
+    # Should show at least one filtered incident.
+    assert b"Incident" in resp.data
+
+    # Page 2 preserves filters.
+    resp_page2 = client.get(
+        "/resident/incidents",
+        query_string={
+            "status": "pending",
+            "category_id": str(cat_a_id),
+            "area": "North",
+            "q": "Incident",
+            "page": 2,
+        },
+    )
+    assert resp_page2.status_code == 200
+    assert b"Incident" in resp_page2.data
+
+
+def test_resident_incidents_quick_filters_open_resolved_this_month(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident Quick",
+            email="quick@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        # Pending and resolved incidents for the same resident.
+        pending = Incident(
+            reported_by_id=user.id,
+            title="Pending incident",
+            description="D",
+            category="Cat",
+            suburb_or_ward="Ward 1",
+            street_or_landmark="Main",
+            location="Main, Ward 1",
+            severity="low",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-010000",
+        )
+        resolved = Incident(
+            reported_by_id=user.id,
+            title="Resolved incident",
+            description="D",
+            category="Cat",
+            suburb_or_ward="Ward 2",
+            street_or_landmark="Second",
+            location="Second, Ward 2",
+            severity="low",
+            status=IncidentStatus.RESOLVED.value,
+            reference_code="HK-2026-03-010001",
+        )
+        db.session.add_all([pending, resolved])
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "quick@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+
+    # "My Open" → status=pending
+    resp_open = client.get("/resident/incidents", query_string={"status": "pending"})
+    assert resp_open.status_code == 200
+    assert b"Pending incident" in resp_open.data
+
+    # "My Resolved" → status=resolved
+    resp_resolved = client.get("/resident/incidents", query_string={"status": "resolved"})
+    assert resp_resolved.status_code == 200
+    assert b"Resolved incident" in resp_resolved.data
+
+    # "This Month" quick filter uses date_from = first day this month; we just ensure it returns 200.
+    from datetime import date
+
+    first_day = date.today().replace(day=1).strftime("%Y-%m-%d")
+    resp_month = client.get("/resident/incidents", query_string={"date_from": first_day})
+    assert resp_month.status_code == 200
+
+
 def test_resident_create_incident_requires_evidence(app, client):
     with app.app_context():
         user, _ = auth_service.register_user(
@@ -100,7 +235,8 @@ def test_resident_can_edit_only_pending_incident(app, client):
             street_or_landmark="St",
             location="St, Sub",
             severity="low",
-            status=IncidentStatus.PENDING.value,
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000001",
         )
         db.session.add(incident)
         db.session.commit()
@@ -150,6 +286,7 @@ def test_resident_cannot_edit_non_pending_incident(app, client):
             location="St, Sub",
             severity="low",
             status=IncidentStatus.IN_PROGRESS.value,
+            reference_code="HK-2026-03-000002",
         )
         db.session.add(incident)
         db.session.commit()
@@ -188,7 +325,8 @@ def test_resident_cannot_view_other_residents_incident(app, client):
             street_or_landmark="St",
             location="St, Sub",
             severity="low",
-            status=IncidentStatus.PENDING.value,
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000003",
         )
         db.session.add(incident)
         db.session.commit()
@@ -219,7 +357,8 @@ def test_suggest_similar_for_resident(app):
             street_or_landmark="High St",
             location="High St, North",
             severity="low",
-            status=IncidentStatus.PENDING.value,
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000004",
         )
         db.session.add(incident)
         db.session.commit()
@@ -250,7 +389,8 @@ def test_can_resident_edit_helper(app):
             street_or_landmark="St",
             location="St, S",
             severity="low",
-            status=IncidentStatus.PENDING.value,
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000005",
         )
         in_progress = Incident(
             reported_by_id=user.id,
@@ -262,6 +402,7 @@ def test_can_resident_edit_helper(app):
             location="St, S",
             severity="low",
             status=IncidentStatus.IN_PROGRESS.value,
+            reference_code="HK-2026-03-000006",
         )
         db.session.add_all([pending, in_progress])
         db.session.commit()

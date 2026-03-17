@@ -4,9 +4,11 @@ from .admin_audit_log import AdminAuditLog  # noqa: F401
 from .admin_preference import AdminPreference  # noqa: F401
 from .authority import Authority  # noqa: F401
 from .authority_user import AuthorityUser  # noqa: F401
+from .department_action_log import DepartmentActionLog  # noqa: F401
 from .incident import Incident  # noqa: F401
 from .incident_assignment import IncidentAssignment  # noqa: F401
 from .incident_category import IncidentCategory  # noqa: F401
+from .incident_dispatch import IncidentDispatch  # noqa: F401
 from .incident_media import IncidentMedia  # noqa: F401
 from .incident_update import IncidentUpdate  # noqa: F401
 from .location import Location  # noqa: F401
@@ -26,6 +28,8 @@ __all__ = [
     "IncidentMedia",
     "IncidentUpdate",
     "IncidentAssignment",
+    "DepartmentActionLog",
+    "IncidentDispatch",
     "RoutingRule",
     "Location",
     "NotificationLog",

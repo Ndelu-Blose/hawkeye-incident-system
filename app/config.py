@@ -32,6 +32,9 @@ class BaseConfig:
     RATELIMIT_DEFAULT = "200 per day"
     RATELIMIT_STORAGE_URI = "memory://"
 
+    # Google Maps (Places Autocomplete, map pin for incident location)
+    GOOGLE_MAPS_API_KEY = os.getenv("GOOGLE_MAPS_API_KEY")
+
     # Uploads (evidence images)
     UPLOAD_FOLDER = os.getenv("UPLOAD_FOLDER", "instance/uploads")
     MAX_CONTENT_LENGTH = 25 * 1024 * 1024  # 25 MB total request

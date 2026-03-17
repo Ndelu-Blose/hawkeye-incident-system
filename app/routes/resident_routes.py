@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import date, datetime
 
 from flask import (
     Blueprint,
@@ -99,13 +100,13 @@ def dashboard():
     )
     counts = {
         "total": len(incidents),
-        "pending": sum(1 for i in incidents if i.status == IncidentStatus.PENDING.value),
+        "reported": sum(1 for i in incidents if i.status == IncidentStatus.REPORTED.value),
         "in_progress": sum(1 for i in incidents if i.status == IncidentStatus.IN_PROGRESS.value),
         "resolved": sum(1 for i in incidents if i.status == IncidentStatus.RESOLVED.value),
         "rejected": sum(1 for i in incidents if i.status == IncidentStatus.REJECTED.value),
     }
     total_incidents = counts["total"]
-    pending_count = counts["pending"]
+    pending_count = counts["reported"]
     in_progress_count = counts["in_progress"]
     # Resolved / Closed includes resolved and rejected
     resolved_count = counts["resolved"] + counts["rejected"]
@@ -173,6 +174,7 @@ def report_incident():
             }
             presets = {c.id: _build_preset_for_template(get_preset(c)) for c in categories}
             other_preset = _build_preset_for_template(get_preset("other"))
+            google_maps_api_key = current_app.config.get("GOOGLE_MAPS_API_KEY")
             return render_template(
                 "resident/report_incident.html",
                 form_data=payload,
@@ -181,6 +183,7 @@ def report_incident():
                 saved_address=saved_address,
                 presets=presets,
                 other_preset=other_preset,
+                google_maps_api_key=google_maps_api_key,
             )
 
         flash("Incident reported successfully.", "success")
@@ -205,6 +208,7 @@ def report_incident():
     }
     presets = {c.id: _build_preset_for_template(get_preset(c)) for c in categories}
     other_preset = _build_preset_for_template(get_preset("other"))
+    google_maps_api_key = current_app.config.get("GOOGLE_MAPS_API_KEY")
     return render_template(
         "resident/report_incident.html",
         similar_incidents=similar,
@@ -212,6 +216,7 @@ def report_incident():
         saved_address=saved_address,
         presets=presets,
         other_preset=other_preset,
+        google_maps_api_key=google_maps_api_key,
     )
 
 
@@ -220,20 +225,77 @@ def report_incident():
 @role_required(Roles.RESIDENT)
 def my_incidents():
     status_param = request.args.get("status")
+    category_id_raw = request.args.get("category_id") or ""
+    q = request.args.get("q") or ""
+    area = request.args.get("area") or ""
+    date_from_raw = request.args.get("date_from") or ""
+    date_to_raw = request.args.get("date_to") or ""
+    page_raw = request.args.get("page") or "1"
+
+    try:
+        page = int(page_raw)
+    except ValueError:
+        page = 1
+
     status_filter = None
     if status_param:
         try:
             status_filter = IncidentStatus(status_param)
         except ValueError:
             pass
-    incidents = incident_service.list_incidents_for_resident(
+
+    category_id: int | None = None
+    if category_id_raw:
+        try:
+            category_id = int(category_id_raw)
+        except ValueError:
+            category_id = None
+
+    date_from = None
+    date_to = None
+    if date_from_raw:
+        try:
+            date_from = datetime.fromisoformat(date_from_raw)
+        except ValueError:
+            date_from = None
+    if date_to_raw:
+        try:
+            # Interpret date_to as end-of-day for inclusive filtering.
+            dt = datetime.fromisoformat(date_to_raw)
+            date_to = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            date_to = None
+
+    page_obj = incident_service.search_incidents_for_resident(
         current_user,  # type: ignore[arg-type]
         status=status_filter,
+        category_id=category_id,
+        q=q or None,
+        date_from=date_from,
+        date_to=date_to,
+        area=area or None,
+        page=page,
+        per_page=20,
     )
+
+    categories = (
+        db.session.query(IncidentCategory)
+        .filter(IncidentCategory.is_active.is_(True))
+        .order_by(IncidentCategory.name)
+        .all()
+    )
+    first_day_this_month = date.today().replace(day=1).strftime("%Y-%m-%d")
     return render_template(
         "resident/my_incidents.html",
-        incidents=incidents,
+        page=page_obj,
         selected_status=status_param or "",
+        selected_category_id=category_id_raw,
+        q=q,
+        area=area,
+        date_from=date_from_raw,
+        date_to=date_to_raw,
+        categories=categories,
+        first_day_this_month=first_day_this_month,
     )
 
 
@@ -258,10 +320,12 @@ def incident_detail(incident_id: int):
         incident,
         current_user,  # type: ignore[arg-type]
     )
+    timeline = incident_service.assemble_timeline(incident_id)
     return render_template(
         "resident/incident_detail.html",
         incident=incident,
         updates=updates,
+        timeline=timeline,
         media=media,
         can_edit=can_edit,
     )

@@ -9,6 +9,7 @@ class Authority(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    slug = db.Column(db.String(120), unique=True, nullable=True, index=True)
     authority_type = db.Column(db.String(50))
     contact_email = db.Column(db.String(255))
     contact_phone = db.Column(db.String(50))
@@ -52,6 +53,18 @@ class Authority(db.Model):
 
     routing_rules = db.relationship(
         "RoutingRule",
+        back_populates="authority",
+        lazy="dynamic",
+    )
+
+    dispatches = db.relationship(
+        "IncidentDispatch",
+        back_populates="authority",
+        lazy="dynamic",
+    )
+
+    department_action_logs = db.relationship(
+        "DepartmentActionLog",
         back_populates="authority",
         lazy="dynamic",
     )

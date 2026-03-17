@@ -24,6 +24,13 @@ def create_app(config_name: str | None = None) -> Flask:
     config_class = config_mapping.get(config_name, DevelopmentConfig)
     app.config.from_object(config_class)
 
+    # Normalize upload folder to an absolute path so send_from_directory works
+    # reliably in Docker and on Windows.
+    upload_folder = app.config.get("UPLOAD_FOLDER", "instance/uploads")
+    if upload_folder and not os.path.isabs(str(upload_folder)):
+        repo_root = os.path.abspath(os.path.join(app.root_path, os.pardir))
+        app.config["UPLOAD_FOLDER"] = os.path.abspath(os.path.join(repo_root, str(upload_folder)))
+
     _register_extensions(app)
     _register_blueprints(app)
     _register_error_handlers(app)

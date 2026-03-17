@@ -1,0 +1,10 @@
+{
+  "water_leak": "water-and-sanitation",
+  "blocked_drain": "sewer-and-drainage",
+  "crime": "saps",
+  "suspicious_activity": "saps",
+  "pothole": "roads-and-stormwater",
+  "broken_streetlight": "street-lighting",
+  "dumping": "waste-management",
+  "vandalism": "municipal-operations"
+}

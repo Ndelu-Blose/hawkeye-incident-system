@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from datetime import datetime
 
 from flask import (
     Blueprint,
@@ -21,10 +22,13 @@ from app.models.admin_audit_log import AdminAuditLog
 from app.models.admin_preference import AdminPreference
 from app.models.authority import Authority
 from app.models.incident import Incident
+from app.models.incident_assignment import IncidentAssignment
 from app.models.incident_category import IncidentCategory
+from app.models.incident_dispatch import IncidentDispatch
 from app.models.location import Location
 from app.models.routing_rule import RoutingRule
 from app.models.user import User
+from app.services.analytics_service import AnalyticsService
 from app.services.auth_service import auth_service
 from app.services.dashboard_service import dashboard_service
 from app.services.incident_service import incident_service
@@ -154,6 +158,21 @@ def controls():
     return render_template("admin/controls.html", prefs=prefs)
 
 
+analytics_service = AnalyticsService()
+
+
+@admin_bp.route("/analytics")
+@login_required
+@role_required(Roles.ADMIN)
+def analytics():
+    """Analytics dashboard: volume, resolution times, hotspots, authority performance."""
+    summary = analytics_service.get_dashboard_summary(days=7)
+    return render_template(
+        "admin/analytics.html",
+        summary=summary,
+    )
+
+
 @admin_bp.route("/incidents")
 @login_required
 @role_required(Roles.ADMIN)
@@ -165,6 +184,10 @@ def incidents():
     authority_id_raw = request.args.get("authority_id") or ""
     unassigned_only_raw = request.args.get("unassigned_only") or ""
     page_raw = request.args.get("page") or "1"
+    area = request.args.get("area") or ""
+    date_from_raw = request.args.get("date_from") or ""
+    date_to_raw = request.args.get("date_to") or ""
+    sort = (request.args.get("sort") or "newest").strip().lower()
 
     try:
         page = int(page_raw)
@@ -181,6 +204,20 @@ def incidents():
             authority_id = None
 
     unassigned_only = unassigned_only_raw in ("1", "true", "on", "yes")
+
+    date_from = None
+    date_to = None
+    if date_from_raw:
+        try:
+            date_from = datetime.fromisoformat(date_from_raw)
+        except ValueError:
+            date_from = None
+    if date_to_raw:
+        try:
+            dt = datetime.fromisoformat(date_to_raw)
+            date_to = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        except ValueError:
+            date_to = None
     incident_page = incident_service.incident_repo.list_for_admin(
         status=status_filter,
         q=q or None,
@@ -188,11 +225,16 @@ def incidents():
         severity=severity or None,
         authority_id=authority_id,
         unassigned_only=unassigned_only,
+        date_from=date_from,
+        date_to=date_to,
+        area=area or None,
+        sort=sort or "newest",
         page=page,
         per_page=25,
     )
 
     overview = dashboard_service.get_overview()
+    google_maps_api_key = current_app.config.get("GOOGLE_MAPS_API_KEY")
     authorities = (
         db.session.query(Authority)
         .filter(Authority.is_active.is_(True))
@@ -210,6 +252,11 @@ def incidents():
         authorities=authorities,
         selected_authority_id=authority_id_raw,
         unassigned_only=unassigned_only,
+        area=area,
+        date_from=date_from_raw,
+        date_to=date_to_raw,
+        sort=sort,
+        google_maps_api_key=google_maps_api_key,
     )
 
 
@@ -226,10 +273,12 @@ def incident_detail(incident_id: int):
         return redirect(url_for("admin.incidents"))
 
     media = list(incident.media.all())
+    timeline = incident_service.assemble_timeline(incident_id)
     return render_template(
         "admin/incidents/detail.html",
         incident=incident,
         updates=updates,
+        timeline=timeline,
         media=media,
     )
 
@@ -256,6 +305,26 @@ def confirm_screening(incident_id: int):
 
     incident.current_authority_id = authority.id
     incident.requires_admin_review = False
+
+    assignment = IncidentAssignment(
+        incident_id=incident.id,
+        authority_id=authority.id,
+        assigned_by_user_id=getattr(current_user, "id", None),
+    )
+    db.session.add(assignment)
+    db.session.flush()
+    dispatch = IncidentDispatch(
+        incident_assignment_id=assignment.id,
+        incident_id=incident.id,
+        authority_id=authority.id,
+        dispatch_method="internal_queue",
+        dispatched_by_type="admin",
+        dispatched_by_id=getattr(current_user, "id", None),
+        delivery_status="pending",
+        ack_status="pending",
+    )
+    db.session.add(dispatch)
+
     db.session.add(
         AdminAuditLog(
             admin_user_id=getattr(current_user, "id", None),
@@ -569,8 +638,8 @@ def authority_detail(authority_id: int):
 
     member_count = authority.members.count()
     open_statuses = [
-        IncidentStatus.PENDING.value,
-        IncidentStatus.VERIFIED.value,
+        IncidentStatus.REPORTED.value,
+        IncidentStatus.SCREENED.value,
         IncidentStatus.ASSIGNED.value,
         IncidentStatus.IN_PROGRESS.value,
     ]

@@ -93,7 +93,7 @@
             <tr>
               <td>
                 <a href="{{ url_for('authority.incident_detail', incident_id=incident.id) }}">
-                  {{ incident.reference_no or ('#%d' % incident.id) }}
+                  {{ incident.reference_code or ('#%d' % incident.id) }}
                 </a>
               </td>
               <td>{{ incident.category_rel.name if incident.category_rel else incident.category }}</td>

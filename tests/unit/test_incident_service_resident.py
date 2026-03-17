@@ -72,7 +72,8 @@ def test_update_incident_by_resident_success(app):
             street_or_landmark="St",
             location="St, S",
             severity="low",
-            status=IncidentStatus.PENDING.value,
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000001",
         )
         db.session.add(incident)
         db.session.commit()
@@ -108,6 +109,7 @@ def test_update_incident_by_resident_rejected_when_not_pending(app):
             location="St, S",
             severity="low",
             status=IncidentStatus.IN_PROGRESS.value,
+            reference_code="HK-2026-03-000002",
         )
         db.session.add(incident)
         db.session.commit()
@@ -121,7 +123,7 @@ def test_update_incident_by_resident_rejected_when_not_pending(app):
         }
         updated, errors = incident_service.update_incident_by_resident(incident.id, user, payload)
         assert updated is None
-        assert any("pending" in e.lower() for e in errors)
+        assert any("reported" in e.lower() for e in errors)
 
 
 def test_create_incident_preset_title_and_urgency(app):
@@ -259,3 +261,111 @@ def test_guided_boolean_none_when_question_not_asked(app):
         assert not errors
         # For vandalism, we only ask "is_issue_still_present", not "is_anyone_in_danger".
         assert incident.is_anyone_in_danger is None
+
+
+def test_create_incident_sets_reference_code_with_expected_format(app):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="ref-format@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        payload = {
+            "title": "Ref format test",
+            "description": "Desc",
+            "category": "Cat",
+            "suburb_or_ward": "Suburb",
+            "street_or_landmark": "Main St",
+            "severity": "low",
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="evidence.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None
+        assert not errors
+        assert incident.reference_code is not None
+
+        # HK-YYYY-MM-XXXXXX where X is a digit.
+        import re
+
+        assert re.fullmatch(r"HK-\d{4}-\d{2}-\d{6}", incident.reference_code) is not None
+
+
+def test_create_multiple_incidents_produces_distinct_reference_codes(app):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="ref-multi@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        base_payload = {
+            "title": "Incident",
+            "description": "Desc",
+            "category": "Cat",
+            "suburb_or_ward": "Suburb",
+            "street_or_landmark": "Main St",
+            "severity": "low",
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="evidence.png")]
+
+        codes: set[str] = set()
+        for i in range(3):
+            payload = dict(base_payload)
+            payload["title"] = f"Incident {i}"
+            incident, errors = incident_service.create_incident(payload, user, files=files)
+            assert incident is not None
+            assert not errors
+            assert incident.reference_code not in codes
+            codes.add(incident.reference_code)
+
+
+def test_create_incident_populates_validated_location_when_service_configured(app, monkeypatch):
+    """When location_service is configured and returns a result, structured fields are populated."""
+    from app.services import incident_service as incident_service_module
+    from app.services import location_service as location_service_module
+
+    class DummyGeocoded:
+        def __init__(self) -> None:
+            self.latitude = -29.123456
+            self.longitude = 31.123456
+            self.validated_address = "123 Main St, Test Suburb"
+            self.suburb = "Test Suburb"
+            self.ward = "Ward 10"
+
+    class DummyService:
+        def is_configured(self) -> bool:
+            return True
+
+        def geocode(self, address: str):
+            return DummyGeocoded()
+
+    with app.app_context():
+        # Patch the global location_service used by IncidentService and refresh the IncidentService module reference.
+        service_instance = DummyService()
+        monkeypatch.setattr(location_service_module, "location_service", service_instance)
+        monkeypatch.setattr(incident_service_module, "location_service", service_instance)
+
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="geo@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        payload = {
+            "title": "Geo test",
+            "description": "Desc",
+            "category": "Cat",
+            "suburb_or_ward": "Suburb",
+            "street_or_landmark": "Main St",
+            "severity": "low",
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="evidence.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None
+        assert not errors
+        assert incident.location_validated is True
+        assert incident.latitude is not None and incident.longitude is not None
+        assert incident.validated_address == "123 Main St, Test Suburb"
+        assert incident.suburb == "Test Suburb"
+        assert incident.ward == "Ward 10"

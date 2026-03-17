@@ -1,15 +1,20 @@
 from __future__ import annotations
 
 from collections.abc import Iterable
+from dataclasses import dataclass
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
+
+from sqlalchemy import select, text
 
 from app.constants import IncidentStatus, LocationMode
 from app.extensions import db
 from app.models import (
+    DepartmentActionLog,
     Incident,
     IncidentAssignment,
     IncidentCategory,
+    IncidentDispatch,
     Location,
 )
 from app.models.incident_update import IncidentUpdate
@@ -17,6 +22,7 @@ from app.models.user import User
 from app.repositories.incident_repo import IncidentRepository
 from app.repositories.incident_update_repo import IncidentUpdateRepository
 from app.services.incident_presets import get_preset, urgency_to_severity
+from app.services.location_service import GeocodedLocation, location_service
 from app.services.notification_service import notification_service
 from app.services.routing_service import routing_service
 from app.services.screening_service import screening_service
@@ -24,6 +30,33 @@ from app.utils.uploads import save_incident_media
 
 if TYPE_CHECKING:
     from werkzeug.datastructures import FileStorage
+
+
+@dataclass
+class TimelineEvent:
+    """Unified timeline event for incident history display."""
+
+    at: datetime
+    kind: str  # incident_created | status_update | dispatched | acknowledged | department_action
+    title: str
+    description: str
+    actor_label: str
+    metadata: dict[str, Any]
+
+
+def _generate_reference_code(session, reported_at: datetime) -> str:
+    """Generate a unique reference code using the DB sequence (same transaction as incident)."""
+    bind = session.get_bind()
+    if getattr(bind, "dialect", None) and bind.dialect.name == "postgresql":
+        result = session.execute(text("SELECT nextval('incident_ref_seq')"))
+        seq = result.scalar()
+    else:
+        # SQLite / other (e.g. tests): no sequence; use monotonic counter for uniqueness
+        _generate_reference_code._sqlite_counter = (
+            getattr(_generate_reference_code, "_sqlite_counter", 0) + 1
+        )
+        seq = _generate_reference_code._sqlite_counter % 1_000_000 or 1
+    return f"HK-{reported_at.year:04d}-{reported_at.month:02d}-{seq:06d}"
 
 
 class IncidentService:
@@ -202,6 +235,13 @@ class IncidentService:
 
         location = f"{street_or_landmark}, {suburb_or_ward}"
         reported_at = datetime.now(UTC)
+        reference_code = _generate_reference_code(db.session, reported_at)
+
+        # Optional structured / validated location enrichment via location_service.
+        geocoded: GeocodedLocation | None = None
+        freeform_address = location.strip(", ")
+        if freeform_address and location_service.is_configured():
+            geocoded = location_service.geocode(freeform_address)
 
         incident = Incident(
             reported_by_id=resident_user.id,
@@ -219,17 +259,25 @@ class IncidentService:
             nearest_place=nearest_place,
             location=location,
             location_id=location_obj.id if location_obj else None,
-            latitude=latitude,
-            longitude=longitude,
+            latitude=geocoded.latitude if geocoded is not None else latitude,
+            longitude=geocoded.longitude if geocoded is not None else longitude,
             severity=severity,
-            status=IncidentStatus.PENDING.value,
+            status=IncidentStatus.REPORTED.value,
             reported_at=reported_at,
+            validated_address=geocoded.validated_address if geocoded is not None else None,
+            suburb=geocoded.suburb if geocoded is not None else None,
+            ward=geocoded.ward if geocoded is not None else None,
+            location_validated=geocoded is not None,
+            reference_code=reference_code,
             location_mode=location_mode,
             is_happening_now=is_happening_now_value,
             is_anyone_in_danger=is_anyone_in_danger_value,
             is_issue_still_present=is_issue_still_present_value,
             urgency_level=urgency_level or None,
         )
+
+        self.incident_repo.add(incident)
+        db.session.flush()
         # Run screening to capture system interpretation of the report.
         screening_result = screening_service.screen_incident(
             title=title,
@@ -256,12 +304,11 @@ class IncidentService:
         if screening_result.flags:
             incident.screening_notes = ", ".join(screening_result.flags)
 
-        self.incident_repo.add(incident)
         created_update = IncidentUpdate(
             incident=incident,
             updated_by_id=resident_user.id,
             from_status=None,
-            to_status=IncidentStatus.PENDING.value,
+            to_status=IncidentStatus.REPORTED.value,
             note="Incident created",
         )
         self.update_repo.add(created_update)
@@ -273,19 +320,19 @@ class IncidentService:
                 category=category_obj,
                 location=location_obj,
             )
-            if routing_decision is not None:
-                incident.current_authority_id = routing_decision.authority.id
-                incident.assigned_at = reported_at
-                if not severity and routing_decision.priority:
-                    incident.severity = routing_decision.priority
-                routing_update = IncidentUpdate(
-                    incident=incident,
-                    updated_by_id=resident_user.id,
-                    from_status=IncidentStatus.PENDING.value,
-                    to_status=IncidentStatus.PENDING.value,
-                    note=f"Incident auto-routed to {routing_decision.authority.name}",
-                )
-                self.update_repo.add(routing_update)
+        if routing_decision is not None:
+            incident.current_authority_id = routing_decision.authority.id
+            incident.assigned_at = reported_at
+            if not severity and routing_decision.priority:
+                incident.severity = routing_decision.priority
+            routing_update = IncidentUpdate(
+                incident=incident,
+                updated_by_id=resident_user.id,
+                from_status=IncidentStatus.REPORTED.value,
+                to_status=IncidentStatus.REPORTED.value,
+                note=f"Incident auto-routed to {routing_decision.authority.name}",
+            )
+            self.update_repo.add(routing_update)
 
         # Record screening decision in history for later analytics.
         if screening_result is not None:
@@ -301,8 +348,8 @@ class IncidentService:
             screening_update = IncidentUpdate(
                 incident=incident,
                 updated_by_id=resident_user.id,
-                from_status=IncidentStatus.PENDING.value,
-                to_status=IncidentStatus.PENDING.value,
+                from_status=IncidentStatus.REPORTED.value,
+                to_status=IncidentStatus.REPORTED.value,
                 note=screening_note,
             )
             self.update_repo.add(screening_update)
@@ -310,14 +357,27 @@ class IncidentService:
         db.session.flush()
 
         if routing_decision is not None and incident.id is not None:
-            db.session.add(
-                IncidentAssignment(
-                    incident_id=incident.id,
-                    authority_id=routing_decision.authority.id,
-                    assigned_by_user_id=resident_user.id,
-                    assigned_at=reported_at,
-                )
+            assignment = IncidentAssignment(
+                incident_id=incident.id,
+                authority_id=routing_decision.authority.id,
+                assigned_by_user_id=resident_user.id,
+                assigned_at=reported_at,
             )
+            db.session.add(assignment)
+            db.session.flush()
+            dispatch = IncidentDispatch(
+                incident_assignment_id=assignment.id,
+                incident_id=incident.id,
+                authority_id=routing_decision.authority.id,
+                dispatch_method="internal_queue",
+                dispatched_by_type="system",
+                dispatched_by_id=None,
+                destination_reference=None,
+                delivery_status="pending",
+                ack_status="pending",
+                dispatched_at=reported_at,
+            )
+            db.session.add(dispatch)
 
         file_list = list(files) if files else []
         if not file_list:
@@ -335,8 +395,8 @@ class IncidentService:
             evidence_update = IncidentUpdate(
                 incident_id=incident.id,
                 updated_by_id=resident_user.id,
-                from_status=IncidentStatus.PENDING.value,
-                to_status=IncidentStatus.PENDING.value,
+                from_status=IncidentStatus.REPORTED.value,
+                to_status=IncidentStatus.REPORTED.value,
                 note="Evidence uploaded",
             )
             self.update_repo.add(evidence_update)
@@ -356,12 +416,161 @@ class IncidentService:
         updates = list(self.update_repo.list_for_incident(incident_id))
         return incident, updates
 
+    def assemble_timeline(self, incident_id: int) -> list[TimelineEvent]:
+        """Build a unified timeline from IncidentUpdate, IncidentDispatch, DepartmentActionLog."""
+        incident = self.incident_repo.get_by_id(incident_id)
+        if incident is None:
+            return []
+
+        events: list[TimelineEvent] = []
+
+        # Synthetic incident_created
+        created_at = incident.reported_at or incident.created_at
+        if created_at:
+            events.append(
+                TimelineEvent(
+                    at=created_at,
+                    kind="incident_created",
+                    title="Incident reported",
+                    description="Incident was created and submitted.",
+                    actor_label=incident.reporter.name if incident.reporter else "Resident",
+                    metadata={},
+                )
+            )
+
+        # IncidentUpdate -> status_update (or general note)
+        updates = list(self.update_repo.list_for_incident(incident_id))
+        for u in updates:
+            at = u.created_at
+            if not at:
+                continue
+            # Skip the creation update; we already have synthetic incident_created
+            if (
+                u.from_status is None
+                and u.to_status == IncidentStatus.REPORTED.value
+                and (u.note or "").strip() == "Incident created"
+            ):
+                continue
+            from_s = u.from_status or ""
+            to_s = u.to_status or ""
+            if from_s and from_s != to_s:
+                title = (
+                    f"Status: {from_s.replace('_', ' ').title()} → {to_s.replace('_', ' ').title()}"
+                )
+            elif to_s:
+                title = to_s.replace("_", " ").title()
+            else:
+                title = "Update"
+            actor = u.updater.name if u.updater else "System"
+            events.append(
+                TimelineEvent(
+                    at=at,
+                    kind="status_update",
+                    title=title,
+                    description=u.note or "",
+                    actor_label=actor,
+                    metadata={"from_status": from_s, "to_status": to_s},
+                )
+            )
+
+        # IncidentDispatch -> dispatched, acknowledged
+        dispatches = (
+            (
+                db.session.execute(
+                    select(IncidentDispatch)
+                    .where(IncidentDispatch.incident_id == incident_id)
+                    .order_by(IncidentDispatch.dispatched_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for d in dispatches:
+            if d.dispatched_at:
+                auth_name = d.authority.name if d.authority else "Department"
+                events.append(
+                    TimelineEvent(
+                        at=d.dispatched_at,
+                        kind="dispatched",
+                        title=f"Dispatched to {auth_name}",
+                        description=f"Via {d.dispatch_method or 'internal_queue'}",
+                        actor_label=d.dispatcher.name if d.dispatcher else d.dispatched_by_type,
+                        metadata={"authority_id": d.authority_id},
+                    )
+                )
+            if d.ack_at and d.ack_status == "acknowledged":
+                events.append(
+                    TimelineEvent(
+                        at=d.ack_at,
+                        kind="acknowledged",
+                        title="Department acknowledged",
+                        description="Department has acknowledged the incident.",
+                        actor_label=d.ack_user.name if d.ack_user else "Department",
+                        metadata={},
+                    )
+                )
+
+        # DepartmentActionLog -> department_action
+        action_logs = (
+            (
+                db.session.execute(
+                    select(DepartmentActionLog)
+                    .where(DepartmentActionLog.incident_id == incident_id)
+                    .order_by(DepartmentActionLog.created_at.asc())
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for a in action_logs:
+            if a.created_at:
+                actor = a.performed_by.name if a.performed_by else "Department"
+                events.append(
+                    TimelineEvent(
+                        at=a.created_at,
+                        kind="department_action",
+                        title=a.action_type.replace("_", " ").title(),
+                        description=a.note or "",
+                        actor_label=actor,
+                        metadata={"action_type": a.action_type},
+                    )
+                )
+
+        events.sort(key=lambda e: e.at)
+        return events
+
     def list_incidents_for_resident(
         self,
         user: User,
         status: IncidentStatus | None = None,
     ) -> Iterable[Incident]:
         return self.incident_repo.list_for_resident(user.id, status=status)
+
+    def search_incidents_for_resident(
+        self,
+        user: User,
+        *,
+        status: IncidentStatus | None = None,
+        category_id: int | None = None,
+        q: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        area: str | None = None,
+        page: int = 1,
+        per_page: int = 20,
+    ):
+        """Wrapper around repository search for resident-facing explorer."""
+        return self.incident_repo.search_for_resident(
+            resident_id=user.id,
+            status=status,
+            category_id=category_id,
+            q=q,
+            date_from=date_from,
+            date_to=date_to,
+            area=area,
+            page=page,
+            per_page=per_page,
+        )
 
     def suggest_similar_for_resident(
         self,
@@ -379,7 +588,7 @@ class IncidentService:
     def can_resident_edit(incident: Incident, user: User) -> bool:
         """True if the resident is the reporter and status is Pending (Option B)."""
         return (
-            incident.reported_by_id == user.id and incident.status == IncidentStatus.PENDING.value
+            incident.reported_by_id == user.id and incident.status == IncidentStatus.REPORTED.value
         )
 
     def update_incident_by_resident(
@@ -396,8 +605,8 @@ class IncidentService:
         if incident.reported_by_id != resident.id:
             errors.append("You do not have permission to edit this incident.")
             return None, errors
-        if incident.status != IncidentStatus.PENDING.value:
-            errors.append("Only pending incidents can be edited.")
+        if incident.status != IncidentStatus.REPORTED.value:
+            errors.append("Only reported incidents can be edited.")
             return None, errors
 
         title = (payload.get("title") or "").strip()
@@ -501,7 +710,7 @@ class IncidentService:
         try:
             current_status = IncidentStatus(incident.status)
         except ValueError:
-            current_status = IncidentStatus.PENDING
+            current_status = IncidentStatus.REPORTED
 
         if current_status == to_status:
             errors.append("Incident is already in that status.")
@@ -516,7 +725,7 @@ class IncidentService:
         incident.version += 1
 
         now = datetime.now(UTC)
-        if incident.acknowledged_at is None and current_status == IncidentStatus.PENDING:
+        if incident.acknowledged_at is None and current_status == IncidentStatus.REPORTED:
             incident.acknowledged_at = now
         if to_status == IncidentStatus.ASSIGNED and incident.assigned_at is None:
             incident.assigned_at = now
@@ -542,18 +751,41 @@ class IncidentService:
         db.session.commit()
         return True, errors
 
+    def log_department_action(
+        self,
+        incident_id: int,
+        authority_id: int,
+        performed_by: User,
+        action_type: str,
+        note: str | None = None,
+    ) -> DepartmentActionLog | None:
+        """Log a department action on an incident. Creates and commits the log entry."""
+        incident = self.incident_repo.get_by_id(incident_id)
+        if incident is None:
+            return None
+        log = DepartmentActionLog(
+            incident_id=incident_id,
+            authority_id=authority_id,
+            performed_by_id=performed_by.id,
+            action_type=action_type,
+            note=note,
+        )
+        db.session.add(log)
+        db.session.commit()
+        return log
+
     @staticmethod
     def _is_valid_transition(
         current: IncidentStatus,
         target: IncidentStatus,
     ) -> bool:
-        # reported (PENDING) -> verified or rejected only; no direct to resolved unless admin
-        if current == IncidentStatus.PENDING:
+        # reported -> screened or rejected only; no direct to resolved unless admin
+        if current == IncidentStatus.REPORTED:
             return target in {
-                IncidentStatus.VERIFIED,
+                IncidentStatus.SCREENED,
                 IncidentStatus.REJECTED,
             }
-        if current == IncidentStatus.VERIFIED:
+        if current == IncidentStatus.SCREENED:
             return target in {
                 IncidentStatus.ASSIGNED,
                 IncidentStatus.REJECTED,

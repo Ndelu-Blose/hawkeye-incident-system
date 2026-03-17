@@ -52,14 +52,21 @@
         <div class="row g-2">
           {% for m in media %}
             <div class="col-6 col-md-4">
-              <a href="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}" target="_blank" rel="noopener">
+              {% set media_url = url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) %}
+              <button
+                type="button"
+                class="btn p-0 w-100 text-start border-0 hawkeye-evidence-thumb"
+                data-bs-toggle="modal"
+                data-bs-target="#residentEvidenceModal"
+                data-evidence-src="{{ media_url }}"
+              >
                 <img
-                  src="{{ url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) }}"
+                  src="{{ media_url }}"
                   alt="Evidence"
                   class="img-fluid rounded border"
                   style="max-height: 120px; object-fit: cover;"
                 />
-              </a>
+              </button>
             </div>
           {% endfor %}
         </div>
@@ -68,7 +75,32 @@
 
     <div class="col-lg-5">
       <h3 class="h5 mb-3">Timeline</h3>
-      {% if updates %}
+      {% if timeline %}
+        <ul class="list-group">
+          {% for event in timeline %}
+            <li class="list-group-item bg-dark text-light">
+              <div class="d-flex justify-content-between">
+                <div>
+                  <strong>{{ event.title }}</strong>
+                </div>
+                <small class="text-muted">
+                  {{ event.at.strftime('%Y-%m-%d %H:%M') if event.at }}
+                </small>
+              </div>
+              {% if event.description %}
+                <div class="mt-1 text-muted small">
+                  {{ event.description }}
+                </div>
+              {% endif %}
+              {% if event.actor_label %}
+                <div class="mt-1 text-muted small">
+                  {{ event.actor_label }}
+                </div>
+              {% endif %}
+            </li>
+          {% endfor %}
+        </ul>
+      {% elif updates %}
         <ul class="list-group">
           {% for update in updates %}
             <li class="list-group-item bg-dark text-light">
@@ -97,4 +129,40 @@
       {% endif %}
     </div>
   </div>
+{% if media %}
+<div class="modal fade" id="residentEvidenceModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-lg">
+    <div class="modal-content bg-dark border-secondary">
+      <div class="modal-header border-0">
+        <h5 class="modal-title">Evidence preview</h5>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body text-center">
+        <img src="" alt="Evidence" id="residentEvidenceModalImage" class="img-fluid rounded">
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+  (function() {
+    var modalEl = document.getElementById('residentEvidenceModal');
+    if (!modalEl) return;
+    var imgEl = document.getElementById('residentEvidenceModalImage');
+    modalEl.addEventListener('show.bs.modal', function (event) {
+      var button = event.relatedTarget;
+      if (!button || !imgEl) return;
+      var src = button.getAttribute('data-evidence-src');
+      if (src) {
+        imgEl.src = src;
+      }
+    });
+    modalEl.addEventListener('hidden.bs.modal', function () {
+      if (imgEl) {
+        imgEl.src = '';
+      }
+    });
+  })();
+</script>
+{% endif %}
 {% endblock %}

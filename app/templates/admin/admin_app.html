@@ -43,6 +43,14 @@
                     </a>
 
                     <a
+                        href="{{ url_for('admin.analytics') }}"
+                        class="resident-nav-link {% if admin_active_page == 'analytics' %}active{% endif %}"
+                    >
+                        <i class="bi bi-graph-up"></i>
+                        <span>Analytics</span>
+                    </a>
+
+                    <a
                         href="{{ url_for('admin.users') }}"
                         class="resident-nav-link {% if admin_active_page == 'users' %}active{% endif %}"
                     >

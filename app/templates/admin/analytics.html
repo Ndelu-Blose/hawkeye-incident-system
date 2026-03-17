@@ -1,0 +1,186 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "analytics" %}
+{% set admin_page_title = "Analytics" %}
+{% set admin_page_subtitle = "Incident volume, resolution times, hotspots, and authority performance." %}
+
+{% block admin_top_actions %}
+  <a href="{{ url_for('admin.dashboard') }}" class="btn btn-outline-light btn-sm">
+    &larr; Dashboard
+  </a>
+  <a href="{{ url_for('admin.incidents') }}" class="btn btn-outline-light btn-sm">
+    Incident console
+  </a>
+{% endblock %}
+
+{% block admin_content %}
+  <div class="row g-3">
+    <div class="col-md-4">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Total this week</div>
+        <div class="admin-stat-value">{{ summary.total_this_week }}</div>
+        <small class="text-muted">Incidents reported (last {{ summary.days }} days)</small>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Resolved this week</div>
+        <div class="admin-stat-value">{{ summary.resolved_this_week }}</div>
+        <small class="text-muted">Incidents resolved</small>
+      </div>
+    </div>
+    <div class="col-md-4">
+      <div class="admin-stat-card text-center">
+        <div class="admin-stat-label">Avg resolution time</div>
+        <div class="admin-stat-value">
+          {% if summary.avg_resolution_hours is not none %}
+            {{ summary.avg_resolution_hours }}h
+          {% else %}
+            —
+          {% endif %}
+        </div>
+        <small class="text-muted">Reported → resolved</small>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4 g-3">
+    <div class="col-lg-6">
+      <div class="card hawkeye-admin-panel">
+        <div class="card-header">
+          <h5 class="mb-0">Top categories (resolution time)</h5>
+          <small class="text-muted">Avg hours to resolve, last {{ summary.days }} days</small>
+        </div>
+        <div class="card-body p-0">
+          {% if summary.categories %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Category</th>
+                    <th>Count</th>
+                    <th>Avg hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for c in summary.categories[:10] %}
+                    <tr>
+                      <td>{{ c.category }}</td>
+                      <td>{{ c.count }}</td>
+                      <td>{{ c.avg_hours }}h</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-muted">No resolved incidents in this period.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card hawkeye-admin-panel">
+        <div class="card-header">
+          <h5 class="mb-0">Hotspots by suburb/ward</h5>
+          <small class="text-muted">Incident volume, last {{ summary.days }} days</small>
+        </div>
+        <div class="card-body p-0">
+          {% if summary.hotspots %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Suburb / Ward</th>
+                    <th>Count</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for h in summary.hotspots[:10] %}
+                    <tr>
+                      <td>{{ h.suburb_or_ward }}</td>
+                      <td>{{ h.count }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-muted">No incidents in this period.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="row mt-4 g-3">
+    <div class="col-lg-6">
+      <div class="card hawkeye-admin-panel">
+        <div class="card-header">
+          <h5 class="mb-0">Authority workload</h5>
+          <small class="text-muted">Open incidents per department</small>
+        </div>
+        <div class="card-body p-0">
+          {% if summary.authority_workload %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Department</th>
+                    <th>Open</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for w in summary.authority_workload %}
+                    <tr>
+                      <td>{{ w.authority_name }}</td>
+                      <td>{{ w.open_count }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-muted">No open incidents assigned.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+
+    <div class="col-lg-6">
+      <div class="card hawkeye-admin-panel">
+        <div class="card-header">
+          <h5 class="mb-0">Dispatch → acknowledge time</h5>
+          <small class="text-muted">Avg hours by department, last {{ summary.days }} days</small>
+        </div>
+        <div class="card-body p-0">
+          {% if summary.dispatch_ack_times %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Department</th>
+                    <th>Count</th>
+                    <th>Avg hours</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for d in summary.dispatch_ack_times %}
+                    <tr>
+                      <td>{{ d.authority_name }}</td>
+                      <td>{{ d.count }}</td>
+                      <td>{{ d.avg_hours }}h</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-muted">No acknowledged dispatches in this period.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+  </div>
+{% endblock %}

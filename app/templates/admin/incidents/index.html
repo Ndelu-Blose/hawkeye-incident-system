@@ -52,8 +52,8 @@
       <label for="status" class="form-label">Filter by status</label>
       <select class="form-select" id="status" name="status" onchange="this.form.submit()">
         <option value="" {% if not selected_status %}selected{% endif %}>All</option>
-        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Reported</option>
-        <option value="verified" {% if selected_status == 'verified' %}selected{% endif %}>Verified</option>
+        <option value="reported" {% if selected_status == 'reported' %}selected{% endif %}>Reported</option>
+        <option value="screened" {% if selected_status == 'screened' %}selected{% endif %}>Screened</option>
         <option value="assigned" {% if selected_status == 'assigned' %}selected{% endif %}>Assigned</option>
         <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In Progress</option>
         <option value="resolved" {% if selected_status == 'resolved' %}selected{% endif %}>Resolved</option>
@@ -96,7 +96,48 @@
       </select>
     </div>
 
-    <div class="col-sm-6 col-md-3 d-flex flex-column flex-md-row gap-2 align-items-md-end justify-content-md-end">
+    <div class="col-sm-6 col-md-2">
+      <label for="area" class="form-label">Area</label>
+      <input
+        class="form-control"
+        id="area"
+        name="area"
+        value="{{ area }}"
+        placeholder="Suburb or ward"
+      />
+    </div>
+
+    <div class="col-sm-3 col-md-2">
+      <label for="date_from" class="form-label">From</label>
+      <input
+        type="date"
+        class="form-control"
+        id="date_from"
+        name="date_from"
+        value="{{ date_from }}"
+      />
+    </div>
+
+    <div class="col-sm-3 col-md-2">
+      <label for="date_to" class="form-label">To</label>
+      <input
+        type="date"
+        class="form-control"
+        id="date_to"
+        name="date_to"
+        value="{{ date_to }}"
+      />
+    </div>
+
+    <div class="col-sm-6 col-md-2">
+      <label for="sort" class="form-label">Sort by</label>
+      <select class="form-select" id="sort" name="sort" onchange="this.form.submit()">
+        <option value="newest" {% if sort == 'newest' %}selected{% endif %}>Newest first</option>
+        <option value="oldest" {% if sort == 'oldest' %}selected{% endif %}>Oldest first</option>
+      </select>
+    </div>
+
+    <div class="col-sm-6 col-md-4 d-flex flex-column flex-md-row gap-2 align-items-md-end justify-content-md-end">
       <div class="form-check me-md-2">
         <input class="form-check-input" type="checkbox" id="unassigned_only" name="unassigned_only" value="1" {% if unassigned_only %}checked{% endif %}>
         <label class="form-check-label" for="unassigned_only">
@@ -107,6 +148,89 @@
       <a href="{{ url_for('admin.incidents') }}" class="btn btn-outline-secondary">Reset</a>
     </div>
   </form>
+
+  {% if google_maps_api_key %}
+    <div class="card hawkeye-admin-panel mb-3">
+      <div class="card-body">
+        <h5 class="card-title mb-2">Incidents map (current page)</h5>
+        <p class="card-text small text-muted mb-3">
+          Visualise the incidents on this page. Markers use validated coordinates when available.
+        </p>
+        <div id="admin-incidents-map" style="width: 100%; height: 320px;" class="rounded border"></div>
+      </div>
+    </div>
+
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
+    <script>
+      (function () {
+        function initAdminIncidentsMap() {
+          if (!window.google || !google.maps) return;
+          var mapEl = document.getElementById('admin-incidents-map');
+          if (!mapEl) return;
+
+          var incidents = [
+          {% for incident in page.items %}
+            {% if incident.latitude is not none and incident.longitude is not none %}
+              {
+                id: {{ incident.id }},
+                ref: {{ (incident.reference_code or ('#%d' % incident.id)) | tojson }},
+                title: {{ incident.title | tojson }},
+                lat: {{ incident.latitude }},
+                lng: {{ incident.longitude }},
+                status: {{ incident.status | tojson }},
+                url: {{ url_for('admin.incident_detail', incident_id=incident.id) | tojson }},
+              },
+            {% endif %}
+          {% endfor %}
+          ];
+
+          if (!incidents.length) {
+            mapEl.style.display = 'none';
+            return;
+          }
+
+          var center = { lat: incidents[0].lat, lng: incidents[0].lng };
+          var map = new google.maps.Map(mapEl, {
+            center: center,
+            zoom: 12,
+          });
+
+          var bounds = new google.maps.LatLngBounds();
+          incidents.forEach(function (inc) {
+            var position = new google.maps.LatLng(inc.lat, inc.lng);
+            bounds.extend(position);
+            var marker = new google.maps.Marker({
+              position: position,
+              map: map,
+              title: inc.ref + ' – ' + inc.title,
+            });
+            var infowindow = new google.maps.InfoWindow({
+              content:
+                '<div class="small">' +
+                '<strong>' + inc.ref + '</strong><br>' +
+                inc.title + '<br>' +
+                '<span class="text-muted">' + inc.status + '</span><br>' +
+                '<a href="' + inc.url + '">View incident</a>' +
+                '</div>',
+            });
+            marker.addListener('click', function () {
+              infowindow.open(map, marker);
+            });
+          });
+
+          if (incidents.length > 1) {
+            map.fitBounds(bounds);
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initAdminIncidentsMap);
+        } else {
+          initAdminIncidentsMap();
+        }
+      })();
+    </script>
+  {% endif %}
 
   {% if page.items %}
     <div class="table-responsive">
@@ -133,7 +257,7 @@
             <tr class="{% if sla and sla < (incident.created_at or sla) %}table-warning{% endif %}">
               <td>
                 <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}">
-                  {{ incident.reference_no or ('#%d' % incident.id) }}
+                  {{ incident.reference_code or ('#%d' % incident.id) }}
                 </a>
               </td>
               <td>{{ incident.title }}</td>
@@ -192,13 +316,13 @@
       <nav aria-label="Pagination" class="mt-3">
         <ul class="pagination pagination-sm justify-content-end">
           <li class="page-item {% if not page.has_prev %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('admin.incidents', status=selected_status, q=q, severity=selected_severity, page=page.page-1) }}">Prev</a>
+            <a class="page-link" href="{{ url_for('admin.incidents', status=selected_status, q=q, severity=selected_severity, authority_id=selected_authority_id, area=area, date_from=date_from, date_to=date_to, sort=sort, unassigned_only='1' if unassigned_only else None, page=page.page-1) }}">Prev</a>
           </li>
           <li class="page-item disabled">
             <span class="page-link">Page {{ page.page }} of {{ page.pages }}</span>
           </li>
           <li class="page-item {% if not page.has_next %}disabled{% endif %}">
-            <a class="page-link" href="{{ url_for('admin.incidents', status=selected_status, q=q, severity=selected_severity, page=page.page+1) }}">Next</a>
+            <a class="page-link" href="{{ url_for('admin.incidents', status=selected_status, q=q, severity=selected_severity, authority_id=selected_authority_id, area=area, date_from=date_from, date_to=date_to, sort=sort, unassigned_only='1' if unassigned_only else None, page=page.page+1) }}">Next</a>
           </li>
         </ul>
       </nav>

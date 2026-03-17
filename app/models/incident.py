@@ -50,6 +50,11 @@ class Incident(db.Model):
     nearest_place = db.Column(db.String(255), nullable=True)
     # Backwards-compatible combined location string
     location = db.Column(db.String(255), nullable=False)
+    # Phase 2 structured / validated location metadata
+    validated_address = db.Column(db.String(255), nullable=True)
+    suburb = db.Column(db.String(120), nullable=True)
+    ward = db.Column(db.String(64), nullable=True)
+    location_validated = db.Column(db.Boolean, nullable=False, default=False)
 
     location_id = db.Column(
         db.Integer,
@@ -64,14 +69,19 @@ class Incident(db.Model):
     status = db.Column(
         db.String(32),
         nullable=False,
-        default=IncidentStatus.PENDING.value,
+        default=IncidentStatus.REPORTED.value,
         index=True,
     )
 
     # Optional optimistic concurrency field
     version = db.Column(db.Integer, nullable=False, default=1)
 
-    reference_no = db.Column(db.String(32), nullable=True, index=True)
+    reference_code = db.Column(
+        db.String(32),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
 
     current_authority_id = db.Column(
         db.Integer,
@@ -170,6 +180,20 @@ class Incident(db.Model):
 
     assignments = db.relationship(
         "IncidentAssignment",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
+    dispatches = db.relationship(
+        "IncidentDispatch",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
+    department_action_logs = db.relationship(
+        "DepartmentActionLog",
         back_populates="incident",
         cascade="all, delete-orphan",
         lazy="dynamic",

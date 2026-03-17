@@ -12,17 +12,95 @@
 
 {% block resident_content %}
 <div class="resident-dashboard-content">
-  <div class="resident-dashboard-filters mb-4">
-    <a href="{{ url_for('resident.my_incidents') }}" class="resident-chip {% if not request.args.get('status') %}active{% endif %}">All</a>
-    <a href="{{ url_for('resident.my_incidents', status='pending') }}" class="resident-chip {% if request.args.get('status') == 'pending' %}active{% endif %}">Pending</a>
-    <a href="{{ url_for('resident.my_incidents', status='in_progress') }}" class="resident-chip {% if request.args.get('status') == 'in_progress' %}active{% endif %}">In Progress</a>
-    <a href="{{ url_for('resident.my_incidents', status='resolved') }}" class="resident-chip {% if request.args.get('status') == 'resolved' %}active{% endif %}">Resolved</a>
-    <a href="{{ url_for('resident.my_incidents', status='rejected') }}" class="resident-chip {% if request.args.get('status') == 'rejected' %}active{% endif %}">Rejected</a>
-  </div>
+  <form class="resident-dashboard-filters mb-4" method="get">
+    <div class="d-flex flex-wrap gap-2 align-items-center mb-2">
+      <div class="btn-group" role="group" aria-label="Status filters">
+        <a href="{{ url_for('resident.my_incidents') }}" class="resident-chip {% if not request.args.get('status') %}active{% endif %}">All</a>
+        <a href="{{ url_for('resident.my_incidents', status='reported') }}" class="resident-chip {% if request.args.get('status') == 'reported' %}active{% endif %}">Reported</a>
+        <a href="{{ url_for('resident.my_incidents', status='in_progress') }}" class="resident-chip {% if request.args.get('status') == 'in_progress' %}active{% endif %}">In Progress</a>
+        <a href="{{ url_for('resident.my_incidents', status='resolved') }}" class="resident-chip {% if request.args.get('status') == 'resolved' %}active{% endif %}">Resolved</a>
+        <a href="{{ url_for('resident.my_incidents', status='rejected') }}" class="resident-chip {% if request.args.get('status') == 'rejected' %}active{% endif %}">Rejected</a>
+      </div>
+      <input type="hidden" name="status" value="{{ selected_status }}">
+      <div class="ms-auto d-flex flex-wrap gap-2">
+        <a href="{{ url_for('resident.my_incidents', status='reported') }}" class="badge bg-light text-dark text-decoration-none">
+          My Open
+        </a>
+        <a href="{{ url_for('resident.my_incidents', status='resolved') }}" class="badge bg-light text-dark text-decoration-none">
+          My Resolved
+        </a>
+        <a href="{{ url_for('resident.my_incidents', date_from=first_day_this_month) }}" class="badge bg-light text-dark text-decoration-none">
+          This Month
+        </a>
+      </div>
+    </div>
+    <div class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label for="q" class="form-label small mb-1">Search</label>
+        <input
+          type="text"
+          class="form-control form-control-sm"
+          id="q"
+          name="q"
+          value="{{ q }}"
+          placeholder="Ref, title, or location"
+        />
+      </div>
+      <div class="col-6 col-md-3">
+        <label for="category_id" class="form-label small mb-1">Category</label>
+        <select
+          id="category_id"
+          name="category_id"
+          class="form-select form-select-sm"
+        >
+          <option value="">All categories</option>
+          {% for cat in categories %}
+            <option value="{{ cat.id }}" {% if selected_category_id|int == cat.id %}selected{% endif %}>
+              {{ cat.name }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-6 col-md-3">
+        <label for="area" class="form-label small mb-1">Area</label>
+        <input
+          type="text"
+          class="form-control form-control-sm"
+          id="area"
+          name="area"
+          value="{{ area }}"
+          placeholder="Suburb or ward"
+        />
+      </div>
+      <div class="col-6 col-md-2">
+        <label for="date_from" class="form-label small mb-1">From</label>
+        <input
+          type="date"
+          class="form-control form-control-sm"
+          id="date_from"
+          name="date_from"
+          value="{{ date_from }}"
+        />
+      </div>
+      <div class="col-6 col-md-2">
+        <label for="date_to" class="form-label small mb-1">To</label>
+        <input
+          type="date"
+          class="form-control form-control-sm"
+          id="date_to"
+          name="date_to"
+          value="{{ date_to }}"
+        />
+      </div>
+      <div class="col-6 col-md-1 d-flex gap-2 justify-content-end">
+        <button type="submit" class="btn btn-sm btn-outline-light w-100">Apply</button>
+      </div>
+    </div>
+  </form>
 
-  {% if incidents %}
+  {% if page.items %}
     <div class="row g-4">
-      {% for incident in incidents %}
+      {% for incident in page.items %}
         <div class="col-12 col-md-6 col-xl-4">
           <div class="resident-incident-card h-100">
             <div class="resident-incident-card-top">
@@ -84,6 +162,32 @@
         </a>
       </div>
     </div>
+  {% endif %}
+
+  {% if page.pages > 1 %}
+    <nav aria-label="Pagination" class="mt-4">
+      <ul class="pagination pagination-sm justify-content-end">
+        <li class="page-item {% if not page.has_prev %}disabled{% endif %}">
+          <a
+            class="page-link"
+            href="{{ url_for('resident.my_incidents', status=selected_status, q=q, area=area, date_from=date_from, date_to=date_to, page=page.page-1) }}"
+          >
+            Prev
+          </a>
+        </li>
+        <li class="page-item disabled">
+          <span class="page-link">Page {{ page.page }} of {{ page.pages }}</span>
+        </li>
+        <li class="page-item {% if not page.has_next %}disabled{% endif %}">
+          <a
+            class="page-link"
+            href="{{ url_for('resident.my_incidents', status=selected_status, q=q, area=area, date_from=date_from, date_to=date_to, page=page.page+1) }}"
+          >
+            Next
+          </a>
+        </li>
+      </ul>
+    </nav>
   {% endif %}
 </div>
 {% endblock %}

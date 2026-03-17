@@ -90,7 +90,7 @@
                     <tr>
                       <td>
                         <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}">
-                          {{ incident.reference_no or ('#%d' % incident.id) }}
+                          {{ incident.reference_code or ('#%d' % incident.id) }}
                         </a>
                       </td>
                       <td class="text-truncate" style="max-width: 220px;">
@@ -150,7 +150,7 @@
                   <div class="d-flex justify-content-between align-items-start">
                     <div>
                       <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}">
-                        {{ incident.reference_no or ('#%d' % incident.id) }}
+                        {{ incident.reference_code or ('#%d' % incident.id) }}
                       </a>
                       <div class="text-muted text-truncate" style="max-width: 220px;">
                         {{ incident.title }}

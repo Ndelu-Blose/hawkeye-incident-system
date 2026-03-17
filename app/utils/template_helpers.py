@@ -21,8 +21,8 @@ def sla_due(incident: object) -> object:
 def render_status_badge(status: object) -> Markup:
     """Return Bootstrap badge HTML for incident status."""
     status_map = {
-        "pending": '<span class="badge bg-warning text-dark">Reported</span>',
-        "verified": '<span class="badge bg-info text-dark">Verified</span>',
+        "reported": '<span class="badge bg-warning text-dark">Reported</span>',
+        "screened": '<span class="badge bg-info text-dark">Screened</span>',
         "assigned": '<span class="badge bg-primary">Assigned</span>',
         "in_progress": '<span class="badge bg-info text-dark">In Progress</span>',
         "resolved": '<span class="badge bg-success">Resolved</span>',

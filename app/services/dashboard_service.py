@@ -33,7 +33,7 @@ class DashboardService:
         total = db.session.query(Incident).count()
         pending = (
             db.session.query(Incident)
-            .filter(Incident.status == IncidentStatus.PENDING.value)
+            .filter(Incident.status == IncidentStatus.REPORTED.value)
             .count()
         )
         in_progress = self.incident_repo.count_in_progress()

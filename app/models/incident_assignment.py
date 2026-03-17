@@ -51,6 +51,13 @@ class IncidentAssignment(db.Model):
         foreign_keys=[assigned_by_user_id],
     )
 
+    dispatches = db.relationship(
+        "IncidentDispatch",
+        back_populates="assignment",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
     def __repr__(self) -> str:  # pragma: no cover
         return (
             f"<IncidentAssignment id={self.id} "

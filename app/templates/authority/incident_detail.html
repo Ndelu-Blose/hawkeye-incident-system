@@ -36,7 +36,7 @@
         {{ incident.current_authority.name if incident.current_authority else 'Unassigned' }}
       </p>
       <p class="mb-2">
-        <strong>Ref:</strong> {{ incident.reference_no or ('#%d' % incident.id) }}
+        <strong>Ref:</strong> {{ incident.reference_code or ('#%d' % incident.id) }}
       </p>
       <hr />
       <p>{{ incident.description }}</p>
