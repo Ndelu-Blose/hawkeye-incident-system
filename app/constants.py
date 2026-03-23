@@ -11,15 +11,34 @@ class Roles(StrEnum):
 
 
 class IncidentStatus(StrEnum):
-    """Lifecycle: reported -> screened -> assigned -> in_progress -> resolved -> closed."""
+    """Lifecycle: reported -> screened -> assigned -> acknowledged -> in_progress -> resolved -> closed."""
 
     REPORTED = "reported"
     SCREENED = "screened"
     ASSIGNED = "assigned"
+    ACKNOWLEDGED = "acknowledged"
     IN_PROGRESS = "in_progress"
     RESOLVED = "resolved"
     REJECTED = "rejected"
     CLOSED = "closed"
+
+
+class IncidentEventType(StrEnum):
+    """Controlled event type constants for incident_events ledger."""
+
+    INCIDENT_CREATED = "incident_created"
+    INCIDENT_SCREENED = "incident_screened"
+    INCIDENT_ASSIGNED = "incident_assigned"
+    INCIDENT_ACKNOWLEDGED = "incident_acknowledged"
+    STATUS_CHANGED = "status_changed"
+    INCIDENT_RESOLVED = "incident_resolved"
+    INCIDENT_CLOSED = "incident_closed"
+    INCIDENT_REJECTED = "incident_rejected"
+    OWNERSHIP_CHANGED = "ownership_changed"
+    DISPATCH_CREATED = "dispatch_created"
+    DISPATCH_DELIVERED = "dispatch_delivered"
+    EVIDENCE_UPLOADED = "evidence_uploaded"
+    MANUAL_OVERRIDE = "manual_override"
 
 
 class LocationMode(StrEnum):

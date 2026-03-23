@@ -1,0 +1,126 @@
+{% extends "layout.html" %}
+
+{% block title %}Incidents in your area | Alertweb Solutions{% endblock %}
+
+{% block content %}
+<section class="hawkeye-public-page" style="padding: 2rem 0 4rem;">
+  <div class="hawkeye-public-container">
+    <h1 class="mb-4">Incidents in your area</h1>
+    <p class="text-muted mb-4">
+      View anonymised incident reports by suburb or ward. No reporter information is shown.
+      <a href="{{ url_for('auth.register') }}">Create an account</a> to report incidents and track your own.
+    </p>
+
+    <form method="get" class="mb-4">
+      <div class="row g-3 align-items-end">
+        <div class="col-12 col-md-4">
+          <label for="area_select" class="form-label fw-bold">Area (suburb / ward)</label>
+          <select id="area_select" name="area" class="form-select form-select-lg">
+            <option value="">Select an area</option>
+            {% for a in areas %}
+              <option value="{{ a }}" {% if area == a %}selected{% endif %}>{{ a }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        {% if not area %}
+        <div class="col-12 col-md-2">
+          <button type="submit" class="btn btn-primary btn-lg">View incidents</button>
+        </div>
+        {% endif %}
+        {% if area %}
+        <div class="col-12 col-md-2">
+          <label for="category_id" class="form-label">Category</label>
+          <select id="category_id" name="category_id" class="form-select">
+            <option value="">All</option>
+            {% for c in categories %}
+              <option value="{{ c.id }}" {% if selected_category_id == c.id %}selected{% endif %}>{{ c.name | replace('_', ' ') | title }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="col-12 col-md-2">
+          <label for="status" class="form-label">Status</label>
+          <select id="status" name="status" class="form-select">
+            <option value="">All</option>
+            <option value="reported" {% if selected_status == 'reported' %}selected{% endif %}>Reported</option>
+            <option value="screened" {% if selected_status == 'screened' %}selected{% endif %}>Screened</option>
+            <option value="assigned" {% if selected_status == 'assigned' %}selected{% endif %}>Assigned</option>
+            <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In Progress</option>
+            <option value="resolved" {% if selected_status == 'resolved' %}selected{% endif %}>Resolved</option>
+            <option value="closed" {% if selected_status == 'closed' %}selected{% endif %}>Closed</option>
+          </select>
+        </div>
+        <div class="col-6 col-md-2">
+          <label for="date_from" class="form-label">From</label>
+          <input type="date" id="date_from" name="date_from" class="form-control" value="{{ date_from }}">
+        </div>
+        <div class="col-6 col-md-2">
+          <label for="date_to" class="form-label">To</label>
+          <input type="date" id="date_to" name="date_to" class="form-control" value="{{ date_to }}">
+        </div>
+        <div class="col-12 col-md-1">
+          <button type="submit" class="btn btn-primary w-100">Filter</button>
+        </div>
+        {% endif %}
+      </div>
+    </form>
+
+    {% if not areas %}
+      <div class="alert alert-info">
+        No incidents have been reported yet. <a href="{{ url_for('auth.register') }}">Register</a> to report the first incident in your area.
+      </div>
+    {% elif area %}
+      {% if incidents %}
+        <div class="table-responsive">
+          <table class="table table-hover">
+            <thead>
+              <tr>
+                <th>Reference</th>
+                <th>Title</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Reported</th>
+              </tr>
+            </thead>
+            <tbody>
+              {% for inc in incidents %}
+                <tr>
+                  <td><code>{{ inc.reference_code }}</code></td>
+                  <td>{{ inc.title }}</td>
+                  <td>{{ inc.category_rel.name | replace('_', ' ') | title if inc.category_rel else inc.category | replace('_', ' ') | title }}</td>
+                  <td>{{ render_status_badge(inc.status) }}</td>
+                  <td>{{ inc.created_at.strftime('%Y-%m-%d') if inc.created_at else '-' }}</td>
+                </tr>
+              {% endfor %}
+            </tbody>
+          </table>
+        </div>
+
+        {% if page_result and page_result.pages > 1 %}
+          <nav class="d-flex justify-content-between align-items-center mt-3">
+            <span class="text-muted small">
+              Page {{ page_result.page }} of {{ page_result.pages }} ({{ page_result.total }} incidents)
+            </span>
+            <ul class="pagination mb-0">
+              <li class="page-item {% if not page_result.has_prev %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('public.area_incidents', area=area, category_id=selected_category_id or '', status=selected_status, date_from=date_from, date_to=date_to, page=page_result.page-1) if page_result.has_prev else '#' }}">Prev</a>
+              </li>
+              <li class="page-item {% if not page_result.has_next %}disabled{% endif %}">
+                <a class="page-link" href="{{ url_for('public.area_incidents', area=area, category_id=selected_category_id or '', status=selected_status, date_from=date_from, date_to=date_to, page=page_result.page+1) if page_result.has_next else '#' }}">Next</a>
+              </li>
+            </ul>
+          </nav>
+        {% endif %}
+      {% else %}
+        <div class="alert alert-light border">
+          No incidents found in <strong>{{ area }}</strong> with the selected filters.
+        </div>
+      {% endif %}
+    {% endif %}
+
+    <div class="mt-4 pt-4 border-top">
+      <a href="{{ url_for('main.home') }}" class="btn btn-outline-secondary">Back to home</a>
+      <a href="{{ url_for('auth.register') }}" class="btn btn-primary ms-2">Report an incident</a>
+    </div>
+  </div>
+</section>
+{% endblock %}

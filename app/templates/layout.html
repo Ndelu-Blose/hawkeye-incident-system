@@ -20,6 +20,11 @@
           <a class="hawkeye-public-link" href="#solutions">Solutions</a>
           <a class="hawkeye-public-link" href="#how-it-works">How it works</a>
           <a class="hawkeye-public-link" href="#who-its-for">Who it’s for</a>
+          <a class="hawkeye-public-link" href="{{ url_for('public.area_incidents') }}">Incidents in your area</a>
+          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
+          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
+        {% elif request.endpoint == 'public.area_incidents' %}
+          <a class="hawkeye-public-link" href="{{ url_for('main.home') }}">Home</a>
           <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
           <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
         {% elif request.endpoint == 'auth.login' %}

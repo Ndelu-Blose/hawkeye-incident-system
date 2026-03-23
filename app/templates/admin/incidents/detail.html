@@ -137,9 +137,10 @@
           <label for="status" class="form-label">New status</label>
           <select class="form-select" id="status" name="status" required>
             <option value="">Select status</option>
-            <option value="pending" {% if incident.status == 'pending' %}selected{% endif %}>Reported</option>
-            <option value="verified" {% if incident.status == 'verified' %}selected{% endif %}>Verified</option>
+            <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
+            <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
             <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
+            <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
             <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
             <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
             <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>

@@ -160,6 +160,19 @@ For each transition, the plan assumes:
 
 **Rule:** All code paths that change `Incident.status` must go through a single service method (see §2.5.4) which validates transitions and writes the required records **atomically**.
 
+##### Lifecycle Transition Matrix
+
+| From | To | Allowed Actors | Reason Required | Audit Required |
+|------|-----|----------------|-----------------|----------------|
+| * | reported | System | No | Optional |
+| reported | screened | Admin, System | No | If override |
+| screened | assigned | Admin, System | No | No |
+| assigned | acknowledged | Department | No | No |
+| acknowledged | in_progress | Department | No | No |
+| in_progress | resolved | Department | No | No |
+| resolved | closed | Admin, System | Yes if manual | Yes if manual |
+| reported/screened/assigned | rejected | Admin | Yes | Yes |
+
 #### 2.5.2 Core data backbone
 
 The workflow and accountability model is backed by four core tables, which complement (and in some cases supersede) the earlier v2 tables like `incident_status_history`, `incident_dispatch`, and `department_action_log`:
@@ -173,22 +186,28 @@ These are **first‑class, non‑optional** for any new workflow or routing feat
 
 ##### 2.5.2.1 `incident_events`
 
-- Purpose: store an immutable timeline of everything meaningful that happens to an incident.
-- Links to existing models:
-  - `incident_id` → `Incident.id` (`app/models/incident.py`).
-- Minimum fields (shape, not final column names):
-  - `id`
-  - `incident_id`
-  - `event_type` (`incident_created`, `status_changed`, `incident_routed`, `evidence_uploaded`, etc.)
-  - `event_title`, `event_description` (for human‑readable timeline entries)
-  - `actor_type` (`resident | admin | system | department`)
-  - `actor_id` (nullable for pure system events)
-  - `service_name` (e.g. `screening_engine`, `routing_engine`)
-  - `old_status`, `new_status` (nullable when not applicable)
-  - `metadata_json` (JSON blob for extra structured details: confidence scores, routing rule IDs, SLA metrics)
-  - `created_at`
+| Field | Type | Notes |
+|-------|------|-------|
+| id | SERIAL PK | |
+| incident_id | INTEGER FK | |
+| event_type | VARCHAR(64) | Controlled constants |
+| from_status | VARCHAR(32) | Nullable |
+| to_status | VARCHAR(32) | Nullable |
+| actor_user_id | INTEGER FK | Nullable for system |
+| actor_role | VARCHAR(32) | resident \| admin \| system \| department |
+| authority_id | INTEGER FK | Nullable |
+| dispatch_id | INTEGER FK | Nullable |
+| reason | TEXT | Nullable |
+| note | TEXT | Nullable |
+| metadata_json | JSONB | Nullable |
+| created_at | TIMESTAMP | |
 
-Plan‑level rule: **Every meaningful incident action must write an `incident_events` row.** Resident and admin timelines should render directly from this table.
+**Event types:** `incident_created`, `incident_screened`, `incident_assigned`, `incident_acknowledged`, `status_changed`, `incident_resolved`, `incident_closed`, `incident_rejected`, `ownership_changed`, `dispatch_created`, `dispatch_delivered`, `evidence_uploaded`, `manual_override`
+
+**Rules:**
+- Immutable after insert
+- One row per domain event
+- Must exist for every status transition
 
 ##### 2.5.2.2 `incident_dispatches`
 
@@ -213,37 +232,46 @@ Plan‑level rule: **Every meaningful incident action must write an `incident_ev
 
 Plan‑level rule: **Every routing or assignment must create (or update) an `incident_dispatches` row**, and department queues should ultimately be driven from this table plus `Incident.status`, not just `incident.current_authority_id`.
 
+##### Department Queue Logic
+
+- **Incoming / Unacknowledged:** dispatched + active + `ack_status != acknowledged`
+- **Acknowledged / Pending Work:** current ownership + status = `acknowledged`
+- **In Progress:** current ownership + status = `in_progress`
+- **Completed:** resolved or closed
+
 ##### 2.5.2.3 `incident_ownership_history`
 
-- Purpose: record **who is responsible for an incident over time**.
-- Links:
-  - `incident_id` → `Incident.id`
-  - `owner_type` (`admin | department | system`)
-  - `owner_id` (admin user, authority/department, or `NULL` for system)
-- Minimum fields:
-  - `id`
-  - `incident_id`
-  - `owner_type`, `owner_id`
-  - `assigned_by_type`, `assigned_by_id`
-  - `ownership_reason` (e.g. `auto_routing_rule:water_vandalism`)
-  - `started_at`, `ended_at`
-  - `is_current` boolean
+| Field | Type | Notes |
+|-------|------|-------|
+| id | SERIAL PK | |
+| incident_id | INTEGER FK | |
+| authority_id | INTEGER FK | |
+| assigned_by_user_id | INTEGER FK | Nullable |
+| assigned_at | TIMESTAMP | |
+| ended_at | TIMESTAMP | Nullable |
+| is_current | BOOLEAN | Exactly one TRUE per incident |
+| dispatch_id | INTEGER FK | Nullable |
+| reason | TEXT | Nullable |
 
-Plan‑level rule: there must always be **at most one** `incident_ownership_history` row where `is_current = true` per incident. Ownership semantics should live here, not in ad‑hoc flags on `Incident`.
+**Rules:**
+- Exactly one current ownership row per incident
+- Ownership must close before reassignment
 
 ##### 2.5.2.4 `audit_logs`
 
-- Purpose: central **governance log** across entities (incidents, routing rules, users, departments).
-- Minimum fields:
-  - `id`
-  - `entity_type` (`incident | routing_rule | user | authority | preference | dispatch` …)
-  - `entity_id`
-  - `action_type` (`status_change`, `routing_rule_updated`, `user_role_changed`, etc.)
-  - `actor_type`, `actor_id`
-  - `before_json`, `after_json`
-  - `ip_address`, `user_agent` (where available)
-  - `reason` (optional free text)
-  - `created_at`
+| Field | Type | Notes |
+|-------|------|-------|
+| id | SERIAL PK | |
+| entity_type | VARCHAR(32) | incident, routing_rule, user, etc |
+| entity_id | INTEGER | |
+| action | VARCHAR(64) | |
+| actor_user_id | INTEGER FK | Nullable |
+| actor_role | VARCHAR(32) | |
+| reason | TEXT | Required for sensitive actions |
+| before_json | JSONB | Nullable |
+| after_json | JSONB | Nullable |
+| metadata_json | JSONB | Nullable |
+| created_at | TIMESTAMP | |
 
 Plan‑level rule: **All sensitive changes (status transitions, routing and rule changes, role/permission changes, deletions) must write an `audit_logs` row.**
 
@@ -321,6 +349,29 @@ All `Incident.status` changes are owned by a single service API:
 
 - Routes, repositories, background jobs, and tests must **not** set `incident.status` directly; they must always call `IncidentService.change_status(...)`.
 - All UI flows (resident, department, admin) that move an incident along the lifecycle must do so via this service method.
+
+##### acknowledge_dispatch
+
+**Method:** `acknowledge_dispatch(dispatch_id, actor_user_id, note=None, channel="internal_queue")`
+
+**Actions:**
+- Set `ack_status = acknowledged`
+- Set `ack_user_id`
+- Set `ack_at`
+- Write `incident_events` row
+- Call `change_status(assigned → acknowledged)`
+
+##### Architectural Discipline
+
+Do not allow `incident_events` to become a loose log table.
+
+Rules:
+- One row per domain event
+- Immutable after insert
+- Controlled event type constants
+- Consistent status change recording
+- Actor and timestamp always present
+- Reasons required when policy dictates
 
 ---
 
@@ -616,19 +667,28 @@ Steps not yet reached must be shown in a greyed-out pending state so residents c
 
 To avoid ad-hoc changes and rework, the lifecycle and operational backbone should be implemented in the following sequence:
 
-1. **Align `Incident.status` and backfill**
-   - Update the enum/choices for `Incident.status` to the v3 lifecycle values (`reported`, `screened`, `assigned`, `acknowledged`, `in_progress`, `resolved`, `closed`, `rejected`).
-   - Run a migration that remaps any legacy statuses (for example, historical `routed` → `assigned`) and enforces the new set at the database level where practical.
-2. **Introduce or confirm backbone tables**
-   - Add or verify the schemas and migrations for `incident_events`, `incident_dispatches`, `incident_ownership_history`, and `audit_logs`, following the shapes described in §2.5.
-3. **Implement `IncidentService.change_status`**
-   - Create the service-level API with the transition matrix and full contract from §2.5.5, including validation, status update, event write, ownership update, audit write, and transaction boundaries.
-4. **Refactor all status-changing flows to use the service**
-   - Replace any direct `incident.status = ...` assignments in routes, repositories, and background jobs with calls to `IncidentService.change_status(...)`, passing `actor_type`, `actor_id`, and an optional `reason`/`metadata`.
-5. **Switch incident timelines to read from `incident_events`**
-   - Update resident and admin incident detail pages to construct their timelines from the `incident_events` ledger (initially for status changes, later extended to evidence, notes, and dispatches).
-6. **Tighten tests and tick checklist items**
-   - Add unit and integration tests for lifecycle transitions and `IncidentService.change_status` behaviour (see §12), then use `Checklist.md` to track completion of lifecycle, dispatch, ownership, and audit items.
+1. Add `acknowledged` to enum and transition map
+2. Add `incident_events` table
+3. Refactor `change_status(...)` to always write event rows
+4. Remove direct status writes (including `create_incident`)
+5. Add `incident_ownership_history`
+6. Tie assignment flow to ownership creation
+7. Add `audit_logs`
+8. Add acknowledgment service
+9. Refactor timeline to read from `incident_events`
+10. Add tests
+
+### 7.5 Operational Backbone — GitHub Issues
+
+1. Add `incident_events` model, migration, repository
+2. Add `incident_ownership_history` model and ownership service
+3. Refactor `IncidentService.change_status` into canonical status engine
+4. Add `audit_logs` model and sensitive action logging
+5. Implement dispatch acknowledgment workflow
+6. Refactor department queues
+7. Rebuild timelines from `incident_events`
+8. Department UI — Acknowledge incident
+9. Add workflow and audit integration tests
 
 ---
 

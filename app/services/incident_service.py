@@ -7,7 +7,7 @@ from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, text
 
-from app.constants import IncidentStatus, LocationMode
+from app.constants import IncidentEventType, IncidentStatus, LocationMode
 from app.extensions import db
 from app.models import (
     DepartmentActionLog,
@@ -19,6 +19,8 @@ from app.models import (
 )
 from app.models.incident_update import IncidentUpdate
 from app.models.user import User
+from app.repositories.incident_event_repo import IncidentEventRepository
+from app.repositories.incident_ownership_repo import IncidentOwnershipRepository
 from app.repositories.incident_repo import IncidentRepository
 from app.repositories.incident_update_repo import IncidentUpdateRepository
 from app.services.incident_presets import get_preset, urgency_to_severity
@@ -66,9 +68,13 @@ class IncidentService:
         self,
         incident_repo: IncidentRepository | None = None,
         update_repo: IncidentUpdateRepository | None = None,
+        event_repo: IncidentEventRepository | None = None,
+        ownership_repo: IncidentOwnershipRepository | None = None,
     ) -> None:
         self.incident_repo = incident_repo or IncidentRepository()
         self.update_repo = update_repo or IncidentUpdateRepository()
+        self.event_repo = event_repo or IncidentEventRepository()
+        self.ownership_repo = ownership_repo or IncidentOwnershipRepository()
 
     def create_incident(
         self,
@@ -303,6 +309,16 @@ class IncidentService:
         )
         if screening_result.flags:
             incident.screening_notes = ", ".join(screening_result.flags)
+
+        self.event_repo.create(
+            incident_id=incident.id,
+            event_type=IncidentEventType.INCIDENT_CREATED.value,
+            from_status=None,
+            to_status=IncidentStatus.REPORTED.value,
+            actor_user_id=resident_user.id,
+            actor_role="resident",
+            note="Incident created",
+        )
 
         created_update = IncidentUpdate(
             incident=incident,
@@ -701,55 +717,24 @@ class IncidentService:
         *,
         allow_admin_override: bool = False,
     ) -> tuple[bool, list[str]]:
-        errors: list[str] = []
+        """Update incident status via canonical change_status path."""
         incident = self.incident_repo.get_by_id(incident_id)
         if incident is None:
-            errors.append("Incident not found.")
-            return False, errors
+            return False, ["Incident not found."]
 
-        try:
-            current_status = IncidentStatus(incident.status)
-        except ValueError:
-            current_status = IncidentStatus.REPORTED
-
-        if current_status == to_status:
-            errors.append("Incident is already in that status.")
-            return False, errors
-
-        if not allow_admin_override and not self._is_valid_transition(current_status, to_status):
-            errors.append("Invalid status transition.")
-            return False, errors
-
-        from_status = incident.status
-        incident.status = to_status.value
-        incident.version += 1
-
-        now = datetime.now(UTC)
-        if incident.acknowledged_at is None and current_status == IncidentStatus.REPORTED:
-            incident.acknowledged_at = now
-        if to_status == IncidentStatus.ASSIGNED and incident.assigned_at is None:
-            incident.assigned_at = now
-        if to_status == IncidentStatus.RESOLVED:
-            incident.resolved_at = now
-        if to_status == IncidentStatus.CLOSED:
-            incident.closed_at = now
-
-        update = IncidentUpdate(
-            incident_id=incident.id,
-            updated_by_id=authority_user.id,
-            from_status=from_status,
-            to_status=to_status.value,
+        ok, errors = self.change_status(
+            incident,
+            to_status,
+            actor_user_id=authority_user.id,
+            actor_role=self._actor_role_from_user(authority_user),
             note=note.strip() or None,
+            authority_id=incident.current_authority_id,
+            allow_admin_override=allow_admin_override,
         )
-        self.update_repo.add(update)
-
-        notification_service.enqueue_status_changed(
-            incident=incident,
-            resident=incident.reporter,
-        )
-
+        if not ok:
+            return False, errors
         db.session.commit()
-        return True, errors
+        return True, []
 
     def log_department_action(
         self,
@@ -774,32 +759,140 @@ class IncidentService:
         db.session.commit()
         return log
 
+    def change_status(
+        self,
+        incident: Incident,
+        to_status: IncidentStatus,
+        *,
+        actor_user_id: int | None = None,
+        actor_role: str,
+        reason: str | None = None,
+        note: str | None = None,
+        authority_id: int | None = None,
+        dispatch_id: int | None = None,
+        allow_admin_override: bool = False,
+    ) -> tuple[bool, list[str]]:
+        """Canonical path for status changes. Validates, updates, writes events, updates ownership."""
+        errors: list[str] = []
+        try:
+            current_status = IncidentStatus(incident.status)
+        except ValueError:
+            current_status = IncidentStatus.REPORTED
+
+        if current_status == to_status:
+            errors.append("Incident is already in that status.")
+            return False, errors
+
+        if not allow_admin_override and not self._is_valid_transition(current_status, to_status):
+            errors.append("Invalid status transition.")
+            return False, errors
+
+        from_status = incident.status
+        now = datetime.now(UTC)
+
+        incident.status = to_status.value
+        incident.version += 1
+        if to_status == IncidentStatus.ASSIGNED and incident.assigned_at is None:
+            incident.assigned_at = now
+        if to_status == IncidentStatus.ACKNOWLEDGED and incident.acknowledged_at is None:
+            incident.acknowledged_at = now
+        if to_status == IncidentStatus.RESOLVED:
+            incident.resolved_at = now
+        if to_status == IncidentStatus.CLOSED:
+            incident.closed_at = now
+
+        event_type = self._event_type_for_transition(from_status, to_status)
+        self.event_repo.create(
+            incident_id=incident.id,
+            event_type=event_type,
+            from_status=from_status,
+            to_status=to_status.value,
+            actor_user_id=actor_user_id,
+            actor_role=actor_role,
+            authority_id=authority_id or incident.current_authority_id,
+            dispatch_id=dispatch_id,
+            reason=reason,
+            note=note,
+        )
+
+        if current_status == IncidentStatus.SCREENED and to_status == IncidentStatus.ASSIGNED:
+            if authority_id:
+                self.ownership_repo.start_ownership(
+                    incident.id,
+                    authority_id,
+                    assigned_by_user_id=actor_user_id,
+                    dispatch_id=dispatch_id,
+                    reason=reason,
+                )
+        elif to_status in (
+            IncidentStatus.RESOLVED,
+            IncidentStatus.CLOSED,
+            IncidentStatus.REJECTED,
+        ):
+            self.ownership_repo.close_current(incident.id, ended_at=now)
+
+        self.update_repo.add(
+            IncidentUpdate(
+                incident_id=incident.id,
+                updated_by_id=actor_user_id,
+                from_status=from_status,
+                to_status=to_status.value,
+                note=note or f"Status changed to {to_status.value}",
+            )
+        )
+
+        notification_service.enqueue_status_changed(
+            incident=incident,
+            resident=incident.reporter,
+        )
+
+        return True, []
+
+    def _event_type_for_transition(self, from_status: str, to_status: IncidentStatus) -> str:
+        """Map transition to event type."""
+        if to_status == IncidentStatus.REJECTED:
+            return IncidentEventType.INCIDENT_REJECTED.value
+        if to_status == IncidentStatus.CLOSED:
+            return IncidentEventType.INCIDENT_CLOSED.value
+        if to_status == IncidentStatus.RESOLVED:
+            return IncidentEventType.INCIDENT_RESOLVED.value
+        if to_status == IncidentStatus.ACKNOWLEDGED:
+            return IncidentEventType.INCIDENT_ACKNOWLEDGED.value
+        if to_status == IncidentStatus.ASSIGNED:
+            return IncidentEventType.INCIDENT_ASSIGNED.value
+        if to_status == IncidentStatus.SCREENED:
+            return IncidentEventType.INCIDENT_SCREENED.value
+        return IncidentEventType.STATUS_CHANGED.value
+
+    @staticmethod
+    def _actor_role_from_user(user: User) -> str:
+        """Map user role to actor_role for events."""
+        role = getattr(user, "role", None) or ""
+        if role == "authority":
+            return "department"
+        if role in ("admin", "resident"):
+            return role
+        return "admin"
+
     @staticmethod
     def _is_valid_transition(
         current: IncidentStatus,
         target: IncidentStatus,
     ) -> bool:
-        # reported -> screened or rejected only; no direct to resolved unless admin
         if current == IncidentStatus.REPORTED:
-            return target in {
-                IncidentStatus.SCREENED,
-                IncidentStatus.REJECTED,
-            }
+            return target in {IncidentStatus.SCREENED, IncidentStatus.REJECTED}
         if current == IncidentStatus.SCREENED:
-            return target in {
-                IncidentStatus.ASSIGNED,
-                IncidentStatus.REJECTED,
-            }
+            return target in {IncidentStatus.ASSIGNED, IncidentStatus.REJECTED}
         if current == IncidentStatus.ASSIGNED:
             return target in {
+                IncidentStatus.ACKNOWLEDGED,
                 IncidentStatus.IN_PROGRESS,
                 IncidentStatus.REJECTED,
             }
+        if current == IncidentStatus.ACKNOWLEDGED:
+            return target in {IncidentStatus.IN_PROGRESS, IncidentStatus.REJECTED}
         if current == IncidentStatus.IN_PROGRESS:
-            return target in {
-                IncidentStatus.RESOLVED,
-                IncidentStatus.REJECTED,
-            }
+            return target in {IncidentStatus.RESOLVED, IncidentStatus.REJECTED}
         if current == IncidentStatus.RESOLVED:
             return target == IncidentStatus.CLOSED
         return False

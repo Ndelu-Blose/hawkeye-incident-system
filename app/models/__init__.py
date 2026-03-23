@@ -9,7 +9,9 @@ from .incident import Incident  # noqa: F401
 from .incident_assignment import IncidentAssignment  # noqa: F401
 from .incident_category import IncidentCategory  # noqa: F401
 from .incident_dispatch import IncidentDispatch  # noqa: F401
+from .incident_event import IncidentEvent  # noqa: F401
 from .incident_media import IncidentMedia  # noqa: F401
+from .incident_ownership_history import IncidentOwnershipHistory  # noqa: F401
 from .incident_update import IncidentUpdate  # noqa: F401
 from .location import Location  # noqa: F401
 from .notification_log import NotificationLog  # noqa: F401
@@ -30,6 +32,8 @@ __all__ = [
     "IncidentAssignment",
     "DepartmentActionLog",
     "IncidentDispatch",
+    "IncidentEvent",
+    "IncidentOwnershipHistory",
     "RoutingRule",
     "Location",
     "NotificationLog",

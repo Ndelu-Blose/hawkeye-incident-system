@@ -199,5 +199,20 @@ class Incident(db.Model):
         lazy="dynamic",
     )
 
+    incident_events = db.relationship(
+        "IncidentEvent",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+        order_by="IncidentEvent.created_at",
+    )
+
+    ownership_history = db.relationship(
+        "IncidentOwnershipHistory",
+        back_populates="incident",
+        cascade="all, delete-orphan",
+        lazy="dynamic",
+    )
+
     def __repr__(self) -> str:  # pragma: no cover
         return f"<Incident id={self.id} status={self.status}>"

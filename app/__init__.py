@@ -2,6 +2,7 @@ import os
 from typing import Any
 
 from flask import Flask, render_template
+from sqlalchemy.exc import OperationalError, ProgrammingError
 
 from .config import DevelopmentConfig, ProductionConfig, TestingConfig
 from .constants import APP_NAME, APP_TAGLINE, Roles
@@ -72,9 +73,11 @@ def _register_blueprints(app: Flask) -> None:
     from .routes.auth_routes import auth_bp
     from .routes.authority_routes import authority_bp
     from .routes.main_routes import main_bp
+    from .routes.public_routes import public_bp
     from .routes.resident_routes import resident_bp
 
     app.register_blueprint(main_bp)
+    app.register_blueprint(public_bp)
     app.register_blueprint(auth_bp, url_prefix="/auth")
     app.register_blueprint(resident_bp, url_prefix="/resident")
     app.register_blueprint(authority_bp, url_prefix="/authority")
@@ -132,16 +135,24 @@ def _bootstrap_admin(app: Flask) -> None:
     if not email or not password:
         return
 
-    with app.app_context():
-        existing = auth_service.user_repo.get_by_email(email)
-        if existing is not None:
-            return
+    try:
+        with app.app_context():
+            existing = auth_service.user_repo.get_by_email(email)
+            if existing is not None:
+                return
 
-        user, errors = auth_service.register_user(
-            name=name,
-            email=email,
-            password=password,
-            role=Roles.ADMIN.value,
+            user, errors = auth_service.register_user(
+                name=name,
+                email=email,
+                password=password,
+                role=Roles.ADMIN.value,
+            )
+            if errors:
+                app.logger.warning("Failed to bootstrap admin user: %s", "; ".join(errors))
+            else:
+                app.logger.info("Bootstrap admin created successfully.")
+    except (OperationalError, ProgrammingError) as exc:
+        app.logger.warning(
+            "Skipping admin bootstrap because database schema is not ready yet: %s",
+            exc,
         )
-        if errors:
-            app.logger.warning("Failed to bootstrap admin user: %s", "; ".join(errors))

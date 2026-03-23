@@ -337,6 +337,70 @@ class IncidentRepository:
         stmt = stmt.order_by(Incident.created_at.desc()).limit(limit)
         return list(db.session.execute(stmt).scalars().unique().all())
 
+    def list_distinct_areas(self) -> list[str]:
+        """Return distinct area names (suburb/ward) for public area selector."""
+        stmt = (
+            select(Incident.suburb_or_ward)
+            .where(Incident.suburb_or_ward.isnot(None))
+            .where(Incident.suburb_or_ward != "")
+            .distinct()
+            .order_by(Incident.suburb_or_ward)
+        )
+        rows = db.session.execute(stmt).scalars().all()
+        return [r[0] for r in rows if r[0]]
+
+    def search_public(
+        self,
+        *,
+        area: str,
+        category_id: int | None = None,
+        status: str | None = None,
+        date_from: datetime | None = None,
+        date_to: datetime | None = None,
+        page: int = 1,
+        per_page: int = 20,
+    ) -> Page:
+        """Public anonymised incident list by area. No reporter or PII exposed."""
+        page = max(1, int(page or 1))
+        per_page = min(50, max(1, int(per_page or 20)))
+
+        area_norm = (area or "").strip()
+        if not area_norm:
+            return Page(items=[], total=0, page=1, per_page=per_page)
+
+        area_like = f"%{area_norm.lower()}%"
+        stmt = select(Incident).where(
+            or_(
+                func.lower(Incident.suburb).like(area_like),
+                func.lower(Incident.ward).like(area_like),
+                func.lower(Incident.suburb_or_ward).like(area_like),
+            )
+        )
+        # Exclude rejected from public view
+        stmt = stmt.where(Incident.status != IncidentStatus.REJECTED.value)
+
+        if category_id is not None:
+            stmt = stmt.where(Incident.category_id == category_id)
+        if status:
+            stmt = stmt.where(Incident.status == status)
+
+        if date_from is not None:
+            stmt = stmt.where(
+                (Incident.reported_at >= date_from) | (Incident.created_at >= date_from)
+            )
+        if date_to is not None:
+            stmt = stmt.where((Incident.reported_at <= date_to) | (Incident.created_at <= date_to))
+
+        count_stmt = stmt.with_only_columns(func.count(Incident.id)).order_by(None)
+        total = int(db.session.execute(count_stmt).scalar() or 0)
+
+        stmt = stmt.options(joinedload(Incident.category_rel))
+        stmt = (
+            stmt.order_by(Incident.created_at.desc()).offset((page - 1) * per_page).limit(per_page)
+        )
+        items = list(db.session.execute(stmt).unique().scalars().all())
+        return Page(items=items, total=total, page=page, per_page=per_page)
+
     def list_overdue(self, *, limit: int = 5) -> list[Incident]:
         """Return a small list of overdue incidents for dashboards."""
         from app.models import IncidentCategory
