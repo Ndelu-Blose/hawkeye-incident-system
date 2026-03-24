@@ -16,16 +16,32 @@ services:
       timeout: 5s
       retries: 10
 
+  mailhog:
+    image: mailhog/mailhog:latest
+    container_name: hawkeye_mailhog
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
   web:
     build: .
     container_name: hawkeye_web
     depends_on:
       db:
         condition: service_healthy
+      mailhog:
+        condition: service_started
     environment:
       DATABASE_URL: postgresql://${DB_USER}:${DB_PASSWORD}@db:5432/${DB_NAME}
       SECRET_KEY: ${SECRET_KEY:-dev-secret-key}
       FLASK_ENV: development
+      MAIL_SERVER: mailhog
+      MAIL_PORT: 1025
+      MAIL_USE_TLS: "false"
+      MAIL_USE_SSL: "false"
+      MAIL_USERNAME: ""
+      MAIL_PASSWORD: ""
+      MAIL_DEFAULT_SENDER: noreply@hawkeye.local
     ports:
       - "5000:5000"
     volumes:

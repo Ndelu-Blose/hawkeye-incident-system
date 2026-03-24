@@ -1,69 +1,67 @@
-{% extends "layout.html" %}
+{% extends "authority/authority_app.html" %}
 
-{% block content %}
-  <div class="d-flex justify-content-between align-items-center mb-3">
-    <h2>Authority Dashboard</h2>
-  </div>
+{% set authority_page_title = "Authority dashboard" %}
+{% set authority_page_subtitle = "Monitor queue health and work incidents assigned to your department." %}
 
-  <div class="row mb-4">
-    <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">New Today</h6>
-          <p class="h4 mb-0">{{ overview.new_today }}</p>
-        </div>
+{% block authority_content %}
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="hawkeye-admin-panel text-center p-3 h-100">
+        <div class="admin-stat-label">New today</div>
+        <div class="admin-stat-value">{{ overview.new_today }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Unassigned</h6>
-          <p class="h4 mb-0">{{ overview.unassigned }}</p>
-        </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="hawkeye-admin-panel text-center p-3 h-100">
+        <div class="admin-stat-label">Unassigned</div>
+        <div class="admin-stat-value">{{ overview.unassigned }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">In Progress</h6>
-          <p class="h4 mb-0">{{ overview.in_progress }}</p>
-        </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="hawkeye-admin-panel text-center p-3 h-100">
+        <div class="admin-stat-label">In progress</div>
+        <div class="admin-stat-value">{{ overview.in_progress }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center border-warning">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Overdue</h6>
-          <p class="h4 mb-0">{{ overview.overdue }}</p>
-        </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="hawkeye-admin-panel text-center p-3 h-100 border border-warning border-opacity-50">
+        <div class="admin-stat-label">Overdue</div>
+        <div class="admin-stat-value">{{ overview.overdue }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Resolved (week)</h6>
-          <p class="h4 mb-0">{{ overview.resolved_this_week }}</p>
-        </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="hawkeye-admin-panel text-center p-3 h-100">
+        <div class="admin-stat-label">Resolved (week)</div>
+        <div class="admin-stat-value">{{ overview.resolved_this_week }}</div>
       </div>
     </div>
-    <div class="col-6 col-md-4 col-lg-2 mb-3">
-      <div class="card text-center">
-        <div class="card-body py-3">
-          <h6 class="card-title text-muted text-uppercase small">Total</h6>
-          <p class="h4 mb-0">{{ overview.total_incidents }}</p>
-        </div>
+    <div class="col-6 col-md-4 col-lg-2">
+      <div class="hawkeye-admin-panel text-center p-3 h-100">
+        <div class="admin-stat-label">Total</div>
+        <div class="admin-stat-value">{{ overview.total_incidents }}</div>
       </div>
     </div>
   </div>
 
-  <form class="row g-3 mb-3" method="get">
+  <div class="hawkeye-admin-panel p-3 mb-4">
+    <div class="d-flex flex-wrap align-items-center gap-2">
+      <span class="text-muted small me-1">Workflow status:</span>
+      <span class="badge text-bg-secondary">Reported: {{ overview.pending }}</span>
+      <span class="badge text-bg-primary">In Progress: {{ overview.in_progress }}</span>
+      <span class="badge text-bg-success">Resolved: {{ overview.resolved }}</span>
+      <span class="badge text-bg-light text-dark">All: {{ overview.total_incidents }}</span>
+    </div>
+  </div>
+
+  <form class="row g-3 mb-4" method="get">
     <div class="col-sm-4 col-md-3">
       <label for="status" class="form-label">Filter by status</label>
       <select class="form-select" id="status" name="status" onchange="this.form.submit()">
         <option value="" {% if not selected_status %}selected{% endif %}>All</option>
-        <option value="pending" {% if selected_status == 'pending' %}selected{% endif %}>Reported</option>
-        <option value="verified" {% if selected_status == 'verified' %}selected{% endif %}>Verified</option>
-        <option value="assigned" {% if selected_status == 'assigned' %}selected{% endif %}>Assigned</option>
+        <option value="reported" {% if selected_status == 'reported' %}selected{% endif %}>Reported</option>
+        <option value="screened" {% if selected_status == 'screened' %}selected{% endif %}>Screened</option>
+        <option value="assigned" {% if selected_status == 'assigned' %}selected{% endif %}>Incoming</option>
+        <option value="acknowledged" {% if selected_status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
         <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In Progress</option>
         <option value="resolved" {% if selected_status == 'resolved' %}selected{% endif %}>Resolved</option>
         <option value="rejected" {% if selected_status == 'rejected' %}selected{% endif %}>Rejected</option>
@@ -73,46 +71,47 @@
   </form>
 
   {% if incidents %}
-    <div class="table-responsive">
-      <table class="table table-dark table-striped align-middle">
-        <thead>
-          <tr>
-            <th>Ref No</th>
-            <th>Category</th>
-            <th>Ward / Suburb</th>
-            <th>Reported At</th>
-            <th>SLA Due</th>
-            <th>Assigned Authority</th>
-            <th>Status</th>
-            <th>Priority</th>
-            <th></th>
-          </tr>
-        </thead>
-        <tbody>
-          {% for incident in incidents %}
+    <div class="hawkeye-admin-panel p-0 overflow-hidden">
+      <div class="table-responsive">
+        <table class="table table-dark table-striped align-middle mb-0">
+          <thead>
             <tr>
-              <td>
-                <a href="{{ url_for('authority.incident_detail', incident_id=incident.id) }}">
-                  {{ incident.reference_code or ('#%d' % incident.id) }}
-                </a>
-              </td>
-              <td>{{ incident.category_rel.name if incident.category_rel else incident.category }}</td>
-              <td>{{ incident.location_rel.suburb or incident.location_rel.ward or incident.suburb_or_ward or '—' }}</td>
-              <td>{{ incident.reported_at.strftime('%Y-%m-%d %H:%M') if incident.reported_at else (incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at else '—') }}</td>
-              <td>{{ (incident | sla_due).strftime('%Y-%m-%d %H:%M') if (incident | sla_due) else '—' }}</td>
-              <td>{{ incident.current_authority.name if incident.current_authority else '—' }}</td>
-              <td>{{ render_status_badge(incident.status) }}</td>
-              <td class="text-capitalize">{{ incident.severity }}</td>
-              <td class="text-end">
-                <a href="{{ url_for('authority.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">View</a>
-              </td>
+              <th>Ref No</th>
+              <th>Category</th>
+              <th>Ward / Suburb</th>
+              <th>Reported At</th>
+              <th>SLA Due</th>
+              <th>Assigned Authority</th>
+              <th>Status</th>
+              <th>Priority</th>
+              <th></th>
             </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {% for incident in incidents %}
+              <tr>
+                <td>
+                  <a href="{{ url_for('authority.incident_detail', incident_id=incident.id) }}">
+                    {{ incident.reference_code or ('#%d' % incident.id) }}
+                  </a>
+                </td>
+                <td>{{ incident.category_rel.name if incident.category_rel else incident.category }}</td>
+                <td>{{ incident.location_rel.suburb or incident.location_rel.ward or incident.suburb_or_ward or '—' }}</td>
+                <td>{{ incident.reported_at.strftime('%Y-%m-%d %H:%M') if incident.reported_at else (incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at else '—') }}</td>
+                <td>{{ (incident | sla_due).strftime('%Y-%m-%d %H:%M') if (incident | sla_due) else '—' }}</td>
+                <td>{{ incident.current_authority.name if incident.current_authority else '—' }}</td>
+                <td>{{ render_status_badge(incident.status) }}</td>
+                <td class="text-capitalize">{{ incident.severity }}</td>
+                <td class="text-end">
+                  <a href="{{ url_for('authority.incident_detail', incident_id=incident.id) }}" class="btn btn-sm btn-outline-light">View</a>
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
     </div>
   {% else %}
     <p class="text-muted">There are no incidents yet.</p>
   {% endif %}
 {% endblock %}
-

@@ -9,12 +9,18 @@ class Authority(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(255), nullable=False)
+    code = db.Column(db.String(80), unique=True, nullable=True, index=True)
     slug = db.Column(db.String(120), unique=True, nullable=True, index=True)
     authority_type = db.Column(db.String(50))
     contact_email = db.Column(db.String(255))
     contact_phone = db.Column(db.String(50))
+    physical_address = db.Column(db.String(255), nullable=True)
+    operating_hours = db.Column(db.String(120), nullable=True)
+    service_hub = db.Column(db.String(120), nullable=True)
     jurisdiction_notes = db.Column(db.Text)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
+    routing_enabled = db.Column(db.Boolean, nullable=False, default=True)
+    notifications_enabled = db.Column(db.Boolean, nullable=False, default=True)
 
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     updated_at = db.Column(
@@ -61,6 +67,12 @@ class Authority(db.Model):
         "IncidentDispatch",
         back_populates="authority",
         lazy="dynamic",
+    )
+    contacts = db.relationship(
+        "DepartmentContact",
+        back_populates="authority",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
     )
 
     department_action_logs = db.relationship(

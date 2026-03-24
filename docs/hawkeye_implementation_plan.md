@@ -695,6 +695,27 @@ To avoid ad-hoc changes and rework, the lifecycle and operational backbone shoul
 ## 8. Phase 4 — Analytics and Intelligence Layer
 **Timeline: Weeks 12–16**
 
+### Operational Backbone — Complete
+
+The Operational Backbone milestone is complete. HawkEye now enforces lifecycle transitions through a canonical status engine, records domain activity in an event ledger, tracks ownership history, audits sensitive actions, supports dispatch acknowledgment, renders timelines from operational events, and protects these guarantees with contract tests.
+
+Analytics can now rely on trusted workflow data (`incident_events`, `incident_dispatches`, `incident_ownership_history`) rather than loose history.
+
+### Phase 4 Execution Order
+
+**Prerequisite: Cleanup Pass** — Before building new analytics, identify and document legacy dependencies. See `docs/Phase4_Cleanup_Pass_and_Analytics_Migration.md`.
+
+| Phase | Focus | Deliverables |
+|-------|-------|--------------|
+| **4A** | Cleanup and migration map | Legacy dependency checklist, IncidentUpdate retirement watchlist, analytics migration map, queue logic notes |
+| **4B** | Analytics query hardening | Event-backed queries for volume, resolution time, authority workload, hotspots, reopen/rejection patterns |
+| **4C** | Performance validation | Seeded-data checks, dashboard query review, N+1/aggregation review |
+| **4D** | Admin analytics UI refinement | Summary cards, event-backed charts, drill-down filters, structured location filters |
+
+**Do not jump straight into charts.** First migrate analytics onto the backbone so dashboards are built on trusted data, not mixed truth.
+
+---
+
 | Task | Effort | Priority |
 |------|--------|----------|
 | Create analytics service layer (separate from routes) | 3–4 hrs | HIGH |
@@ -1142,5 +1163,90 @@ Additional lifecycle-specific testing requirements:
 
 ---
 
-*HawkEye Developer Implementation Plan — Version 2.0 — March 2026*
+## 14. Dynamic Category-Driven Reporting (MVP)
+
+### 14.1 Scope
+
+Resident incident reporting supports category-driven guided fields with auto-generated descriptions and structured persistence.
+
+### 14.2 MVP Categories
+
+- Suspicious Activity (`suspicious_activity`)
+- Theft (`theft`)
+- Vandalism (`vandalism`)
+- Noise Complaint (`noise_complaint`)
+
+### 14.3 UX Behavior
+
+- Category controls guided details rendering.
+- Guided details generate a readable description automatically.
+- Residents can add `additional_notes`.
+- Description remains editable and manual edits are protected from silent overwrite.
+- Category changes preserve compatible values and warn before destructive resets.
+
+### 14.4 Data Model
+
+- Add `incidents.dynamic_details` (JSON).
+- Add `incidents.additional_notes` (TEXT).
+- Keep `incidents.description` as final user/admin-readable summary.
+
+### 14.5 Authority Value
+
+Authority incident detail view renders:
+
+- Summary (`description`)
+- Structured details (`dynamic_details`)
+- Additional notes (`additional_notes`)
+
+---
+
+## 15. Heatmap / Hotspot Feature Specification
+
+### 15.1 Objective
+
+Deliver a role-aware spatial hotspot feature:
+- **Admin** receives operational hotspot analytics with filterable clustering.
+- **Resident** receives privacy-safe community concentration visibility.
+
+### 15.2 Functional Requirements
+
+- Admin API: `GET /admin/api/admin/analytics/hotspots`
+  - Supports `days`, `category`, `status`, `authority_id`.
+  - Returns summary, weighted point clusters, and top hotspot areas.
+- Resident API: `GET /resident/api/resident/community-heatmap`
+  - Supports `days`, `category`, `near_suburb`.
+  - Returns aggregated area hotspots only (`area_name`, centroid, intensity, count band).
+- UI Integration:
+  - Admin analytics page includes a heatmap card, filters, and top-area table.
+  - Resident dashboard includes a community heatmap card with simplified filters.
+
+### 15.3 Privacy Rules (Resident Output)
+
+- Never return incident-level sensitive fields (identity, evidence, address details, notes).
+- Never return raw per-incident coordinates.
+- Apply minimum threshold policy before displaying a public hotspot area.
+- Return generalized aggregated centroids and normalized intensity bands only.
+
+### 15.4 Data Model Requirements
+
+- Incident location metadata includes:
+  - `latitude`, `longitude`
+  - `location_precision`
+  - `geocoded_at`
+  - `geocode_source`
+  - `hotspot_excluded`
+
+### 15.5 Acceptance Criteria
+
+- Role separation is enforced server-side and validated by tests.
+- Admin heatmap supports operational filtering and returns weighted map-ready points.
+- Resident heatmap returns only privacy-safe aggregated data.
+- Empty-state handling is present for sparse/no-data filters.
+- Documentation is updated in:
+  - `docs/Checklist.md`
+  - `docs/heatmap_hotspot_spec.md`
+
+---
+
+*HawkEye Developer Implementation Plan — Version 2.1 — March 2026*
 *Confidential — Development Team*

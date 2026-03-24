@@ -46,13 +46,13 @@ AUTHORITIES = [
 # Category name → authority slug (incident_categories.name → authorities.slug)
 CATEGORY_TO_AUTHORITY = {
     "water_leak": "water-and-sanitation",
-    "blocked_drain": "sewer-and-drainage",
+    "blocked_drain": "water-and-sanitation",
     "crime": "saps",
-    "suspicious_activity": "saps",
+    "suspicious_activity": "metro-police",
     "pothole": "roads-and-stormwater",
-    "broken_streetlight": "street-lighting",
+    "broken_streetlight": "electricity",
     "dumping": "waste-management",
-    "vandalism": "municipal-operations",
+    "vandalism": "public-safety",
 }
 
 

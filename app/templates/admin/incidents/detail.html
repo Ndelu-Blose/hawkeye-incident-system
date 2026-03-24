@@ -13,11 +13,80 @@
 {% block admin_content %}
   <div class="row">
     <div class="col-lg-7 mb-4">
+      {% set latest_dispatch = dispatches[0] if dispatches else None %}
+      {% set proof_approved = (incident.verification_status == 'approved') %}
+      {% set status_update_locked = not proof_approved %}
+      {% set external_reference_enabled = latest_dispatch and latest_dispatch.status in ('sent', 'delivered', 'acknowledged', 'in_progress', 'resolved', 'closed') %}
+      {% set status_step_complete = incident.status in ('assigned', 'acknowledged', 'in_progress', 'resolved', 'closed', 'rejected') %}
+      {% set dispatch_step_complete = latest_dispatch and (latest_dispatch.status in ('sent', 'delivered', 'acknowledged', 'resolved', 'closed')) and (latest_dispatch.external_reference_number or '') %}
+
+      {% if proof_approved %}
+        {% set proof_step_state = 'complete' %}
+      {% else %}
+        {% set proof_step_state = 'needs_action' %}
+      {% endif %}
+
+      {% if status_update_locked %}
+        {% set status_step_state = 'not_started' %}
+      {% elif status_step_complete %}
+        {% set status_step_state = 'complete' %}
+      {% else %}
+        {% set status_step_state = 'needs_action' %}
+      {% endif %}
+
+      {% if not latest_dispatch %}
+        {% set dispatch_step_state = 'not_started' %}
+      {% elif dispatch_step_complete %}
+        {% set dispatch_step_state = 'complete' %}
+      {% elif external_reference_enabled %}
+        {% set dispatch_step_state = 'needs_action' %}
+      {% else %}
+        {% set dispatch_step_state = 'not_started' %}
+      {% endif %}
+
+      {% set active_step = 'none' %}
+      {% if proof_step_state == 'needs_action' %}
+        {% set active_step = 'proof' %}
+      {% elif status_step_state == 'needs_action' %}
+        {% set active_step = 'status' %}
+      {% elif dispatch_step_state == 'needs_action' %}
+        {% set active_step = 'dispatch' %}
+      {% endif %}
+
       <h2 class="mb-3">Incident #{{ incident.id }} – {{ incident.title }}</h2>
+
+      {% if timeline %}
+        {% set action_events = namespace(items=[]) %}
+        {% for event in timeline %}
+          {% if event.kind in ('proof_verified', 'proof_rejected', 'proof_requested', 'status_update', 'dispatched', 'acknowledged') %}
+            {% set action_events.items = action_events.items + [event] %}
+          {% endif %}
+        {% endfor %}
+        {% if action_events.items %}
+          <div class="card bg-dark border-secondary mb-3">
+            <div class="card-body py-2">
+              <div class="small text-muted mb-1">Recent action history</div>
+              {% for event in action_events.items[:3] %}
+                <div class="small d-flex justify-content-between gap-2 mb-1">
+                  <span>{{ event.title }}</span>
+                  <span class="text-muted">{{ event.at.strftime('%H:%M') if event.at else '' }}</span>
+                </div>
+              {% endfor %}
+            </div>
+          </div>
+        {% endif %}
+      {% endif %}
 
       <p class="mb-2">
         Status:
         {{ render_status_badge(incident.status) }}
+        {% if incident.status == 'awaiting_evidence' and incident.evidence_resubmitted_at %}
+          <span class="badge bg-success ms-2">New proof submitted (Needs review)</span>
+        {% endif %}
+        <span class="ms-2 small text-muted">
+          Business view:
+          {% if incident.status == 'screened' %}Verified{% elif incident.status == 'assigned' %}Escalated{% else %}{{ incident.status|replace('_',' ')|title }}{% endif %}
+        </span>
       </p>
 
       <p class="mb-2">
@@ -28,6 +97,50 @@
       <p class="mb-2">
         <strong>Category:</strong> {{ incident.category_rel.name if incident.category_rel else incident.category }}
       </p>
+
+      <div class="card border-info bg-dark mb-3">
+        <div class="card-body">
+          <h3 class="h6 mb-2 text-info">Recommended workflow (follow in order)</h3>
+          <div class="small d-flex flex-column gap-2">
+            <a href="#proof-verification" class="text-decoration-none text-reset">
+              <div class="d-flex justify-content-between align-items-center px-2 py-1 rounded {% if active_step == 'proof' %}border border-warning{% else %}border border-secondary{% endif %}">
+                <span>1) Verify proof {% if active_step == 'proof' %}<span class="badge bg-warning text-dark ms-1">Do this now</span>{% endif %}</span>
+                {% if proof_step_state == 'complete' %}
+                  <span class="badge bg-success">Complete</span>
+                {% elif proof_step_state == 'needs_action' %}
+                  <span class="badge bg-warning text-dark">Needs action</span>
+                {% else %}
+                  <span class="badge bg-secondary">Not started</span>
+                {% endif %}
+              </div>
+            </a>
+            <a href="#status-update" class="text-decoration-none text-reset">
+              <div class="d-flex justify-content-between align-items-center px-2 py-1 rounded {% if active_step == 'status' %}border border-warning{% else %}border border-secondary{% endif %}">
+                <span>2) Update incident status {% if active_step == 'status' %}<span class="badge bg-warning text-dark ms-1">Do this now</span>{% endif %}</span>
+                {% if status_step_state == 'complete' %}
+                  <span class="badge bg-success">Complete</span>
+                {% elif status_step_state == 'needs_action' %}
+                  <span class="badge bg-warning text-dark">Needs action</span>
+                {% else %}
+                  <span class="badge bg-secondary">Not started</span>
+                {% endif %}
+              </div>
+            </a>
+            <a href="#dispatch-operations" class="text-decoration-none text-reset">
+              <div class="d-flex justify-content-between align-items-center px-2 py-1 rounded {% if active_step == 'dispatch' %}border border-warning{% else %}border border-secondary{% endif %}">
+                <span>3) Dispatch + external reference {% if active_step == 'dispatch' %}<span class="badge bg-warning text-dark ms-1">Do this now</span>{% endif %}</span>
+                {% if dispatch_step_state == 'complete' %}
+                  <span class="badge bg-success">Complete</span>
+                {% elif dispatch_step_state == 'needs_action' %}
+                  <span class="badge bg-warning text-dark">Needs action</span>
+                {% else %}
+                  <span class="badge bg-secondary">Not started</span>
+                {% endif %}
+              </div>
+            </a>
+          </div>
+        </div>
+      </div>
 
       <div class="card hawkeye-admin-panel mb-3">
         <div class="card-body">
@@ -107,7 +220,7 @@
         <div class="row g-2">
           {% for m in media %}
             <div class="col-6 col-md-4">
-              {% set media_url = url_for('admin.serve_incident_media_admin', incident_id=incident.id, filename=m.file_path.split('/')[-1]) %}
+              {% set media_url = url_for('admin.serve_incident_media_admin', incident_id=incident.id, filename=m.file_path.replace('\\', '/').split('/')[-1]) %}
               <button
                 type="button"
                 class="btn p-0 w-100 text-start border-0 hawkeye-evidence-thumb"
@@ -129,15 +242,55 @@
 
       <hr class="my-4" />
 
-      <h3 class="h5 mb-3">Update status</h3>
+      <h3 class="h5 mb-3" id="proof-verification">Proof verification</h3>
+      <div class="mb-3 small text-muted">
+        Current verification status:
+        <strong class="text-capitalize">{{ incident.verification_status or 'pending' }}</strong>
+      </div>
+      {% if incident.verification_status != 'approved' %}
+        <div class="d-flex flex-wrap gap-2 mb-3">
+          <form method="post" action="{{ url_for('admin.review_incident_proof', incident_id=incident.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="decision" value="approved" />
+            <input type="hidden" name="note" value="Proof approved by admin." />
+            <button type="submit" class="btn btn-success btn-sm">Approve proof</button>
+          </form>
+          <form method="post" action="{{ url_for('admin.review_incident_proof', incident_id=incident.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <input type="hidden" name="decision" value="rejected" />
+            <input type="hidden" name="note" value="Proof rejected by admin review." />
+            <button type="submit" class="btn btn-outline-danger btn-sm">Reject proof</button>
+          </form>
+        </div>
+      {% else %}
+        <p class="small text-muted mb-3">
+          Proof is approved. Incident status should be <strong>Reported</strong> (or later) so you can confirm screening or update status as needed.
+        </p>
+      {% endif %}
+      {% if incident.status in ('reported', 'screened') %}
+        <form method="post" action="{{ url_for('admin.request_incident_proof', incident_id=incident.id) }}" class="mb-4">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <label for="proof_reason" class="form-label">Request additional proof</label>
+          <textarea class="form-control mb-2" id="proof_reason" name="reason" rows="2" placeholder="Explain what additional evidence is required."></textarea>
+          <button type="submit" class="btn btn-outline-warning btn-sm">Request more proof</button>
+        </form>
+      {% endif %}
+
+      <h3 class="h5 mb-3" id="status-update">Update status</h3>
+      {% if status_update_locked %}
+        <div class="alert alert-warning py-2 small" role="alert">
+          Approve or reject proof first. Status updates are temporarily locked to prevent out-of-order actions.
+        </div>
+      {% endif %}
       <form method="post" action="{{ url_for('admin.update_incident_status', incident_id=incident.id) }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
         <div class="mb-3">
           <label for="status" class="form-label">New status</label>
-          <select class="form-select" id="status" name="status" required>
+          <select class="form-select" id="status" name="status" required {% if status_update_locked %}disabled{% endif %}>
             <option value="">Select status</option>
             <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
+            <option value="awaiting_evidence" {% if incident.status == 'awaiting_evidence' %}selected{% endif %}>Awaiting Evidence</option>
             <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
             <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
             <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
@@ -150,11 +303,82 @@
 
         <div class="mb-3">
           <label for="note" class="form-label">Resolution / progress note</label>
-          <textarea class="form-control" id="note" name="note" rows="3"></textarea>
+          <textarea class="form-control" id="note" name="note" rows="3" {% if status_update_locked %}disabled{% endif %}></textarea>
         </div>
 
-        <button type="submit" class="btn btn-primary">Save status</button>
+        <button type="submit" class="btn btn-primary" {% if status_update_locked %}disabled{% endif %}>Save status</button>
       </form>
+
+      {% if dispatches %}
+        <hr class="my-4" />
+        <h3 class="h5 mb-3" id="dispatch-operations">Dispatch operations</h3>
+        <div class="card bg-dark border-secondary mb-3">
+          <div class="card-body text-light">
+            <p class="mb-1">
+              <strong>Latest dispatch status:</strong>
+              {{ (latest_dispatch.status or 'pending')|replace('_',' ')|title }}
+            </p>
+            <p class="mb-1"><strong>Channel:</strong> {{ latest_dispatch.channel or 'email' }}</p>
+            <p class="mb-1"><strong>Recipient:</strong> {{ latest_dispatch.recipient_email or 'Not captured' }}</p>
+            <p class="mb-2">
+              <strong>Updated:</strong>
+              {% set dispatch_updated_at = latest_dispatch.last_status_update_at or latest_dispatch.sent_at or latest_dispatch.created_at %}
+              {{ dispatch_updated_at.strftime('%Y-%m-%d %H:%M') if dispatch_updated_at else 'Not available yet' }}
+            </p>
+            {% if latest_dispatch.failure_reason %}
+              <p class="mb-2 text-warning"><strong>Last failure:</strong> {{ latest_dispatch.failure_reason }}</p>
+            {% endif %}
+            <div class="d-flex flex-wrap gap-2">
+              <form method="post" action="{{ url_for('admin.retry_dispatch', incident_id=incident.id, dispatch_id=latest_dispatch.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <button type="submit" class="btn btn-outline-primary btn-sm">Retry dispatch</button>
+              </form>
+            </div>
+          </div>
+        </div>
+
+        <form method="post" action="{{ url_for('admin.save_dispatch_external_reference', incident_id=incident.id, dispatch_id=latest_dispatch.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          {% if not external_reference_enabled %}
+            <div class="alert alert-secondary py-2 small mb-2" role="alert">
+              External reference is enabled after dispatch is successfully sent or acknowledged.
+            </div>
+          {% endif %}
+          <div class="row g-2">
+            <div class="col-md-7">
+              <label class="form-label" for="external_reference_number">External reference number</label>
+              <input
+                id="external_reference_number"
+                name="external_reference_number"
+                class="form-control"
+                value="{{ latest_dispatch.external_reference_number or '' }}"
+                placeholder="Leave blank to auto-generate (example: HK-METRO-20260324-0002-0011)"
+                {% if not external_reference_enabled %}disabled{% endif %}
+              />
+              <div class="form-text">
+                Use your department's case number if available, or let Hawkeye auto-generate one.
+              </div>
+            </div>
+            <div class="col-md-5">
+              <label class="form-label" for="external_reference_source">Reference source</label>
+              <input
+                id="external_reference_source"
+                name="external_reference_source"
+                class="form-control"
+                value="{{ latest_dispatch.external_reference_source or '' }}"
+                placeholder="eThekwini / SAPS"
+                {% if not external_reference_enabled %}disabled{% endif %}
+              />
+            </div>
+          </div>
+          <div class="d-flex gap-2 mt-2">
+            <button type="button" class="btn btn-outline-secondary btn-sm" id="generateExternalReferenceBtn" {% if not external_reference_enabled %}disabled{% endif %}>
+              Auto-generate reference
+            </button>
+            <button type="submit" class="btn btn-outline-success btn-sm" {% if not external_reference_enabled %}disabled{% endif %}>Save external reference</button>
+          </div>
+        </form>
+      {% endif %}
     </div>
 
     <div class="col-lg-5">
@@ -262,4 +486,59 @@
     })();
   </script>
   {% endif %}
+
+  {% if dispatches %}
+  <script>
+    (function() {
+      var inputEl = document.getElementById('external_reference_number');
+      var sourceEl = document.getElementById('external_reference_source');
+      var triggerEl = document.getElementById('generateExternalReferenceBtn');
+      if (!inputEl || !triggerEl) return;
+      triggerEl.addEventListener('click', function() {
+        var now = new Date();
+        var yyyy = now.getFullYear().toString();
+        var mm = String(now.getMonth() + 1).padStart(2, '0');
+        var dd = String(now.getDate()).padStart(2, '0');
+        var authority = "{{ (incident.current_authority.name if incident.current_authority else 'AUTH')|upper }}";
+        var authorityToken = authority.replace(/[^A-Z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 12) || 'AUTH';
+        var dispatchId = String({{ latest_dispatch.id }}).padStart(4, '0');
+        var incidentId = String({{ incident.id }}).padStart(4, '0');
+        inputEl.value = "HK-" + authorityToken + "-" + yyyy + mm + dd + "-" + incidentId + "-" + dispatchId;
+        if (sourceEl && !sourceEl.value.trim()) {
+          sourceEl.value = "{{ incident.current_authority.name if incident.current_authority else '' }}";
+        }
+      });
+    })();
+  </script>
+  {% endif %}
+
+  <script>
+    (function() {
+      var proofApproved = {{ 'true' if proof_approved else 'false' }};
+      var statusLocked = {{ 'true' if status_update_locked else 'false' }};
+      var externalReferenceEnabled = {{ 'true' if external_reference_enabled else 'false' }};
+      var incidentStatus = "{{ incident.status }}";
+
+      var targetId = null;
+      if (!proofApproved) {
+        targetId = 'proof-verification';
+      } else if (!statusLocked && ['reported', 'screened', 'awaiting_evidence'].indexOf(incidentStatus) !== -1) {
+        targetId = 'status-update';
+      } else if (!externalReferenceEnabled) {
+        targetId = 'dispatch-operations';
+      }
+
+      if (!targetId) {
+        return;
+      }
+      var target = document.getElementById(targetId);
+      if (!target) {
+        return;
+      }
+      // Delay a touch so flash messages/layout settle before scroll.
+      window.setTimeout(function() {
+        target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 150);
+    })();
+  </script>
 {% endblock %}

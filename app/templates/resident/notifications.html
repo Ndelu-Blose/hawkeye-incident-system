@@ -1,0 +1,90 @@
+{% extends "resident/resident_app.html" %}
+
+{% set resident_active_page = "notifications" %}
+{% set resident_page_title = "Notifications" %}
+{% set resident_page_subtitle = "Updates about your incidents and system messages." %}
+
+{% block resident_top_actions %}
+<form method="post" action="{{ url_for('resident.notifications_mark_read') }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+  <button type="submit" class="btn btn-outline-light btn-sm">
+    <i class="bi bi-check2-circle"></i>
+    Mark all as read
+  </button>
+</form>
+{% endblock %}
+
+{% block resident_content %}
+<div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-3">
+  <div class="text-muted small">
+    {% if unread_count and unread_count > 0 %}
+      <span class="badge bg-danger me-2">{{ unread_count }} unread</span>
+    {% else %}
+      <span class="badge bg-secondary me-2">All caught up</span>
+    {% endif %}
+    <span>Newest updates appear first.</span>
+  </div>
+</div>
+
+<div class="resident-panel">
+  {% if not items %}
+    <div class="resident-empty-state py-4">
+      <div class="mb-2"><i class="bi bi-bell-slash fs-3"></i></div>
+      <div class="fw-semibold">No notifications yet</div>
+      <div class="text-muted">When a department acknowledges or your incident status changes, you’ll see it here.</div>
+      <div class="mt-3">
+        <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-primary btn-sm">
+          View my incidents
+        </a>
+      </div>
+    </div>
+  {% else %}
+    <div class="list-group list-group-flush">
+      {% for n in items %}
+        <div class="list-group-item bg-transparent text-light border-secondary-subtle py-3">
+          <div class="d-flex justify-content-between gap-3">
+            <div class="d-flex align-items-start gap-3">
+              <div class="pt-1">
+                {% if n.source == 'incident_event' %}
+                  <i class="bi bi-activity"></i>
+                {% else %}
+                  <i class="bi bi-envelope-paper"></i>
+                {% endif %}
+              </div>
+              <div>
+                <div class="d-flex flex-wrap align-items-center gap-2">
+                  <div class="fw-semibold">
+                    {% if n.link_url %}
+                      <a class="text-decoration-none text-light" href="{{ n.link_url }}">{{ n.title }}</a>
+                    {% else %}
+                      {{ n.title }}
+                    {% endif %}
+                  </div>
+                  {% if n.is_unread %}
+                    <span class="badge bg-danger">New</span>
+                  {% endif %}
+                </div>
+                {% if n.body %}
+                  <div class="text-muted mt-1">{{ n.body }}</div>
+                {% endif %}
+                {% if n.incident_id %}
+                  <div class="mt-2">
+                    <a class="small text-info text-decoration-none" href="{{ url_for('resident.incident_detail', incident_id=n.incident_id) }}">
+                      Open incident #{{ n.incident_id }}
+                      <i class="bi bi-arrow-right-short"></i>
+                    </a>
+                  </div>
+                {% endif %}
+              </div>
+            </div>
+            <div class="text-muted small text-end" style="white-space: nowrap;">
+              {{ n.created_at.strftime('%Y-%m-%d %H:%M') if n.created_at else '' }}
+            </div>
+          </div>
+        </div>
+      {% endfor %}
+    </div>
+  {% endif %}
+</div>
+{% endblock %}
+

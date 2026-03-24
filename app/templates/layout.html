@@ -9,35 +9,7 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='css/hawkeye-theme.css') }}" />
 </head>
 <body>
-  <header class="hawkeye-public-header">
-  <a class="hawkeye-public-logo" href="{{ url_for('main.home') }}">Alertweb Solutions</a>
-  <div class="hawkeye-public-links">
-  {% if current_user.is_authenticated %}
-        <span class="hawkeye-public-user">Signed in as {{ current_user.name }}</span>
-        <a class="hawkeye-public-link" href="{{ url_for('auth.logout') }}">Logout</a>
-      {% else %}
-        {% if request.endpoint == 'main.home' %}
-          <a class="hawkeye-public-link" href="#solutions">Solutions</a>
-          <a class="hawkeye-public-link" href="#how-it-works">How it works</a>
-          <a class="hawkeye-public-link" href="#who-its-for">Who it’s for</a>
-          <a class="hawkeye-public-link" href="{{ url_for('public.area_incidents') }}">Incidents in your area</a>
-          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
-          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
-        {% elif request.endpoint == 'public.area_incidents' %}
-          <a class="hawkeye-public-link" href="{{ url_for('main.home') }}">Home</a>
-          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
-          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
-        {% elif request.endpoint == 'auth.login' %}
-          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
-        {% elif request.endpoint == 'auth.register' %}
-          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
-        {% else %}
-          <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
-          <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
-        {% endif %}
-      {% endif %}
-    </div>
-  </header>
+  {% include "shared/public_header.html" %}
 
   {% with messages = get_flashed_messages(with_categories=true) %}
     {% if messages %}

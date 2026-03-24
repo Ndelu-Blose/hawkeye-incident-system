@@ -1,0 +1,240 @@
+{% extends "resident/resident_app.html" %}
+
+{% set resident_active_page = "incidents_map" %}
+{% set resident_page_title = "Incident Map" %}
+{% set resident_page_subtitle = "See community incidents and open details for incidents you reported." %}
+
+{% block resident_content %}
+  <div class="resident-map-filters resident-panel mb-3">
+    <form method="get" class="row g-2 align-items-end">
+      <div class="col-12 col-md-4">
+        <label for="area" class="form-label mb-1">Area</label>
+        <select class="form-select" id="area" name="area">
+          <option value="">All areas</option>
+          {% for area in areas %}
+            <option value="{{ area }}" {% if selected_area == area %}selected{% endif %}>{{ area }}</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label for="category_id" class="form-label mb-1">Category</label>
+        <select class="form-select" id="category_id" name="category_id">
+          <option value="">All categories</option>
+          {% for c in categories %}
+            <option value="{{ c.id }}" {% if selected_category_id == c.id|string %}selected{% endif %}>
+              {{ c.name|replace('_', ' ')|title }}
+            </option>
+          {% endfor %}
+        </select>
+      </div>
+      <div class="col-12 col-md-3">
+        <label for="status" class="form-label mb-1">Status</label>
+        <select class="form-select" id="status" name="status">
+          <option value="">All statuses</option>
+          <option value="reported" {% if selected_status == 'reported' %}selected{% endif %}>Reported</option>
+          <option value="awaiting_evidence" {% if selected_status == 'awaiting_evidence' %}selected{% endif %}>Awaiting evidence</option>
+          <option value="screened" {% if selected_status == 'screened' %}selected{% endif %}>Screened</option>
+          <option value="assigned" {% if selected_status == 'assigned' %}selected{% endif %}>Assigned</option>
+          <option value="acknowledged" {% if selected_status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
+          <option value="in_progress" {% if selected_status == 'in_progress' %}selected{% endif %}>In progress</option>
+          <option value="resolved" {% if selected_status == 'resolved' %}selected{% endif %}>Resolved</option>
+          <option value="closed" {% if selected_status == 'closed' %}selected{% endif %}>Closed</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <label for="resolution" class="form-label mb-1">Resolution</label>
+        <select class="form-select" id="resolution" name="resolution">
+          <option value="" {% if not selected_resolution %}selected{% endif %}>All</option>
+          <option value="unresolved" {% if selected_resolution == 'unresolved' %}selected{% endif %}>Unresolved</option>
+          <option value="resolved" {% if selected_resolution == 'resolved' %}selected{% endif %}>Resolved</option>
+        </select>
+      </div>
+      <div class="col-12 col-md-2">
+        <button class="btn resident-primary-btn w-100" type="submit">Apply</button>
+      </div>
+      <div class="col-12 col-md-12">
+        <div class="form-check mt-1">
+          <input class="form-check-input" type="checkbox" value="1" id="my_only" name="my_only" {% if my_only %}checked{% endif %}>
+          <label class="form-check-label" for="my_only">
+            My incidents only
+          </label>
+        </div>
+      </div>
+    </form>
+  </div>
+
+  <div class="resident-map-layout">
+    <div class="resident-panel resident-map-panel">
+      <div class="d-flex justify-content-between align-items-center mb-2">
+        <h2 class="resident-section-title mb-0">Map</h2>
+        <span class="small text-muted">{{ incident_points|length }} incidents</span>
+      </div>
+      <div class="resident-map-type-switch mb-2">
+        <div class="btn-group btn-group-sm" role="group" aria-label="Map type">
+          <button type="button" class="btn btn-outline-info active" id="mapTypeRoadmap">Roadmap</button>
+          <button type="button" class="btn btn-outline-info" id="mapTypeSatellite">Satellite</button>
+        </div>
+      </div>
+      <div class="resident-map-legend mb-2">
+        <span class="resident-map-legend-item">
+          <span class="resident-map-dot resident-map-dot-own"></span>
+          Your incidents
+        </span>
+        <span class="resident-map-legend-item">
+          <span class="resident-map-dot resident-map-dot-community"></span>
+          Community incidents
+        </span>
+        <span class="resident-map-legend-item">
+          <span class="resident-map-dot resident-map-dot-unresolved"></span>
+          Unresolved
+        </span>
+        <span class="resident-map-legend-item">
+          <span class="resident-map-dot resident-map-dot-resolved"></span>
+          Resolved
+        </span>
+      </div>
+      {% if google_maps_api_key %}
+        <div id="residentIncidentMap" class="resident-incident-map-canvas"></div>
+      {% else %}
+        <div class="alert alert-warning mb-0">
+          Google Maps API key is missing. Configure <code>GOOGLE_MAPS_API_KEY</code> to view map markers.
+        </div>
+      {% endif %}
+    </div>
+
+    <div class="resident-panel resident-map-list-panel">
+      <h2 class="resident-section-title mb-3">Incidents</h2>
+      {% if incident_points %}
+        <div class="resident-map-list">
+          {% for inc in incident_points %}
+            <div class="resident-map-item">
+              <div class="d-flex justify-content-between align-items-start gap-2">
+                <div>
+                  <div class="resident-incident-title mb-1">{{ inc.title }}</div>
+                  <div class="resident-incident-meta">{{ inc.reference_code }} • {{ inc.category|replace('_', ' ')|title }}</div>
+                </div>
+                {% if inc.is_own %}
+                  <span class="badge text-bg-primary">Your incident</span>
+                {% else %}
+                  <span class="badge text-bg-secondary">Community</span>
+                {% endif %}
+                {% if inc.is_resolved %}
+                  <span class="badge text-bg-success">Resolved</span>
+                {% else %}
+                  <span class="badge text-bg-warning text-dark">Unresolved</span>
+                {% endif %}
+              </div>
+              <div class="resident-incident-meta mt-2">
+                {{ inc.location or inc.suburb_or_ward or "Location unavailable" }}<br />
+                {{ inc.created_at }}
+              </div>
+              <div class="mt-2">
+                {{ render_status_badge(inc.status) }}
+              </div>
+              <div class="mt-3">
+                {% if inc.is_own and inc.detail_url %}
+                  <a href="{{ inc.detail_url }}" class="btn btn-sm btn-outline-info">View details</a>
+                {% else %}
+                  <button type="button" class="btn btn-sm btn-outline-secondary" disabled>
+                    Not your incident
+                  </button>
+                {% endif %}
+              </div>
+            </div>
+          {% endfor %}
+        </div>
+      {% else %}
+        <div class="resident-empty-state">
+          <i class="bi bi-map"></i>
+          <p class="mb-0 mt-2">No incidents match the current filters.</p>
+        </div>
+      {% endif %}
+    </div>
+  </div>
+
+  {% if google_maps_api_key %}
+    <script>
+      window.initResidentIncidentMap = function () {
+        var points = {{ incident_points|tojson }};
+        var mapEl = document.getElementById("residentIncidentMap");
+        if (!mapEl || !window.google || !window.google.maps) return;
+
+        var withCoords = points.filter(function (p) { return p.latitude !== null && p.longitude !== null; });
+        var center = { lat: -29.8587, lng: 31.0218 }; // Durban default
+        if (withCoords.length > 0) {
+          center = { lat: withCoords[0].latitude, lng: withCoords[0].longitude };
+        }
+
+        var map = new google.maps.Map(mapEl, {
+          center: center,
+          zoom: withCoords.length > 0 ? 12 : 10,
+          mapTypeControl: true,
+          mapTypeId: google.maps.MapTypeId.ROADMAP,
+          streetViewControl: false,
+        });
+        var mapTypeRoadmapBtn = document.getElementById("mapTypeRoadmap");
+        var mapTypeSatelliteBtn = document.getElementById("mapTypeSatellite");
+        function setMapType(type) {
+          map.setMapTypeId(type);
+          if (mapTypeRoadmapBtn && mapTypeSatelliteBtn) {
+            mapTypeRoadmapBtn.classList.toggle("active", type === google.maps.MapTypeId.ROADMAP);
+            mapTypeSatelliteBtn.classList.toggle("active", type === google.maps.MapTypeId.SATELLITE);
+          }
+        }
+        if (mapTypeRoadmapBtn) {
+          mapTypeRoadmapBtn.addEventListener("click", function () {
+            setMapType(google.maps.MapTypeId.ROADMAP);
+          });
+        }
+        if (mapTypeSatelliteBtn) {
+          mapTypeSatelliteBtn.addEventListener("click", function () {
+            setMapType(google.maps.MapTypeId.SATELLITE);
+          });
+        }
+
+        var bounds = new google.maps.LatLngBounds();
+        var info = new google.maps.InfoWindow();
+        var markers = [];
+        withCoords.forEach(function (p) {
+          var marker = new google.maps.Marker({
+            position: { lat: p.latitude, lng: p.longitude },
+            map: map,
+            title: p.title,
+            icon: {
+              path: google.maps.SymbolPath.CIRCLE,
+              scale: p.is_own ? 8 : 7,
+              fillColor: p.is_resolved ? "#22c55e" : (p.is_own ? "#34d399" : "#60a5fa"),
+              fillOpacity: 1,
+              strokeColor: p.is_resolved ? "#166534" : (p.is_own ? "#065f46" : "#1e3a8a"),
+              strokeWeight: 1,
+            },
+          });
+          bounds.extend(marker.getPosition());
+          marker.addListener("click", function () {
+            var action = p.is_own && p.detail_url
+              ? '<a href="' + p.detail_url + '" class="btn btn-sm btn-primary mt-2">Open details</a>'
+              : '<div class="small text-muted mt-2">Details available only for your own incidents.</div>';
+            info.setContent(
+              '<div style="max-width:240px">' +
+                '<strong>' + p.title + '</strong><br />' +
+                '<span>' + (p.category || "") + '</span><br />' +
+                '<span>' + (p.location || p.suburb_or_ward || "") + '</span><br />' +
+                action +
+              "</div>"
+            );
+            info.open(map, marker);
+          });
+          markers.push(marker);
+        });
+        if (window.markerClusterer && markers.length > 0) {
+          new markerClusterer.MarkerClusterer({ map: map, markers: markers });
+        }
+        if (withCoords.length > 1) {
+          map.fitBounds(bounds);
+        }
+      };
+    </script>
+    <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>
+    <script async defer src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}&callback=initResidentIncidentMap"></script>
+  {% endif %}
+{% endblock %}

@@ -83,6 +83,51 @@
 
 ---
 
+### Dynamic Category-Driven Reporting (Resident + Authority)
+
+- [x] **Category schema foundation**
+  - [x] Config-driven schema definitions for MVP categories (`suspicious_activity`, `theft`, `vandalism`, `noise_complaint`)
+  - [x] Conditional field support (`show_when`) and cross-category preserve groups
+  - [x] Shared schema serialization for frontend rendering
+
+- [x] **Resident report UX**
+  - [x] Dynamic "Guided Incident Details" renderer on category selection
+  - [x] Auto-title behavior from selected category schema
+  - [x] Additional notes field preserved in payload
+
+- [x] **Description generation**
+  - [x] Auto-generated description from structured guided details
+  - [x] Manual edit protection (`description_manually_edited`)
+  - [x] Notes merged into generated summary text
+
+- [x] **Category change safeguards**
+  - [x] Preserve compatible values across category changes
+  - [x] Warn and confirm before destructive resets
+
+- [x] **Backend persistence**
+  - [x] Category-aware dynamic details validation
+  - [x] Persist structured payload to `incidents.dynamic_details` (JSON)
+  - [x] Persist optional notes to `incidents.additional_notes`
+  - [x] Migration added for new columns (`x4y5z6a7b8c9`)
+
+- [x] **Authority consumption**
+  - [x] Incident detail page renders summary + structured details + additional notes
+
+- [x] **Test coverage**
+  - [x] Unit tests for generated description and required guided validation
+  - [x] Integration test for structured payload submission persistence
+
+---
+
+### Tech Debt Notes (Non-Blocking)
+
+- [ ] `flask_login` deprecation warning observed in test runs:
+  - `datetime.utcnow()` usage inside `flask_login.login_manager`
+  - Current status: external dependency warning, not from HawkEye app code
+  - Action: track during dependency upgrade cycle; do not block current feature delivery
+
+---
+
 ### Phase 3 – Workflow Hardening & Timelines
 
 - [ ] **Lifecycle & history**
@@ -116,7 +161,9 @@
 > This milestone must be completed before deeper analytics or additional resident-facing features.
 
 **Implementation order:**
-Event ledger → Unified status engine → Ownership history → Audit logging → Acknowledgment flow → Department queue refactor → Timeline refactor → Tests
+Event ledger → Unified status engine → Ownership history → Audit logging → Acknowledgment flow → Department queue refactor → Timeline refactor → Contract tests ✓
+
+**Milestone complete:** The Operational Backbone is complete once contract tests enforce lifecycle transitions, audit requirements, ownership rules, dispatch acknowledgment integrity, and the prohibition of status changes outside the canonical service path. At that point, HawkEye's core workflow becomes both operationally reliable and regression-resistant.
 
 ---
 
@@ -167,15 +214,15 @@ Event ledger → Unified status engine → Ownership history → Audit logging �
 
 ---
 
-### Sprint 5 — UI and Tests
+### Sprint 5 — Backbone Contract Tests ✓
 
-- [ ] Department UI: "Acknowledge incident" action
-- [ ] Add contract tests:
-  - Valid transitions succeed
-  - Invalid transitions fail
-  - Each valid transition writes `incident_events`
-  - Sensitive actions write `audit_logs`
-  - No direct status writes exist outside service layer
+- [x] Department UI: "Acknowledge incident" action (Sprint 3)
+- [x] Add contract tests:
+  - [x] Valid transitions succeed and write `incident_events` (`test_incident_lifecycle_contract.py`)
+  - [x] Invalid transitions fail
+  - [x] Sensitive actions write `audit_logs` with reason (`test_audit_contract.py`)
+  - [x] Ownership rules asserted (`test_ownership_contract.py`)
+  - [x] Dispatch acknowledgment integrity (`test_dispatch_ack_contract.py`)
 
 ---
 
@@ -213,15 +260,37 @@ This table forms the authoritative operational ledger of the system.
 
 ### Phase 4 – Analytics & Intelligence
 
-- [ ] **Analytics plumbing**
-  - [x] `analytics_repo.py` with volume, hotspot, performance queries (`incident_volume_by_day`, `avg_resolution_time_by_category`, `avg_dispatch_to_ack_time_by_authority`, `open_incidents_by_authority`, `hotspots_by_suburb`)
-  - [x] `analytics_service.py` orchestration layer (`get_dashboard_summary`, `get_hotspot_data`)
-  - [ ] `AnalyticsHotspotConfig` model + migration (future)
+**Execution order:** 4A Cleanup → 4B Query hardening → 4C Performance → 4D UI refinement. See `docs/Phase4_Cleanup_Pass_and_Analytics_Migration.md`.
 
-- [ ] **Admin analytics UI**
-  - [x] `/admin/analytics` route
-  - [x] Dashboard template: summary cards (total this week, resolved this week, avg resolution time), top categories, hotspots by suburb, authority workload, dispatch→ack times
+- [ ] **Phase 4A — Cleanup and migration map**
+  - [x] Legacy dependency checklist
+  - [x] IncidentUpdate retirement watchlist
+  - [x] Analytics migration map
+  - [x] Queue logic cleanup notes
+
+- [ ] **Phase 4B — Analytics query hardening**
+  - [x] Migrate `open_incidents_by_authority` to ownership_history
+  - [x] Fix completed queue to use ownership_history
+  - [x] Volume by day, total/resolved this week → incident_events
+  - [x] Resolution time (overall + by category) → incident_events
+  - [x] Rejection/override pattern queries (incident_events, audit_logs)
+  - [x] `avg_dispatch_to_ack_time_by_authority` (already event-backed)
+
+- [x] **Phase 4C — Performance validation**
+  - [x] Seeded-data query checks (`scripts/seed_analytics_data.py`, `tests/integration/test_analytics_performance.py`)
+  - [x] Dashboard query review (`docs/Phase4_Performance_Validation.md`)
+  - [x] N+1 / heavy aggregation review
+
+- [ ] **Phase 4D — Admin analytics UI refinement**
+  - [x] `analytics_repo.py`, `analytics_service.py`, `/admin/analytics`
+  - [x] Event-backed charts and drill-down filters
+  - [ ] Structured location filters
   - [ ] Performance tests on seeded data (~10k incidents)
+  - [x] Admin hotspot API: `GET /admin/api/admin/analytics/hotspots`
+  - [x] Resident hotspot API: `GET /resident/api/resident/community-heatmap` (privacy-safe aggregation only)
+  - [x] Heatmap UI cards on admin analytics and resident dashboard
+  - [x] Hotspot privacy thresholding (resident min-count visibility)
+  - [x] Heatmap unit/integration coverage (filters, role access, privacy contract)
 
 ---
 
@@ -252,4 +321,17 @@ This table forms the authoritative operational ledger of the system.
   - [ ] Soft delete (`deleted_at`) + query filtering
   - [ ] Rate limiting on key endpoints
   - [ ] `category_knowledge_base` table and KB UI
+
+---
+
+### Tech debt (tracked)
+
+**[TECH DEBT] Flask-Login deprecation warning**
+
+- **Source:** `flask_login` login manager (library internals, not HawkEye app code).
+- **Issue:** `DeprecationWarning`: `datetime.datetime.utcnow()` is deprecated; tests surface this via Flask-Login’s session/cookie handling.
+- **Impact:** None today (non-breaking; auth flows behave correctly).
+- **Action:** Revisit when upgrading Flask-Login / Flask; align with timezone-aware datetime APIs.
+- **Priority:** Low.
+- **Detail:** See [docs/tech_debt.md](tech_debt.md).
 

@@ -5,58 +5,238 @@
 {% set resident_page_subtitle = "Complete your profile to report incidents. Your address helps us route reports correctly." %}
 
 {% block resident_content %}
-<div class="hawkeye-form-card" style="max-width: 720px;">
-  <h2 class="hawkeye-card-title mb-2">Resident Profile</h2>
-  <p class="hawkeye-card-subtitle mb-4">Phone, address, and location consent are required to submit incident reports.</p>
+{% set fd = form_data or {} %}
+{% set phone_value = fd.get('phone_number') or profile.phone_number or '' %}
+{% set street_value = fd.get('street_address_1') or profile.street_address_1 or '' %}
+{% set suburb_value = fd.get('suburb') or profile.suburb or '' %}
+{% set city_value = fd.get('city') or profile.city or '' %}
+{% set postal_value = fd.get('postal_code') or profile.postal_code or '' %}
+{% set location_label = [suburb_value, city_value]|select|join(', ') %}
+{% set consent_checked = fd.get('consent_location') in ('1', 'on', 'yes') or (not fd and profile.consent_location) %}
+{% set notify_incident_updates_checked = fd.get('notify_incident_updates') in ('1', 'on', 'yes') or (not fd and profile.notify_incident_updates) %}
+{% set notify_status_changes_checked = fd.get('notify_status_changes') in ('1', 'on', 'yes') or (not fd and profile.notify_status_changes) %}
+{% set notify_community_alerts_checked = fd.get('notify_community_alerts') in ('1', 'on', 'yes') or (not fd and profile.notify_community_alerts) %}
+{% set analytics_checked = fd.get('share_anonymous_analytics') in ('1', 'on', 'yes') or (not fd and profile.share_anonymous_analytics) %}
+{% set avatar_url = url_for('resident.serve_profile_avatar', filename=profile.avatar_filename) if profile.avatar_filename else '' %}
 
-  <form method="post" novalidate>
-    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-    {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+<div class="resident-profile-page">
+  <div class="resident-profile-grid">
+    <section class="resident-profile-main">
+      <div class="resident-profile-identity-card">
+        <div class="resident-profile-identity-top">
+          <div class="resident-avatar-wrap">
+            {% if avatar_url %}
+              <img src="{{ avatar_url }}" alt="Profile picture" class="resident-avatar-image" />
+            {% else %}
+              <div class="resident-avatar-fallback">{{ (current_user.name or 'R')[:1] }}</div>
+            {% endif %}
+          </div>
+          <div>
+            <h2 class="resident-profile-name mb-1">{{ current_user.name }}</h2>
+            <div class="resident-profile-meta-line">
+              <span>Resident</span>
+              <span class="resident-verified-badge resident-verified-{{ 'yes' if profile_completion.is_verified else 'no' }}">
+                {{ profile_completion.status_label }}
+              </span>
+            </div>
+            <div class="resident-profile-contact-line mt-2">
+              <span><i class="bi bi-geo-alt"></i> {{ location_label or 'Location not set' }}</span>
+              <span><i class="bi bi-telephone"></i> {{ phone_value or 'Phone not set' }}</span>
+            </div>
+          </div>
+        </div>
 
-    {% set fd = form_data or {} %}
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="phone_number">Phone number</label>
-      <input class="hawkeye-input" type="tel" id="phone_number" name="phone_number" value="{{ fd.get('phone_number') or profile.phone_number or '' }}" placeholder="e.g. 081 234 5678" />
-    </div>
-
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="street_address_1">Street address</label>
-      <input class="hawkeye-input" type="text" id="street_address_1" name="street_address_1" value="{{ fd.get('street_address_1') or profile.street_address_1 or '' }}" placeholder="Street number and name" />
-    </div>
-
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="street_address_2">Address line 2 (optional)</label>
-      <input class="hawkeye-input" type="text" id="street_address_2" name="street_address_2" value="{{ fd.get('street_address_2') or profile.street_address_2 or '' }}" />
-    </div>
-
-    <div class="hawkeye-form-grid-2">
-      <div class="hawkeye-form-group">
-        <label class="hawkeye-form-label" for="suburb">Suburb</label>
-        <input class="hawkeye-input" type="text" id="suburb" name="suburb" value="{{ fd.get('suburb') or profile.suburb or '' }}" required />
+        <div class="resident-profile-completion">
+          <div class="d-flex justify-content-between align-items-center">
+            <strong>Profile Completion: <span id="profileCompletionValue">{{ profile_completion.percentage }}</span>%</strong>
+            <small class="text-muted">{{ profile_completion.completed_count }}/{{ profile_completion.total_count }} complete</small>
+          </div>
+          <div class="resident-completion-bar mt-2" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ profile_completion.percentage }}">
+            <div class="resident-completion-fill" id="profileCompletionFill" style="width: {{ profile_completion.percentage }}%;"></div>
+          </div>
+        </div>
       </div>
-      <div class="hawkeye-form-group">
-        <label class="hawkeye-form-label" for="city">City</label>
-        <input class="hawkeye-input" type="text" id="city" name="city" value="{{ fd.get('city') or profile.city or '' }}" />
+
+      <div class="resident-profile-activity-card">
+        <h4 class="resident-section-title mb-3">Your Activity</h4>
+        <div class="resident-profile-activity-grid">
+          <div><span class="k">Reports Submitted</span><span class="v">{{ activity_counts.submitted }}</span></div>
+          <div><span class="k">In Progress</span><span class="v">{{ activity_counts.in_progress }}</span></div>
+          <div><span class="k">Resolved</span><span class="v">{{ activity_counts.resolved }}</span></div>
+        </div>
       </div>
-    </div>
 
-    <div class="hawkeye-form-group">
-      <label class="hawkeye-form-label" for="postal_code">Postal code (optional)</label>
-      <input class="hawkeye-input" type="text" id="postal_code" name="postal_code" value="{{ fd.get('postal_code') or profile.postal_code or '' }}" />
-    </div>
+      <form method="post" enctype="multipart/form-data" novalidate class="resident-profile-form">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        {% if next_url %}<input type="hidden" name="next" value="{{ next_url }}" />{% endif %}
+        <input type="hidden" name="avatar_filename" value="{{ profile.avatar_filename or '' }}" />
 
-    <div class="hawkeye-form-group mt-4">
-      <div class="form-check">
-        {% set consent_checked = fd.get('consent_location') in ('1', 'on', 'yes') or (not fd and profile.consent_location) %}
-        <input class="form-check-input" type="checkbox" id="consent_location" name="consent_location" value="1" {% if consent_checked %}checked{% endif %} />
-        <label class="form-check-label" for="consent_location">I consent to use my location to route and display my reports</label>
+        <section class="resident-profile-section">
+          <h5>Contact Info</h5>
+          <div class="hawkeye-form-group">
+            <label class="hawkeye-form-label" for="phone_number">Phone number</label>
+            <input class="hawkeye-input profile-required-field" type="tel" id="phone_number" name="phone_number" value="{{ phone_value }}" placeholder="e.g. 081 234 5678" />
+          </div>
+        </section>
+
+        <section class="resident-profile-section">
+          <h5>Address Info</h5>
+          <div class="hawkeye-form-group">
+            <label class="hawkeye-form-label" for="street_address_1">Home Address</label>
+            <input class="hawkeye-input profile-required-field" type="text" id="street_address_1" name="street_address_1" value="{{ street_value }}" placeholder="Street number and name" />
+          </div>
+          <div class="hawkeye-form-group">
+            <label class="hawkeye-form-label" for="street_address_2">Address line 2 (optional)</label>
+            <input class="hawkeye-input" type="text" id="street_address_2" name="street_address_2" value="{{ fd.get('street_address_2') or profile.street_address_2 or '' }}" />
+          </div>
+          <div class="hawkeye-form-grid-2">
+            <div class="hawkeye-form-group">
+              <label class="hawkeye-form-label" for="suburb">Current Location (Suburb)</label>
+              <input class="hawkeye-input profile-required-field" type="text" id="suburb" name="suburb" value="{{ suburb_value }}" />
+            </div>
+            <div class="hawkeye-form-group">
+              <label class="hawkeye-form-label" for="city">City</label>
+              <input class="hawkeye-input" type="text" id="city" name="city" value="{{ city_value }}" />
+            </div>
+          </div>
+          <div class="hawkeye-form-group">
+            <label class="hawkeye-form-label" for="postal_code">Postal code (optional)</label>
+            <input class="hawkeye-input" type="text" id="postal_code" name="postal_code" value="{{ postal_value }}" />
+          </div>
+          <div class="form-check mt-3">
+            <input class="form-check-input profile-required-field" type="checkbox" id="consent_location" name="consent_location" value="1" {% if consent_checked %}checked{% endif %} />
+            <label class="form-check-label" for="consent_location">Allow location for routing and map guidance</label>
+          </div>
+
+          <div class="resident-profile-map-preview mt-3">
+            {% if google_maps_api_key and profile.latitude and profile.longitude %}
+              <div id="residentProfilePreviewMap" data-lat="{{ profile.latitude }}" data-lng="{{ profile.longitude }}"></div>
+            {% else %}
+              <div class="alert alert-info mb-0 small">
+                Map preview appears after location coordinates are available.
+              </div>
+            {% endif %}
+          </div>
+        </section>
+
+        <section class="resident-profile-section">
+          <h5>Privacy & Permissions</h5>
+          <div class="form-check">
+            <input class="form-check-input" type="checkbox" id="notify_incident_updates" name="notify_incident_updates" value="1" {% if notify_incident_updates_checked %}checked{% endif %} />
+            <label class="form-check-label" for="notify_incident_updates">Receive incident updates</label>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="notify_status_changes" name="notify_status_changes" value="1" {% if notify_status_changes_checked %}checked{% endif %} />
+            <label class="form-check-label" for="notify_status_changes">Receive status changes</label>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="notify_community_alerts" name="notify_community_alerts" value="1" {% if notify_community_alerts_checked %}checked{% endif %} />
+            <label class="form-check-label" for="notify_community_alerts">Receive community alerts</label>
+          </div>
+          <div class="form-check mt-2">
+            <input class="form-check-input" type="checkbox" id="share_anonymous_analytics" name="share_anonymous_analytics" value="1" {% if analytics_checked %}checked{% endif %} />
+            <label class="form-check-label" for="share_anonymous_analytics">Share anonymous data for analytics</label>
+          </div>
+        </section>
+
+        <section class="resident-profile-section">
+          <h5>Profile Picture</h5>
+          {% if avatar_url %}
+            <div class="small text-muted mb-2">Current profile photo is active.</div>
+          {% endif %}
+          <div class="hawkeye-form-group">
+            <label class="hawkeye-form-label" for="profile_image">Upload profile image</label>
+            <input class="hawkeye-file" type="file" id="profile_image" name="profile_image" accept=".jpg,.jpeg,.png,.webp" />
+            <div class="form-text">JPG, PNG, WebP. Uploading a new image replaces your current one with an optimized thumbnail.</div>
+          </div>
+          {% if avatar_url %}
+            <div class="form-check mt-2">
+              <input class="form-check-input" type="checkbox" id="remove_avatar" name="remove_avatar" value="1" />
+              <label class="form-check-label" for="remove_avatar">Remove current profile image</label>
+            </div>
+          {% endif %}
+        </section>
+
+        <div class="resident-profile-sticky-actions">
+          <button type="submit" class="btn btn-primary resident-primary-btn">Save Profile</button>
+          <a href="{{ url_for('resident.dashboard') }}" class="btn btn-outline-light">Back to dashboard</a>
+        </div>
+      </form>
+    </section>
+
+    <aside class="resident-profile-side">
+      <div class="resident-profile-timeline-card">
+        <h4 class="resident-section-title mb-3">Recent Activity</h4>
+        {% if recent_activity %}
+          <ul class="resident-profile-timeline-list">
+            {% for item in recent_activity %}
+              <li>
+                <div class="title">{{ item.label }}</div>
+                <div class="time">{{ item.date_label }}</div>
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No activity yet. Report your first incident to start your timeline.</p>
+        {% endif %}
       </div>
-    </div>
-
-    <div class="mt-4">
-      <button type="submit" class="btn btn-primary resident-primary-btn">Save profile</button>
-      <a href="{{ url_for('resident.dashboard') }}" class="btn btn-outline-light ms-2">Back to dashboard</a>
-    </div>
-  </form>
+    </aside>
+  </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+<script>
+(() => {
+  const requiredInputs = Array.from(document.querySelectorAll(".profile-required-field"));
+  const valueNode = document.getElementById("profileCompletionValue");
+  const fillNode = document.getElementById("profileCompletionFill");
+  const barNode = document.querySelector(".resident-completion-bar");
+  if (!requiredInputs.length || !valueNode || !fillNode || !barNode) return;
+
+  const score = () => {
+    const total = requiredInputs.length;
+    const completed = requiredInputs.filter((node) => {
+      if (node.type === "checkbox") return node.checked;
+      return String(node.value || "").trim().length > 0;
+    }).length;
+    return Math.round((completed / total) * 100);
+  };
+
+  const sync = () => {
+    const pct = score();
+    valueNode.textContent = String(pct);
+    fillNode.style.width = pct + "%";
+    barNode.setAttribute("aria-valuenow", String(pct));
+  };
+
+  requiredInputs.forEach((node) => {
+    node.addEventListener("input", sync);
+    node.addEventListener("change", sync);
+  });
+  sync();
+})();
+</script>
+{% if google_maps_api_key and profile.latitude and profile.longitude %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
+<script>
+(() => {
+  const mapNode = document.getElementById("residentProfilePreviewMap");
+  if (!mapNode || !window.google || !google.maps) return;
+  const lat = Number(mapNode.dataset.lat);
+  const lng = Number(mapNode.dataset.lng);
+  if (Number.isNaN(lat) || Number.isNaN(lng)) return;
+  const center = { lat, lng };
+  const map = new google.maps.Map(mapNode, {
+    center,
+    zoom: 14,
+    mapTypeControl: false,
+    streetViewControl: false,
+    fullscreenControl: false,
+  });
+  new google.maps.Marker({ position: center, map });
+})();
+</script>
+{% endif %}
 {% endblock %}

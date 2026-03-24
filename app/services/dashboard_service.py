@@ -134,13 +134,15 @@ class DashboardService:
         self,
         status: IncidentStatus | None = None,
         authority_id: int | None = None,
+        queue: str | None = None,
         limit: int = 100,
     ) -> list[Incident]:
-        """List incidents for authority dashboard with category, location, authority loaded."""
+        """List incidents for authority dashboard. queue: incoming|acknowledged|in_progress|completed."""
         return list(
             self.incident_repo.list_for_authority(
                 status=status,
                 authority_id=authority_id,
+                queue=queue,
                 load_relations=True,
             )
         )[:limit]

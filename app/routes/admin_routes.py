@@ -1,12 +1,14 @@
 from __future__ import annotations
 
 import os
+import re
 from datetime import datetime
 
 from flask import (
     Blueprint,
     current_app,
     flash,
+    jsonify,
     redirect,
     render_template,
     request,
@@ -21,16 +23,19 @@ from app.extensions import db
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.admin_preference import AdminPreference
 from app.models.authority import Authority
+from app.models.department_contact import DepartmentContact
 from app.models.incident import Incident
-from app.models.incident_assignment import IncidentAssignment
 from app.models.incident_category import IncidentCategory
 from app.models.incident_dispatch import IncidentDispatch
 from app.models.location import Location
 from app.models.routing_rule import RoutingRule
 from app.models.user import User
+from app.services.admin_notification_service import admin_notification_service
 from app.services.analytics_service import AnalyticsService
+from app.services.audit_service import audit_service
 from app.services.auth_service import auth_service
 from app.services.dashboard_service import dashboard_service
+from app.services.dispatch_service import dispatch_service
 from app.services.incident_service import incident_service
 from app.utils.decorators import role_required
 from app.utils.validators import (
@@ -39,6 +44,41 @@ from app.utils.validators import (
 )
 
 admin_bp = Blueprint("admin", __name__, template_folder="../templates/admin")
+
+
+def _compact_token(value: str | None, fallback: str) -> str:
+    raw = (value or "").strip().upper()
+    normalized = re.sub(r"[^A-Z0-9]+", "-", raw).strip("-")
+    token = normalized[:12]
+    return token or fallback
+
+
+def _generate_external_reference_number(dispatch: IncidentDispatch) -> str:
+    authority_code = None
+    if dispatch.authority is not None:
+        authority_code = dispatch.authority.code or dispatch.authority.name
+    authority_token = _compact_token(authority_code, "AUTH")
+    created_at = dispatch.created_at or datetime.utcnow()
+    day_token = created_at.strftime("%Y%m%d")
+    return f"HK-{authority_token}-{day_token}-{dispatch.incident_id:04d}-{dispatch.id:04d}"
+
+
+@admin_bp.app_context_processor
+def inject_admin_notifications() -> dict:
+    try:
+        if (
+            current_user.is_authenticated
+            and getattr(current_user, "role", None) == Roles.ADMIN.value
+        ):
+            items = admin_notification_service.list_items(current_user, limit=8)  # type: ignore[arg-type]
+            unread = admin_notification_service.unread_count(current_user)  # type: ignore[arg-type]
+            return {
+                "admin_notification_items": items,
+                "admin_unread_notifications": unread,
+            }
+    except Exception:
+        return {"admin_notification_items": [], "admin_unread_notifications": 0}
+    return {"admin_notification_items": [], "admin_unread_notifications": 0}
 
 
 def _get_or_create_admin_prefs(user_id: int) -> AdminPreference:
@@ -166,11 +206,95 @@ analytics_service = AnalyticsService()
 @role_required(Roles.ADMIN)
 def analytics():
     """Analytics dashboard: volume, resolution times, hotspots, authority performance."""
-    summary = analytics_service.get_dashboard_summary(days=7)
+    days_raw = request.args.get("days") or "7"
+    try:
+        days = max(1, min(int(days_raw), 90))
+    except ValueError:
+        days = 7
+    summary = analytics_service.get_dashboard_summary(days=days)
+    google_maps_api_key = current_app.config.get("GOOGLE_MAPS_API_KEY")
     return render_template(
         "admin/analytics.html",
         summary=summary,
+        google_maps_api_key=google_maps_api_key,
+        hotspot_days=days,
     )
+
+
+@admin_bp.route("/escalations")
+@login_required
+@role_required(Roles.ADMIN)
+def escalations():
+    status_raw = (request.args.get("status") or "").strip().lower()
+    authority_id_raw = (request.args.get("authority_id") or "").strip()
+    min_reminders_raw = (request.args.get("min_reminders") or "").strip()
+    selected_statuses = (
+        [s.strip() for s in status_raw.split(",") if s.strip()]
+        if status_raw
+        else ["pending", "sent", "failed"]
+    )
+    authority_id = int(authority_id_raw) if authority_id_raw.isdigit() else None
+    min_reminders = int(min_reminders_raw) if min_reminders_raw.isdigit() else 0
+    candidates = dispatch_service.list_escalation_candidates(
+        limit=200,
+        statuses=selected_statuses,
+        authority_id=authority_id,
+        min_reminders=min_reminders,
+    )
+    max_reminders = int(current_app.config.get("DISPATCH_MAX_REMINDERS", 3))
+    alert_threshold = max(1, max_reminders - 1)
+    summary = {
+        "pending": 0,
+        "sent": 0,
+        "failed": 0,
+        "over_threshold": 0,
+    }
+    for dispatch in candidates:
+        status_key = (dispatch.status or "").strip().lower()
+        if status_key in summary:
+            summary[status_key] += 1
+        if int(dispatch.reminder_count or 0) >= alert_threshold:
+            summary["over_threshold"] += 1
+    authorities = (
+        db.session.query(Authority)
+        .filter(Authority.is_active.is_(True))
+        .order_by(Authority.name.asc())
+        .all()
+    )
+    return render_template(
+        "admin/escalations.html",
+        candidates=candidates,
+        total_candidates=len(candidates),
+        authorities=authorities,
+        selected_statuses=selected_statuses,
+        selected_authority_id=authority_id_raw,
+        min_reminders=min_reminders,
+        summary=summary,
+        alert_threshold=alert_threshold,
+    )
+
+
+@admin_bp.route("/api/admin/analytics/hotspots")
+@login_required
+@role_required(Roles.ADMIN)
+def analytics_hotspots():
+    days_raw = request.args.get("days") or "7"
+    category = (request.args.get("category") or "").strip() or None
+    status_raw = (request.args.get("status") or "").strip()
+    authority_id_raw = (request.args.get("authority_id") or "").strip()
+    try:
+        days = max(1, min(int(days_raw), 90))
+    except ValueError:
+        days = 7
+    statuses = [token.strip() for token in status_raw.split(",") if token.strip()] or None
+    authority_id = int(authority_id_raw) if authority_id_raw.isdigit() else None
+    payload = analytics_service.get_admin_hotspot_map(
+        days=days,
+        category=category,
+        statuses=statuses,
+        authority_id=authority_id,
+    )
+    return jsonify(payload)
 
 
 @admin_bp.route("/incidents")
@@ -274,12 +398,19 @@ def incident_detail(incident_id: int):
 
     media = list(incident.media.all())
     timeline = incident_service.assemble_timeline(incident_id)
+    dispatches = (
+        db.session.query(IncidentDispatch)
+        .filter(IncidentDispatch.incident_id == incident_id)
+        .order_by(IncidentDispatch.created_at.desc())
+        .all()
+    )
     return render_template(
         "admin/incidents/detail.html",
         incident=incident,
         updates=updates,
         timeline=timeline,
         media=media,
+        dispatches=dispatches,
     )
 
 
@@ -287,55 +418,53 @@ def incident_detail(incident_id: int):
 @login_required
 @role_required(Roles.ADMIN)
 def confirm_screening(incident_id: int):
-    incident = incident_service.incident_repo.get_by_id(incident_id)
-    if incident is None:
-        flash("Incident not found.", "warning")
-        return redirect(url_for("admin.incidents"))
-
-    if not incident.suggested_authority_id:
-        flash("No suggested department to confirm for this incident.", "warning")
+    ok, errors = incident_service.confirm_screening(
+        incident_id,
+        current_user,  # type: ignore[arg-type]
+    )
+    if not ok:
+        for error in errors:
+            flash(error, "danger")
         return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+    flash("Screening suggestion confirmed and incident escalated to department.", "success")
+    return redirect(url_for("admin.incident_detail", incident_id=incident_id))
 
-    from app.models import Authority  # local import to avoid circulars
 
-    authority = db.session.get(Authority, incident.suggested_authority_id)
-    if authority is None or not authority.is_active:
-        flash("Suggested department is no longer available.", "warning")
-        return redirect(url_for("admin.incident_detail", incident_id=incident_id))
-
-    incident.current_authority_id = authority.id
-    incident.requires_admin_review = False
-
-    assignment = IncidentAssignment(
-        incident_id=incident.id,
-        authority_id=authority.id,
-        assigned_by_user_id=getattr(current_user, "id", None),
+@admin_bp.route("/incidents/<int:incident_id>/proof/review", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def review_incident_proof(incident_id: int):
+    decision = (request.form.get("decision") or "").strip().lower()
+    note = request.form.get("note") or ""
+    ok, errors = incident_service.review_proof(
+        incident_id,
+        actor_user=current_user,  # type: ignore[arg-type]
+        decision=decision,
+        note=note,
     )
-    db.session.add(assignment)
-    db.session.flush()
-    dispatch = IncidentDispatch(
-        incident_assignment_id=assignment.id,
-        incident_id=incident.id,
-        authority_id=authority.id,
-        dispatch_method="internal_queue",
-        dispatched_by_type="admin",
-        dispatched_by_id=getattr(current_user, "id", None),
-        delivery_status="pending",
-        ack_status="pending",
-    )
-    db.session.add(dispatch)
+    if not ok:
+        for error in errors:
+            flash(error, "danger")
+    else:
+        flash("Proof review recorded.", "success")
+    return redirect(url_for("admin.incident_detail", incident_id=incident_id))
 
-    db.session.add(
-        AdminAuditLog(
-            admin_user_id=getattr(current_user, "id", None),
-            action="screening_confirmed",
-            target_type="incident",
-            target_id=incident.id,
-            details={"authority_id": authority.id},
-        )
+
+@admin_bp.route("/incidents/<int:incident_id>/proof/request", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def request_incident_proof(incident_id: int):
+    reason = request.form.get("reason") or ""
+    ok, errors = incident_service.request_additional_proof(
+        incident_id,
+        actor_user=current_user,  # type: ignore[arg-type]
+        reason=reason,
     )
-    db.session.commit()
-    flash("Screening suggestion confirmed. Incident assigned to department.", "success")
+    if not ok:
+        for error in errors:
+            flash(error, "danger")
+    else:
+        flash("Additional proof requested from resident.", "warning")
     return redirect(url_for("admin.incident_detail", incident_id=incident_id))
 
 
@@ -377,6 +506,99 @@ def update_incident_status(incident_id: int):
         db.session.commit()
 
     return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+
+
+@admin_bp.route("/incidents/<int:incident_id>/dispatch/<int:dispatch_id>/retry", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def retry_dispatch(incident_id: int, dispatch_id: int):
+    dispatch = db.session.get(IncidentDispatch, dispatch_id)
+    if dispatch is None or dispatch.incident_id != incident_id:
+        flash("Dispatch record not found.", "warning")
+        return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+    result = dispatch_service.retry_dispatch(dispatch)
+    db.session.commit()
+    if result.ok:
+        flash("Dispatch retried successfully.", "success")
+    else:
+        flash(result.error or "Dispatch retry failed.", "danger")
+    return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+
+
+@admin_bp.route(
+    "/incidents/<int:incident_id>/dispatch/<int:dispatch_id>/external-reference",
+    methods=["POST"],
+)
+@login_required
+@role_required(Roles.ADMIN)
+def save_dispatch_external_reference(incident_id: int, dispatch_id: int):
+    dispatch = db.session.get(IncidentDispatch, dispatch_id)
+    if dispatch is None or dispatch.incident_id != incident_id:
+        flash("Dispatch record not found.", "warning")
+        return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+    reference_number = (request.form.get("external_reference_number") or "").strip()
+    source = (request.form.get("external_reference_source") or "").strip()
+    generated = False
+    if not reference_number:
+        reference_number = _generate_external_reference_number(dispatch)
+        generated = True
+    if not source and dispatch.authority is not None:
+        source = dispatch.authority.name or ""
+    incident_service.attach_external_reference(
+        dispatch,
+        reference_number=reference_number,
+        source=source or None,
+    )
+    db.session.commit()
+    if generated:
+        flash(
+            f"External reference auto-generated and saved: {reference_number}.",
+            "success",
+        )
+    else:
+        flash("External reference saved on dispatch record.", "success")
+    return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+
+
+@admin_bp.route("/notifications")
+@login_required
+@role_required(Roles.ADMIN)
+def notifications():
+    items = admin_notification_service.list_items(current_user, limit=50)  # type: ignore[arg-type]
+    return render_template("admin/notifications.html", items=items)
+
+
+@admin_bp.route("/notifications/read_all", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def notifications_mark_all_read():
+    admin_notification_service.mark_all_read(current_user)  # type: ignore[arg-type]
+    flash("Notifications marked as read.", "success")
+    return redirect(request.form.get("next") or url_for("admin.notifications"))
+
+
+@admin_bp.route("/notifications/<int:notification_id>/read", methods=["POST"])
+@login_required
+@role_required(Roles.ADMIN)
+def notification_mark_read(notification_id: int):
+    ok = admin_notification_service.mark_read(  # type: ignore[arg-type]
+        current_user, notification_id
+    )
+    if not ok:
+        flash("Notification not found.", "warning")
+    return redirect(request.form.get("next") or url_for("admin.notifications"))
+
+
+@admin_bp.route("/notifications/<int:notification_id>/open")
+@login_required
+@role_required(Roles.ADMIN)
+def notification_open(notification_id: int):
+    admin_notification_service.mark_read(current_user, notification_id)  # type: ignore[arg-type]
+    items = admin_notification_service.list_items(current_user, limit=200)  # type: ignore[arg-type]
+    item = next((x for x in items if x.id == notification_id), None)
+    if item and item.link_url:
+        return redirect(item.link_url)
+    return redirect(url_for("admin.notifications"))
 
 
 @admin_bp.route("/users")
@@ -484,6 +706,9 @@ def user_update(user_id: int):
     # Prevent admins from accidentally locking themselves out.
     is_self = user.id == getattr(current_user, "id", None)
 
+    before_role = user.role
+    before_is_active = user.is_active
+
     user.name = (form_data.get("name") or "").strip()
     user.email = email
     user.role = (form_data.get("role") or user.role).strip()
@@ -492,6 +717,14 @@ def user_update(user_id: int):
         flash("You cannot deactivate your own account while signed in as admin.", "danger")
         return render_template("admin/users/detail.html", user=user, form_data=form_data)
     user.is_active = new_is_active
+
+    audit_service.log_user_change(
+        user_id=user.id,
+        action="user_role_activation_updated",
+        actor_user_id=getattr(current_user, "id", None),
+        before_json={"role": before_role, "is_active": before_is_active},
+        after_json={"role": user.role, "is_active": user.is_active},
+    )
 
     db.session.add(
         AdminAuditLog(
@@ -603,6 +836,40 @@ def send_user_phone_otp(user_id: int):
 def authorities():
     authorities = db.session.query(Authority).order_by(Authority.name.asc()).all()
     return render_template("admin/authorities/index.html", authorities=authorities)
+
+
+@admin_bp.route("/departments/directory")
+@login_required
+@role_required(Roles.ADMIN)
+def department_directory():
+    channel = (request.args.get("channel") or "").strip().lower()
+    verification_status = (request.args.get("verification_status") or "").strip().lower()
+    query = db.session.query(Authority).order_by(Authority.name.asc())
+    authorities = query.all()
+    contacts_query = db.session.query(DepartmentContact).filter(
+        DepartmentContact.is_active.is_(True)
+    )
+    if channel:
+        contacts_query = contacts_query.filter(DepartmentContact.channel == channel)
+    if verification_status:
+        contacts_query = contacts_query.filter(
+            DepartmentContact.verification_status == verification_status
+        )
+    contacts = contacts_query.order_by(
+        DepartmentContact.authority_id.asc(),
+        DepartmentContact.channel.asc(),
+        DepartmentContact.id.asc(),
+    ).all()
+    contacts_by_authority: dict[int, list[DepartmentContact]] = {}
+    for contact in contacts:
+        contacts_by_authority.setdefault(contact.authority_id, []).append(contact)
+    return render_template(
+        "admin/departments_directory.html",
+        authorities=authorities,
+        contacts_by_authority=contacts_by_authority,
+        selected_channel=channel,
+        selected_verification_status=verification_status,
+    )
 
 
 @admin_bp.route("/authorities/<int:authority_id>", methods=["GET", "POST"])
@@ -792,6 +1059,17 @@ def routing_rule_new():
         )
         db.session.add(rule)
         db.session.flush()
+        audit_service.log_routing_rule(
+            rule_id=rule.id,
+            action="routing_rule_created",
+            actor_user_id=getattr(current_user, "id", None),
+            after_json={
+                "category_id": rule.category_id,
+                "authority_id": rule.authority_id,
+                "location_id": rule.location_id,
+                "is_active": rule.is_active,
+            },
+        )
         db.session.add(
             AdminAuditLog(
                 admin_user_id=getattr(current_user, "id", None),
@@ -844,6 +1122,13 @@ def routing_rule_detail(rule_id: int):
                 form_data=form_data,
             )
 
+        before_json = {
+            "category_id": rule.category_id,
+            "authority_id": rule.authority_id,
+            "location_id": rule.location_id,
+            "is_active": rule.is_active,
+        }
+
         location_id_raw = form_data.get("location_id") or ""
         rule.location_id = int(location_id_raw) if location_id_raw.isdigit() else None
         rule.priority_override = (form_data.get("priority_override") or "").strip() or None
@@ -853,6 +1138,19 @@ def routing_rule_detail(rule_id: int):
             else None
         )
         rule.is_active = form_data.get("is_active") in ("1", "on", "yes", "true", True)
+
+        audit_service.log_routing_rule(
+            rule_id=rule.id,
+            action="routing_rule_updated",
+            actor_user_id=getattr(current_user, "id", None),
+            before_json=before_json,
+            after_json={
+                "category_id": rule.category_id,
+                "authority_id": rule.authority_id,
+                "location_id": rule.location_id,
+                "is_active": rule.is_active,
+            },
+        )
 
         db.session.add(
             AdminAuditLog(

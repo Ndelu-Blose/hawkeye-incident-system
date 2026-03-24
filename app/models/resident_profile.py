@@ -44,6 +44,11 @@ class ResidentProfile(db.Model):
     location_verified = db.Column(db.Boolean, nullable=False, default=False)
     profile_completed = db.Column(db.Boolean, nullable=False, default=False)
     consent_location = db.Column(db.Boolean, nullable=False, default=False)
+    share_anonymous_analytics = db.Column(db.Boolean, nullable=False, default=False)
+    notify_incident_updates = db.Column(db.Boolean, nullable=False, default=True)
+    notify_status_changes = db.Column(db.Boolean, nullable=False, default=True)
+    notify_community_alerts = db.Column(db.Boolean, nullable=False, default=False)
+    avatar_filename = db.Column(db.String(255))
 
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     updated_at = db.Column(

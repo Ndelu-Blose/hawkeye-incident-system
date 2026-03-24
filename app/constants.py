@@ -14,6 +14,7 @@ class IncidentStatus(StrEnum):
     """Lifecycle: reported -> screened -> assigned -> acknowledged -> in_progress -> resolved -> closed."""
 
     REPORTED = "reported"
+    AWAITING_EVIDENCE = "awaiting_evidence"
     SCREENED = "screened"
     ASSIGNED = "assigned"
     ACKNOWLEDGED = "acknowledged"
@@ -38,6 +39,9 @@ class IncidentEventType(StrEnum):
     DISPATCH_CREATED = "dispatch_created"
     DISPATCH_DELIVERED = "dispatch_delivered"
     EVIDENCE_UPLOADED = "evidence_uploaded"
+    PROOF_REQUESTED = "proof_requested"
+    AUTHORITY_PROGRESS_UPDATE = "authority_progress_update"
+    AUTHORITY_RESOLUTION_UPDATE = "authority_resolution_update"
     MANUAL_OVERRIDE = "manual_override"
 
 

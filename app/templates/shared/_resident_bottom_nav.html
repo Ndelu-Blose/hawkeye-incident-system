@@ -1,0 +1,22 @@
+<nav class="resident-bottom-nav d-lg-none" aria-label="Resident quick navigation">
+  <a href="{{ url_for('resident.dashboard') }}" class="resident-bottom-nav-link {% if resident_active_page == 'dashboard' %}active{% endif %}">
+    <i class="bi bi-house"></i>
+    <span>Home</span>
+  </a>
+  <a href="{{ url_for('resident.report_incident') }}" class="resident-bottom-nav-link {% if resident_active_page == 'report_incident' %}active{% endif %}">
+    <i class="bi bi-plus-circle"></i>
+    <span>Report</span>
+  </a>
+  <a href="{{ url_for('resident.my_incidents') }}" class="resident-bottom-nav-link {% if resident_active_page == 'my_incidents' %}active{% endif %}">
+    <i class="bi bi-folder2-open"></i>
+    <span>Incidents</span>
+  </a>
+  <a href="{{ url_for('resident.incidents_map') }}" class="resident-bottom-nav-link {% if resident_active_page == 'incidents_map' %}active{% endif %}">
+    <i class="bi bi-geo-alt"></i>
+    <span>Map</span>
+  </a>
+  <a href="{{ url_for('resident.profile') }}" class="resident-bottom-nav-link {% if resident_active_page == 'profile' %}active{% endif %}">
+    <i class="bi bi-person"></i>
+    <span>Profile</span>
+  </a>
+</nav>

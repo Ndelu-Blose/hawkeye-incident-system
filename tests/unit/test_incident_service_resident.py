@@ -33,7 +33,7 @@ def test_create_incident_with_evidence(app):
         }
         files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="evidence.png")]
         incident, errors = incident_service.create_incident(payload, user, files=files)
-        assert incident is not None
+        assert incident is not None, errors
         assert not errors
         assert incident.suburb_or_ward == "Suburb"
         assert incident.street_or_landmark == "Main St"
@@ -94,6 +94,39 @@ def test_update_incident_by_resident_success(app):
         assert updated.severity == "high"
 
 
+def test_update_incident_by_resident_success_when_awaiting_evidence(app):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            "Res", "await-ev@example.com", "pass", Roles.RESIDENT.value
+        )
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Original",
+            description="D",
+            category="C",
+            suburb_or_ward="S",
+            street_or_landmark="St",
+            location="St, S",
+            severity="low",
+            status=IncidentStatus.AWAITING_EVIDENCE.value,
+            reference_code="HK-2026-03-000099",
+        )
+        db.session.add(incident)
+        db.session.commit()
+        payload = {
+            "title": "Updated after proof request",
+            "description": "New desc",
+            "category": "C",
+            "suburb_or_ward": "S",
+            "street_or_landmark": "St",
+            "severity": "high",
+        }
+        updated, errors = incident_service.update_incident_by_resident(incident.id, user, payload)
+        assert updated is not None
+        assert not errors
+        assert updated.title == "Updated after proof request"
+
+
 def test_update_incident_by_resident_rejected_when_not_pending(app):
     with app.app_context():
         user, _ = auth_service.register_user(
@@ -123,7 +156,7 @@ def test_update_incident_by_resident_rejected_when_not_pending(app):
         }
         updated, errors = incident_service.update_incident_by_resident(incident.id, user, payload)
         assert updated is None
-        assert any("reported" in e.lower() for e in errors)
+        assert any("can no longer be edited" in e.lower() for e in errors)
 
 
 def test_create_incident_preset_title_and_urgency(app):
@@ -153,7 +186,7 @@ def test_create_incident_preset_title_and_urgency(app):
         }
         files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="e.png")]
         incident, errors = incident_service.create_incident(payload, user, files=files)
-        assert incident is not None
+        assert incident is not None, errors
         assert not errors
         assert incident.title == "Illegal dumping reported"
         assert incident.severity == "medium"
@@ -228,6 +261,39 @@ def test_create_incident_location_mode_saved_fills_from_profile(app):
         assert incident.location_mode == "saved"
 
 
+def test_attach_media_transitions_from_awaiting_with_whitespace_status(app):
+    """Uploading evidence should transition even if stored status has trailing whitespace."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="awaiting-whitespace@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Need extra evidence",
+            description="D",
+            category="C",
+            suburb_or_ward="S",
+            street_or_landmark="St",
+            location="St, S",
+            severity="low",
+            status="awaiting_evidence ",
+            reference_code="HK-2026-03-001010",
+        )
+        db.session.add(incident)
+        db.session.commit()
+
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="extra.png")]
+        ok, errors = incident_service.attach_media(incident.id, user, files)
+        assert ok, errors
+        refreshed = db.session.get(Incident, incident.id)
+        assert refreshed is not None
+        assert refreshed.status == IncidentStatus.REPORTED.value
+        assert refreshed.evidence_resubmitted_at is not None
+
+
 def test_guided_boolean_none_when_question_not_asked(app):
     """If a preset marks a question as not applicable, the DB field stays None."""
     with app.app_context():
@@ -253,7 +319,10 @@ def test_guided_boolean_none_when_question_not_asked(app):
             "suburb_or_ward": "North",
             "street_or_landmark": "Main Rd",
             "severity": "medium",
-            # No guided boolean fields submitted; question is not asked by preset.
+            "dynamic_details": {
+                "property_type": "public_property",
+                "damage_type": ["graffiti"],
+            },
         }
         files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="e.png")]
         incident, errors = incident_service.create_incident(payload, user, files=files)
@@ -369,3 +438,74 @@ def test_create_incident_populates_validated_location_when_service_configured(ap
         assert incident.validated_address == "123 Main St, Test Suburb"
         assert incident.suburb == "Test Suburb"
         assert incident.ward == "Ward 10"
+
+
+def test_create_incident_generates_description_from_dynamic_details(app):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="dynamic-desc@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        cat = IncidentCategory(
+            name="theft",
+            description="Theft",
+            is_active=True,
+        )
+        db.session.add(cat)
+        db.session.commit()
+        payload = {
+            "category_id": str(cat.id),
+            "title": "",
+            "description": "",
+            "category": "",
+            "suburb_or_ward": "North",
+            "street_or_landmark": "Main Rd",
+            "severity": "high",
+            "urgency_level": "urgent_now",
+            "additional_notes": "Taken near main gate",
+            "dynamic_details": {
+                "theft_type": "personal_property",
+                "item_stolen": "Mobile phone",
+                "forced_entry": True,
+            },
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="evidence.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is not None, errors
+        assert not errors
+        assert "theft incident was reported" in incident.description.lower()
+        assert "mobile phone" in incident.description.lower()
+        assert incident.additional_notes == "Taken near main gate"
+        assert incident.dynamic_details["theft_type"] == "personal_property"
+
+
+def test_create_incident_requires_dynamic_details_for_mvp_schema(app):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="dynamic-required@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        cat = IncidentCategory(
+            name="noise_complaint",
+            description="Noise",
+            is_active=True,
+        )
+        db.session.add(cat)
+        db.session.commit()
+        payload = {
+            "category_id": str(cat.id),
+            "title": "Noise issue",
+            "description": "Initial text",
+            "suburb_or_ward": "North",
+            "street_or_landmark": "Main Rd",
+            "severity": "medium",
+            "dynamic_details": {},
+        }
+        files = [FileStorage(stream=io.BytesIO(MINIMAL_PNG_BYTES), filename="evidence.png")]
+        incident, errors = incident_service.create_incident(payload, user, files=files)
+        assert incident is None
+        assert any("source of noise is required" in e.lower() for e in errors)

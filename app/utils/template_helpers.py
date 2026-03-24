@@ -22,6 +22,7 @@ def render_status_badge(status: object) -> Markup:
     """Return Bootstrap badge HTML for incident status."""
     status_map = {
         "reported": '<span class="badge bg-warning text-dark">Reported</span>',
+        "awaiting_evidence": '<span class="badge bg-warning text-dark">Awaiting Evidence</span>',
         "screened": '<span class="badge bg-info text-dark">Screened</span>',
         "assigned": '<span class="badge bg-primary">Assigned</span>',
         "in_progress": '<span class="badge bg-info text-dark">In Progress</span>',

@@ -24,6 +24,8 @@ class Incident(db.Model):
 
     title = db.Column(db.String(200), nullable=False)
     description = db.Column(db.Text, nullable=False)
+    additional_notes = db.Column(db.Text, nullable=True)
+    dynamic_details = db.Column(db.JSON, nullable=True)
     category = db.Column(db.String(100), nullable=False)
 
     category_id = db.Column(
@@ -63,6 +65,10 @@ class Incident(db.Model):
     )
     latitude = db.Column(db.Numeric(9, 6), nullable=True)
     longitude = db.Column(db.Numeric(9, 6), nullable=True)
+    location_precision = db.Column(db.String(32), nullable=True)
+    geocoded_at = db.Column(db.DateTime, nullable=True)
+    geocode_source = db.Column(db.String(64), nullable=True)
+    hotspot_excluded = db.Column(db.Boolean, nullable=False, default=False)
 
     severity = db.Column(db.String(50), nullable=False)
 
@@ -99,6 +105,28 @@ class Incident(db.Model):
     screening_confidence = db.Column(db.Float, nullable=True)
     requires_admin_review = db.Column(db.Boolean, nullable=False, default=False)
     screening_notes = db.Column(db.Text, nullable=True)
+    verification_status = db.Column(db.String(32), nullable=False, default="pending", index=True)
+    verification_notes = db.Column(db.Text, nullable=True)
+    verified_at = db.Column(db.DateTime, nullable=True)
+    verified_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    proof_requested_at = db.Column(db.DateTime, nullable=True)
+    proof_requested_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    proof_request_reason = db.Column(db.Text, nullable=True)
+    evidence_resubmitted_at = db.Column(db.DateTime, nullable=True)
+    escalated_at = db.Column(db.DateTime, nullable=True)
+    escalated_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     is_anonymous = db.Column(db.Boolean, nullable=False, default=False)
     duplicate_of_incident_id = db.Column(
@@ -126,7 +154,11 @@ class Incident(db.Model):
     reporter = db.relationship(
         "User",
         back_populates="incidents_reported",
+        foreign_keys=[reported_by_id],
     )
+    verified_by = db.relationship("User", foreign_keys=[verified_by_user_id])
+    proof_requested_by = db.relationship("User", foreign_keys=[proof_requested_by_user_id])
+    escalated_by = db.relationship("User", foreign_keys=[escalated_by_user_id])
 
     resident_profile = db.relationship("ResidentProfile")
 

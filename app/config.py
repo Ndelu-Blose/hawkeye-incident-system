@@ -41,6 +41,16 @@ class BaseConfig:
     MAX_IMAGE_SIZE = 5 * 1024 * 1024  # 5 MB per image
     MAX_MEDIA_PER_INCIDENT = 5
 
+    # Dispatch auto-escalation reminders
+    DISPATCH_AUTO_ESCALATION_ENABLED = (
+        os.getenv("DISPATCH_AUTO_ESCALATION_ENABLED", "true").lower() == "true"
+    )
+    DISPATCH_REMINDER_STALE_MINUTES = int(os.getenv("DISPATCH_REMINDER_STALE_MINUTES", "60"))
+    DISPATCH_REMINDER_RETRY_COOLDOWN_MINUTES = int(
+        os.getenv("DISPATCH_REMINDER_RETRY_COOLDOWN_MINUTES", "30")
+    )
+    DISPATCH_MAX_REMINDERS = int(os.getenv("DISPATCH_MAX_REMINDERS", "3"))
+
 
 class DevelopmentConfig(BaseConfig):
     DEBUG = True
