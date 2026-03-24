@@ -1,0 +1,259 @@
+{
+  "departments": [
+    {
+      "code": "BUILDING_CONTROL",
+      "name": "Building Control",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Municipal Operations",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 311 4745", "verification_status": "unverified", "source_url": "https://www.fixlocal.org.za/content/260", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "phone", "value": "031 311 7083", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": "Microfilm", "after_hours": false},
+        {"type": "primary", "channel": "email", "value": "Lihle.Phewa@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.fixlocal.org.za/content/260", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "CEMETERIES_CREMATORIA",
+      "name": "Cemeteries and Crematoria",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": "7th Floor, Delta Towers",
+      "service_hub": "Community Services",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 311 4479", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "email", "value": "Linda.ntuli@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/uploads/0000/6/2025/09/23/cemetries-and-crematoria-standard-operating-procesures.pdf", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "COMMUNITY_SERVICES",
+      "name": "Community Services",
+      "operating_hours": "Mon-Sat 08:00-17:00",
+      "physical_address": null,
+      "service_hub": "Sizakala",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "Sizakala switchboard", "after_hours": false},
+        {"type": "secondary", "channel": "email", "value": "sizakala@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "General intake", "after_hours": false}
+      ]
+    },
+    {
+      "code": "CUSTOMER_SUPPORT",
+      "name": "Customer Support / Call Centre",
+      "operating_hours": "24/7 intake",
+      "physical_address": null,
+      "service_hub": "Sizakala",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "phone", "value": "080 033 1011", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "Sizakala", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "sizakala@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "DISASTER_MANAGEMENT",
+      "name": "Disaster Management",
+      "operating_hours": "24/7",
+      "physical_address": null,
+      "service_hub": "Public Safety",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 361 0000", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "vincent.ngubane@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/administrative-clusters", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "ELECTRICITY",
+      "name": "Electricity",
+      "operating_hours": "24/7 faults",
+      "physical_address": null,
+      "service_hub": "Engineering",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "whatsapp", "value": "064 761 7930", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "WhatsApp", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "electricity.faults@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "ENVIRONMENTAL_HEALTH",
+      "name": "Environmental Health",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Health",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 311 3555", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "phone", "value": "031 311 3555", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": "Regional Health Offices", "after_hours": false},
+        {"type": "primary", "channel": "email", "value": "envirohealthadmin@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/administrative-clusters", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "FACILITIES_MAINTENANCE",
+      "name": "Facilities Maintenance",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Sizakala",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "Sizakala intake", "after_hours": false},
+        {"type": "secondary", "channel": "email", "value": "sizakala@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "General ticket routing", "after_hours": false}
+      ]
+    },
+    {
+      "code": "FIRE_EMERGENCY",
+      "name": "Fire and Emergency Services",
+      "operating_hours": "24/7",
+      "physical_address": null,
+      "service_hub": "Public Safety",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 361 0000", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "phone", "value": "031 361 0000", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": "Regional stations", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "Vusi.Mazibuko@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "FLEET_MECHANICAL",
+      "name": "Fleet and Mechanical Services",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Municipal Operations",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "0800 325 33", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": "City Fleet", "after_hours": false},
+        {"type": "primary", "channel": "email", "value": "metroceo@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/administrative-clusters", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "HUMAN_SETTLEMENTS",
+      "name": "Human Settlements",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Housing",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 311 3467", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "METRO_POLICE",
+      "name": "Metro Police",
+      "operating_hours": "24/7",
+      "physical_address": null,
+      "service_hub": "Public Safety",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 361 0000", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "phone", "value": "031 311 2132", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": null, "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "metroceo@durban.gov.za", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "MUNICIPAL_OPERATIONS",
+      "name": "Municipal Operations",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Municipal Operations",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "0800 202 020", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": "Integrity/Operations", "after_hours": false},
+        {"type": "secondary", "channel": "phone", "value": "031 311 4002", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "email", "value": "ombuds@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/contact-us-3", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "PARKS_RECREATION",
+      "name": "Parks and Recreation",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Community Services",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 322 4350", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "phone", "value": "031 322 4000", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": null, "after_hours": false},
+        {"type": "primary", "channel": "email", "value": "eservices@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "PUBLIC_SAFETY",
+      "name": "Public Safety",
+      "operating_hours": "24/7",
+      "physical_address": null,
+      "service_hub": "Public Safety",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 361 0000", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "phone", "value": "031 311 4699", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "sizakala@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "ROADS_STORMWATER",
+      "name": "Roads and Stormwater",
+      "operating_hours": "24/7 faults",
+      "physical_address": null,
+      "service_hub": "Engineering",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 131 3013", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/engineering", "notes": "Engineering Unit call centre", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "eservices@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/engineering", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "SAPS",
+      "name": "SAPS",
+      "operating_hours": "24/7",
+      "physical_address": null,
+      "service_hub": "National SAPS",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "10111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/public-safety-emergency-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "phone", "value": "031 325 4111", "verification_status": "unverified", "source_url": "https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf", "notes": "Durban Central", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "complaintsnodalpoint@saps.gov.za", "verification_status": "unverified", "source_url": "https://www.gov.za/about-government/contact-directory/kzn-municipalities/ethekwini-metropolitan-municipality", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "SEWER_DRAINAGE",
+      "name": "Sewer and Drainage",
+      "operating_hours": "24/7 faults",
+      "physical_address": null,
+      "service_hub": "Engineering",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "eservices@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/engineering", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "STREET_LIGHTING",
+      "name": "Street Lighting",
+      "operating_hours": "24/7 faults",
+      "physical_address": null,
+      "service_hub": "Engineering",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "whatsapp", "value": "076 791 2449", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "WhatsApp", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "electricity.faults@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "TRANSPORT_AUTHORITY",
+      "name": "Traffic and Transport",
+      "operating_hours": "Mon-Fri 08:00-16:00",
+      "physical_address": null,
+      "service_hub": "Transport Authority",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "0861 000 834", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/transportation", "notes": null, "after_hours": false},
+        {"type": "primary", "channel": "email", "value": "dtpmover@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/transportation", "notes": null, "after_hours": false}
+      ]
+    },
+    {
+      "code": "WASTE_MANAGEMENT",
+      "name": "Waste Management",
+      "operating_hours": "Mon-Sat 07:30-16:30",
+      "physical_address": null,
+      "service_hub": "Solid Waste",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "031 311 8804", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "phone", "value": "031 324 5000", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": null, "after_hours": false},
+        {"type": "primary", "channel": "email", "value": "dsw@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/administrative-clusters", "notes": null, "after_hours": false},
+        {"type": "secondary", "channel": "email", "value": "revline@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/sizakala-customer-services", "notes": "Billing queries", "after_hours": false}
+      ]
+    },
+    {
+      "code": "WATER_SANITATION",
+      "name": "Water and Sanitation",
+      "operating_hours": "24/7 faults",
+      "physical_address": null,
+      "service_hub": "Engineering",
+      "contacts": [
+        {"type": "primary", "channel": "phone", "value": "080 311 1111", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/water-and-sanitation-services", "notes": null, "after_hours": true},
+        {"type": "secondary", "channel": "whatsapp", "value": "073 148 3477", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/water-and-sanitation-services", "notes": "WhatsApp", "after_hours": true},
+        {"type": "primary", "channel": "email", "value": "eservices@durban.gov.za", "verification_status": "unverified", "source_url": "https://www.durban.gov.za/page/water-and-sanitation-services", "notes": null, "after_hours": false}
+      ]
+    }
+  ]
+}

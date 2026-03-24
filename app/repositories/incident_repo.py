@@ -4,12 +4,14 @@ from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import and_, exists, func, or_, select
 from sqlalchemy.orm import joinedload
 
 from app.constants import IncidentStatus
 from app.extensions import db
 from app.models.incident import Incident
+from app.models.incident_dispatch import IncidentDispatch
+from app.models.incident_ownership_history import IncidentOwnershipHistory
 
 
 @dataclass(frozen=True)
@@ -159,12 +161,76 @@ class IncidentRepository:
         status: IncidentStatus | None = None,
         authority_id: int | None = None,
         load_relations: bool = False,
+        queue: str | None = None,
     ) -> Iterable[Incident]:
+        """queue: incoming|acknowledged|in_progress|completed for dispatch+ownership-based filtering."""
         stmt = select(Incident).order_by(Incident.created_at.desc())
         if status is not None:
             stmt = stmt.where(Incident.status == status.value)
         if authority_id is not None:
-            stmt = stmt.where(Incident.current_authority_id == authority_id)
+            if queue == "incoming":
+                has_pending = exists().where(
+                    and_(
+                        IncidentDispatch.incident_id == Incident.id,
+                        IncidentDispatch.authority_id == authority_id,
+                        IncidentDispatch.status != "acknowledged",
+                    )
+                )
+                stmt = stmt.where(
+                    Incident.status == IncidentStatus.ASSIGNED.value,
+                    or_(
+                        Incident.current_authority_id == authority_id,
+                        exists().where(
+                            and_(
+                                IncidentOwnershipHistory.incident_id == Incident.id,
+                                IncidentOwnershipHistory.authority_id == authority_id,
+                                IncidentOwnershipHistory.is_current.is_(True),
+                            )
+                        ),
+                    ),
+                    has_pending,
+                )
+            elif queue == "acknowledged":
+                subq = exists().where(
+                    and_(
+                        IncidentOwnershipHistory.incident_id == Incident.id,
+                        IncidentOwnershipHistory.authority_id == authority_id,
+                        IncidentOwnershipHistory.is_current.is_(True),
+                    )
+                )
+                stmt = stmt.where(
+                    Incident.status == IncidentStatus.ACKNOWLEDGED.value,
+                    subq,
+                )
+            elif queue == "in_progress":
+                subq = exists().where(
+                    and_(
+                        IncidentOwnershipHistory.incident_id == Incident.id,
+                        IncidentOwnershipHistory.authority_id == authority_id,
+                        IncidentOwnershipHistory.is_current.is_(True),
+                    )
+                )
+                stmt = stmt.where(
+                    Incident.status == IncidentStatus.IN_PROGRESS.value,
+                    subq,
+                )
+            elif queue == "completed":
+                # Use ownership_history: incidents resolved/closed where this authority
+                # was the last owner (has an ownership row for this incident).
+                subq = exists().where(
+                    and_(
+                        IncidentOwnershipHistory.incident_id == Incident.id,
+                        IncidentOwnershipHistory.authority_id == authority_id,
+                    )
+                )
+                stmt = stmt.where(
+                    Incident.status.in_(
+                        (IncidentStatus.RESOLVED.value, IncidentStatus.CLOSED.value)
+                    ),
+                    subq,
+                )
+            else:
+                stmt = stmt.where(Incident.current_authority_id == authority_id)
         if load_relations:
             stmt = stmt.options(
                 joinedload(Incident.category_rel),

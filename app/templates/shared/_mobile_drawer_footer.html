@@ -1,0 +1,7 @@
+<div class="app-mobile-drawer-footer d-lg-none">
+  <div class="resident-user-name">{{ current_user.name }}</div>
+  <div class="resident-user-role">{{ drawer_role_label or current_user.role|title }}</div>
+  <a href="{{ url_for('auth.logout') }}" class="btn btn-outline-light btn-sm mt-2 w-100 rounded-3">
+    Logout
+  </a>
+</div>

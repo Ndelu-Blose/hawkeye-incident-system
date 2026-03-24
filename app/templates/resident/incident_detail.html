@@ -17,6 +17,34 @@
   <div class="row">
     <div class="col-lg-7 mb-4">
       <h2 class="mb-3">Incident #{{ incident.id }} – {{ incident.title }}</h2>
+      {% if can_add_additional_evidence %}
+      <div class="alert alert-warning">
+        <strong>Additional evidence requested.</strong>
+        {% if incident.proof_request_reason %}
+          {{ incident.proof_request_reason }}
+        {% else %}
+          Please upload clearer or additional proof so admin can continue escalation.
+        {% endif %}
+        <form
+          method="post"
+          action="{{ url_for('resident.add_incident_media', incident_id=incident.id) }}"
+          enctype="multipart/form-data"
+          class="mt-3 mb-0"
+        >
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <label for="resident-additional-evidence" class="form-label">Upload additional images</label>
+          <input
+            type="file"
+            class="form-control form-control-sm"
+            id="resident-additional-evidence"
+            name="evidence"
+            accept="image/*"
+            multiple
+          />
+          <button type="submit" class="btn btn-sm btn-dark mt-2">Submit evidence</button>
+        </form>
+      </div>
+      {% endif %}
 
       <div class="card bg-dark border-secondary mb-3">
         <div class="card-body py-2">
@@ -24,7 +52,12 @@
           {{ render_status_badge(incident.status) }}
           <div class="small text-muted mt-1">
             <strong>What this means:</strong>
-            Pending = waiting for review; In Progress = being handled; Resolved = completed; Rejected = invalid or insufficient info.
+            Reported = submitted; Awaiting Evidence = admin requested more proof; In Progress = being handled; Resolved = completed.
+            {% if incident.status == 'screened' %}
+            (Verified)
+            {% elif incident.status == 'assigned' %}
+            (Escalated)
+            {% endif %}
           </div>
         </div>
       </div>
@@ -52,7 +85,7 @@
         <div class="row g-2">
           {% for m in media %}
             <div class="col-6 col-md-4">
-              {% set media_url = url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.split('/')[-1]) %}
+              {% set media_url = url_for('resident.serve_incident_media', incident_id=incident.id, filename=m.file_path.replace('\\', '/').split('/')[-1]) %}
               <button
                 type="button"
                 class="btn p-0 w-100 text-start border-0 hawkeye-evidence-thumb"

@@ -1,106 +1,178 @@
-{% extends "layout.html" %}
+{% extends "authority/authority_app.html" %}
 
-{% block content %}
-  <div class="mb-3">
-    <a href="{{ url_for('authority.dashboard') }}" class="btn btn-sm btn-outline-light">
-      &larr; Back to dashboard
-    </a>
-  </div>
+{% set authority_page_title = "Incident #" ~ incident.id|string %}
+{% set authority_page_subtitle = incident.title %}
 
+{% block authority_top_actions %}
+  <a href="{{ url_for('authority.dashboard') }}" class="btn btn-outline-light btn-sm rounded-3">
+    <i class="bi bi-arrow-left"></i> Back to queue
+  </a>
+{% endblock %}
+
+{% block authority_content %}
   <div class="row">
     <div class="col-lg-7 mb-4">
-      <h2 class="mb-3">Incident #{{ incident.id }} – {{ incident.title }}</h2>
-      <p class="mb-2">
-        Status:
-        {{ render_status_badge(incident.status) }}
-      </p>
-      <p class="mb-2">
-        <strong>Severity:</strong>
-        <span class="text-capitalize">{{ incident.severity }}</span>
-      </p>
-      <p class="mb-2">
-        <strong>Category:</strong> {{ incident.category }}
-      </p>
-      <p class="mb-2">
-        <strong>Location:</strong> {{ incident.location }}
-      </p>
-      <p class="mb-2">
-        <strong>Reported by:</strong> {{ incident.reporter.name if incident.reporter }}
-      </p>
-      <p class="mb-2">
-        <strong>Reported at:</strong>
-        {{ (incident.reported_at or incident.created_at).strftime('%Y-%m-%d %H:%M') if (incident.reported_at or incident.created_at) }}
-      </p>
-      <p class="mb-2">
-        <strong>Assigned to:</strong>
-        {{ incident.current_authority.name if incident.current_authority else 'Unassigned' }}
-      </p>
-      <p class="mb-2">
-        <strong>Ref:</strong> {{ incident.reference_code or ('#%d' % incident.id) }}
-      </p>
-      <hr />
-      <p>{{ incident.description }}</p>
+      <div class="hawkeye-admin-panel p-4 mb-4">
+        <h2 class="h4 mb-3">Details</h2>
+        <p class="mb-2">
+          Status:
+          {{ render_status_badge(incident.status) }}
+          <span class="ms-2 small text-muted">
+            Business view:
+            {% if incident.status == 'screened' %}Verified{% elif incident.status == 'assigned' %}Escalated{% else %}{{ incident.status|replace('_',' ')|title }}{% endif %}
+          </span>
+        </p>
+        <p class="mb-2">
+          <strong>Severity:</strong>
+          <span class="text-capitalize">{{ incident.severity }}</span>
+        </p>
+        <p class="mb-2">
+          <strong>Category:</strong> {{ incident.category }}
+        </p>
+        <p class="mb-2">
+          <strong>Location:</strong> {{ incident.location }}
+        </p>
+        <p class="mb-2">
+          <strong>Reported by:</strong> {{ incident.reporter.name if incident.reporter }}
+        </p>
+        <p class="mb-2">
+          <strong>Reported at:</strong>
+          {{ (incident.reported_at or incident.created_at).strftime('%Y-%m-%d %H:%M') if (incident.reported_at or incident.created_at) }}
+        </p>
+        <p class="mb-2">
+          <strong>Assigned to:</strong>
+          {{ incident.current_authority.name if incident.current_authority else 'Unassigned' }}
+        </p>
+        <p class="mb-2">
+          <strong>Ref:</strong> {{ incident.reference_code or ('#%d' % incident.id) }}
+        </p>
+        <hr class="border-secondary opacity-25" />
+        <p class="mb-2"><strong>Incident Summary</strong></p>
+        <p>{{ incident.description }}</p>
+        {% if incident.dynamic_details %}
+          <hr class="border-secondary opacity-25" />
+          <p class="mb-2"><strong>Structured Details</strong></p>
+          <ul class="mb-2">
+            {% for key, value in incident.dynamic_details.items() %}
+              <li>
+                <strong>{{ key | replace('_', ' ') | title }}:</strong>
+                {% if value is iterable and value is not string %}
+                  {{ value | join(', ') }}
+                {% elif value is sameas true %}
+                  Yes
+                {% elif value is sameas false %}
+                  No
+                {% else %}
+                  {{ value }}
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% endif %}
+        {% if incident.additional_notes %}
+          <p class="mb-1"><strong>Additional Notes</strong></p>
+          <p class="mb-0">{{ incident.additional_notes }}</p>
+        {% endif %}
+      </div>
 
-      <hr class="my-4" />
+      {% if can_acknowledge %}
+      <div class="hawkeye-admin-panel p-4 mb-4">
+        <form method="post" action="{{ url_for('authority.acknowledge_incident', incident_id=incident.id) }}" class="d-inline">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <input type="hidden" name="note" value="Acknowledged by department" />
+          <button type="submit" class="btn btn-success">Acknowledge incident</button>
+        </form>
+        <p class="text-muted small mt-2 mb-0">Confirm receipt of this incident before updating status.</p>
+      </div>
+      {% endif %}
 
-      <h3 class="h5 mb-3">Update status</h3>
-      <form method="post" action="{{ url_for('authority.update_incident_status', incident_id=incident.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      <div class="hawkeye-admin-panel p-4">
+        <h3 class="h5 mb-3">Update status</h3>
+        <form method="post" action="{{ url_for('authority.update_incident_status', incident_id=incident.id) }}">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
-        <div class="mb-3">
-          <label for="status" class="form-label">New status</label>
-          <select class="form-select" id="status" name="status" required>
-            <option value="">Select status</option>
-            <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
-            <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
-            <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
-            <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
-            <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
-            <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
-            <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
-            <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
-          </select>
-        </div>
+          <div class="mb-3">
+            <label for="status" class="form-label">New status</label>
+            <select class="form-select" id="status" name="status" required>
+              <option value="">Select status</option>
+              <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
+              <option value="awaiting_evidence" {% if incident.status == 'awaiting_evidence' %}selected{% endif %}>Awaiting Evidence</option>
+              <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
+              <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
+              <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
+              <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+              <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
+              <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
+              <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
+            </select>
+          </div>
 
-        <div class="mb-3">
-          <label for="note" class="form-label">Resolution / progress note</label>
-          <textarea class="form-control" id="note" name="note" rows="3"></textarea>
-        </div>
+          <div class="mb-3">
+            <label for="note" class="form-label">Resolution / progress note</label>
+            <textarea class="form-control" id="note" name="note" rows="3"></textarea>
+          </div>
 
-        <button type="submit" class="btn btn-primary">Save status</button>
-      </form>
+          <button type="submit" class="btn btn-primary">Save status</button>
+        </form>
+      </div>
     </div>
 
     <div class="col-lg-5">
-      <h3 class="h5 mb-3">Status history</h3>
-      {% if updates %}
-        <ul class="list-group">
-          {% for update in updates %}
-            <li class="list-group-item bg-dark text-light">
-              <div class="d-flex justify-content-between">
-                <div>
-                  {% if update.from_status %}
-                    <strong>{{ update.from_status|replace('_',' ')|title }}</strong>
-                    &rarr;
-                  {% endif %}
-                  <strong>{{ update.to_status|replace('_',' ')|title }}</strong>
+      <div class="hawkeye-admin-panel p-4">
+        <h3 class="h5 mb-3">Timeline</h3>
+        {% if timeline %}
+          <ul class="list-group list-group-flush">
+            {% for event in timeline %}
+              <li class="list-group-item bg-transparent text-light border-secondary">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    <strong>{{ event.title }}</strong>
+                  </div>
+                  <small class="text-muted">
+                    {{ event.at.strftime('%Y-%m-%d %H:%M') if event.at }}
+                  </small>
                 </div>
-                <small class="text-muted">
-                  {{ update.created_at.strftime('%Y-%m-%d %H:%M') if update.created_at }}
-                </small>
-              </div>
-              {% if update.note %}
-                <div class="mt-1 text-muted">
-                  {{ update.note }}
+                {% if event.description %}
+                  <div class="mt-1 text-muted small">
+                    {{ event.description }}
+                  </div>
+                {% endif %}
+                {% if event.actor_label %}
+                  <div class="mt-1 text-muted small">
+                    {{ event.actor_label }}
+                  </div>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% elif updates %}
+          <ul class="list-group list-group-flush">
+            {% for update in updates %}
+              <li class="list-group-item bg-transparent text-light border-secondary">
+                <div class="d-flex justify-content-between">
+                  <div>
+                    {% if update.from_status %}
+                      <strong>{{ update.from_status|replace('_',' ')|title }}</strong>
+                      &rarr;
+                    {% endif %}
+                    <strong>{{ update.to_status|replace('_',' ')|title }}</strong>
+                  </div>
+                  <small class="text-muted">
+                    {{ update.created_at.strftime('%Y-%m-%d %H:%M') if update.created_at }}
+                  </small>
                 </div>
-              {% endif %}
-            </li>
-          {% endfor %}
-        </ul>
-      {% else %}
-        <p class="text-muted">No history recorded yet.</p>
-      {% endif %}
+                {% if update.note %}
+                  <div class="mt-1 text-muted">
+                    {{ update.note }}
+                  </div>
+                {% endif %}
+              </li>
+            {% endfor %}
+          </ul>
+        {% else %}
+          <p class="text-muted mb-0">No history recorded yet.</p>
+        {% endif %}
+      </div>
     </div>
   </div>
 {% endblock %}
-

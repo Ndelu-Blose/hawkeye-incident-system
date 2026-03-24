@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from app.constants import UrgencyLevel
+from app.services.incident_dynamic_schema import get_category_schema, normalize_category_key
 
 # Preset key is category name (as stored in DB) or "other" for fallback.
 # Keys must match IncidentCategory.name from seed / DB.
@@ -136,17 +137,31 @@ def get_preset_key(category: object) -> str:
     name = getattr(category, "name", None)
     if not name or not isinstance(name, str):
         return "other"
-    key = name.strip().lower().replace(" ", "_")
+    key = normalize_category_key(name)
     return key if key in PRESETS else "other"
 
 
 def get_preset(category: object) -> dict:
     """Return the preset dict for the given category (model or key string)."""
     if isinstance(category, str):
-        key = category.strip().lower().replace(" ", "_") if category else "other"
+        key = normalize_category_key(category) if category else "other"
     else:
         key = get_preset_key(category)
-    return PRESETS.get(key, PRESETS["other"]).copy()
+    preset = PRESETS.get(key, PRESETS["other"]).copy()
+    schema = get_category_schema(key)
+    if schema.key != "other":
+        preset["suggested_title"] = schema.suggested_title
+        preset["helper_prompts"] = list(schema.helper_prompts)
+        preset["safety_tip"] = schema.safety_tip
+        urgency_map = {
+            "urgent_now": UrgencyLevel.URGENT_NOW,
+            "soon": UrgencyLevel.NEEDS_ATTENTION_SOON,
+            "scheduled": UrgencyLevel.CAN_BE_SCHEDULED,
+        }
+        preset["default_urgency"] = urgency_map.get(
+            schema.urgency_value, preset.get("default_urgency")
+        )
+    return preset
 
 
 def urgency_to_severity(urgency: str | None) -> str:

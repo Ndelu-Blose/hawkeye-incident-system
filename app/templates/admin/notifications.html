@@ -1,0 +1,51 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "notifications" %}
+{% set admin_page_title = "Notifications" %}
+{% set admin_page_subtitle = "Recent operational notifications for admin users." %}
+
+{% block admin_top_actions %}
+  <form method="post" action="{{ url_for('admin.notifications_mark_all_read') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+    <input type="hidden" name="next" value="{{ request.path }}" />
+    <button type="submit" class="btn btn-outline-light btn-sm">Mark all read</button>
+  </form>
+{% endblock %}
+
+{% block admin_content %}
+  <div class="hawkeye-admin-panel p-4">
+    {% if items %}
+      <div class="list-group list-group-flush">
+        {% for item in items %}
+          <div class="list-group-item bg-transparent text-light border-secondary">
+            <div class="d-flex justify-content-between align-items-start gap-3">
+              <div>
+                <div class="fw-semibold">{{ item.title }}</div>
+                <div class="small text-muted mt-1">{{ item.body }}</div>
+                <div class="small text-muted mt-1">
+                  {{ item.created_at.strftime('%Y-%m-%d %H:%M') }}
+                </div>
+              </div>
+              <div class="d-flex gap-2">
+                {% if item.link_url %}
+                  <a href="{{ url_for('admin.notification_open', notification_id=item.id) }}" class="btn btn-sm btn-primary">
+                    Open
+                  </a>
+                {% endif %}
+                {% if item.is_unread %}
+                  <form method="post" action="{{ url_for('admin.notification_mark_read', notification_id=item.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <input type="hidden" name="next" value="{{ request.path }}" />
+                    <button type="submit" class="btn btn-sm btn-outline-light">Mark read</button>
+                  </form>
+                {% endif %}
+              </div>
+            </div>
+          </div>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="text-muted mb-0">No notifications yet.</p>
+    {% endif %}
+  </div>
+{% endblock %}

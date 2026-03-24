@@ -1,10 +1,11 @@
 """Unit tests for assemble_timeline (Phase 3.5)."""
 
-from app.constants import IncidentStatus, Roles
+from app.constants import IncidentEventType, IncidentStatus, Roles
 from app.extensions import db
 from app.models.authority import Authority
 from app.models.department_action_log import DepartmentActionLog
 from app.models.incident import Incident
+from app.models.incident_event import IncidentEvent
 from app.models.incident_update import IncidentUpdate
 from app.services.auth_service import auth_service
 from app.services.incident_service import incident_service
@@ -101,6 +102,62 @@ def test_assemble_timeline_includes_department_action(app):
         assert len(dept_events) == 1
         assert "site" in dept_events[0].title.lower() or "visit" in dept_events[0].title.lower()
         assert "Inspected" in dept_events[0].description
+
+
+def test_assemble_timeline_uses_incident_events_when_present(app):
+    """When incident_events exist, timeline is built from them (not synthetic)."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="timeline-events@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Events Test",
+            description="Desc",
+            category="Cat",
+            suburb_or_ward="Sub",
+            street_or_landmark="St",
+            location="St, Sub",
+            severity="low",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000099",
+        )
+        db.session.add(incident)
+        db.session.commit()
+        incident_id = incident.id
+
+        # Add incident_events (simulates canonical workflow)
+        ev1 = IncidentEvent(
+            incident_id=incident_id,
+            event_type=IncidentEventType.INCIDENT_CREATED.value,
+            to_status=IncidentStatus.REPORTED.value,
+            actor_user_id=user.id,
+            actor_role="resident",
+            note="Incident created",
+        )
+        db.session.add(ev1)
+        ev2 = IncidentEvent(
+            incident_id=incident_id,
+            event_type=IncidentEventType.STATUS_CHANGED.value,
+            from_status=IncidentStatus.REPORTED.value,
+            to_status=IncidentStatus.IN_PROGRESS.value,
+            actor_user_id=user.id,
+            note="Work started",
+        )
+        db.session.add(ev2)
+        db.session.commit()
+
+        timeline = incident_service.assemble_timeline(incident_id)
+        kinds = [e.kind for e in timeline]
+        assert "incident_created" in kinds
+        assert "status_update" in kinds
+        # No synthetic incident_created; we have real events
+        created_events = [e for e in timeline if e.kind == "incident_created"]
+        assert len(created_events) == 1
+        assert "Work started" in [e.description for e in timeline if e.kind == "status_update"][0]
 
 
 def test_assemble_timeline_returns_empty_for_missing_incident(app):

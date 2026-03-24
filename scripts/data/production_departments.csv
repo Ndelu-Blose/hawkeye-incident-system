@@ -1,0 +1,58 @@
+department_code,name,operating_hours,physical_address,service_hub,channel,type,value,verification_status,source_url,notes,after_hours
+BUILDING_CONTROL,Building Control,Mon-Fri 08:00-16:00,,Municipal Operations,phone,primary,031 311 4745,unverified,https://www.fixlocal.org.za/content/260,,false
+BUILDING_CONTROL,Building Control,Mon-Fri 08:00-16:00,,Municipal Operations,phone,secondary,031 311 7083,unverified,https://www.durban.gov.za/page/contact-us-3,Microfilm,false
+BUILDING_CONTROL,Building Control,Mon-Fri 08:00-16:00,,Municipal Operations,email,primary,Lihle.Phewa@durban.gov.za,unverified,https://www.fixlocal.org.za/content/260,,false
+CEMETERIES_CREMATORIA,Cemeteries and Crematoria,Mon-Fri 08:00-16:00,"7th Floor, Delta Towers",Community Services,phone,primary,031 311 4479,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,,false
+CEMETERIES_CREMATORIA,Cemeteries and Crematoria,Mon-Fri 08:00-16:00,"7th Floor, Delta Towers",Community Services,email,secondary,Linda.ntuli@durban.gov.za,unverified,https://www.durban.gov.za/uploads/0000/6/2025/09/23/cemetries-and-crematoria-standard-operating-procesures.pdf,,false
+COMMUNITY_SERVICES,Community Services,Mon-Sat 08:00-17:00,,Sizakala,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/sizakala-customer-services,Sizakala switchboard,false
+COMMUNITY_SERVICES,Community Services,Mon-Sat 08:00-17:00,,Sizakala,email,secondary,sizakala@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,General intake,false
+CUSTOMER_SUPPORT,Customer Support / Call Centre,24/7 intake,,Sizakala,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,true
+CUSTOMER_SUPPORT,Customer Support / Call Centre,24/7 intake,,Sizakala,phone,secondary,080 033 1011,unverified,https://www.durban.gov.za/page/sizakala-customer-services,Sizakala,true
+CUSTOMER_SUPPORT,Customer Support / Call Centre,24/7 intake,,Sizakala,email,primary,sizakala@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+DISASTER_MANAGEMENT,Disaster Management,24/7,,Public Safety,phone,primary,031 361 0000,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,true
+DISASTER_MANAGEMENT,Disaster Management,24/7,,Public Safety,email,primary,vincent.ngubane@durban.gov.za,unverified,https://www.durban.gov.za/page/administrative-clusters,,false
+ELECTRICITY,Electricity,24/7 faults,,Engineering,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,true
+ELECTRICITY,Electricity,24/7 faults,,Engineering,whatsapp,secondary,064 761 7930,unverified,https://www.durban.gov.za/page/sizakala-customer-services,WhatsApp,true
+ELECTRICITY,Electricity,24/7 faults,,Engineering,email,primary,electricity.faults@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+ENVIRONMENTAL_HEALTH,Environmental Health,Mon-Fri 08:00-16:00,,Health,phone,primary,031 311 3555,unverified,https://www.durban.gov.za/page/contact-us-3,,false
+ENVIRONMENTAL_HEALTH,Environmental Health,Mon-Fri 08:00-16:00,,Health,phone,secondary,031 311 3555,unverified,https://www.durban.gov.za/page/contact-us-3,Regional Health Offices,false
+ENVIRONMENTAL_HEALTH,Environmental Health,Mon-Fri 08:00-16:00,,Health,email,primary,envirohealthadmin@durban.gov.za,unverified,https://www.durban.gov.za/page/administrative-clusters,,false
+FACILITIES_MAINTENANCE,Facilities Maintenance,Mon-Fri 08:00-16:00,,Sizakala,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/sizakala-customer-services,Sizakala intake,false
+FACILITIES_MAINTENANCE,Facilities Maintenance,Mon-Fri 08:00-16:00,,Sizakala,email,secondary,sizakala@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,General ticket routing,false
+FIRE_EMERGENCY,Fire and Emergency Services,24/7,,Public Safety,phone,primary,031 361 0000,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,true
+FIRE_EMERGENCY,Fire and Emergency Services,24/7,,Public Safety,phone,secondary,031 361 0000,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,Regional stations,true
+FIRE_EMERGENCY,Fire and Emergency Services,24/7,,Public Safety,email,primary,Vusi.Mazibuko@durban.gov.za,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,false
+FLEET_MECHANICAL,Fleet and Mechanical Services,Mon-Fri 08:00-16:00,,Municipal Operations,phone,primary,0800 325 33,unverified,https://www.durban.gov.za/page/contact-us-3,City Fleet,false
+FLEET_MECHANICAL,Fleet and Mechanical Services,Mon-Fri 08:00-16:00,,Municipal Operations,email,primary,metroceo@durban.gov.za,unverified,https://www.durban.gov.za/page/administrative-clusters,,false
+HUMAN_SETTLEMENTS,Human Settlements,Mon-Fri 08:00-16:00,,Housing,phone,primary,031 311 3467,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,,false
+METRO_POLICE,Metro Police,24/7,,Public Safety,phone,primary,031 361 0000,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,true
+METRO_POLICE,Metro Police,24/7,,Public Safety,phone,secondary,031 311 2132,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,,true
+METRO_POLICE,Metro Police,24/7,,Public Safety,email,primary,metroceo@durban.gov.za,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,,false
+MUNICIPAL_OPERATIONS,Municipal Operations,Mon-Fri 08:00-16:00,,Municipal Operations,phone,primary,0800 202 020,unverified,https://www.durban.gov.za/page/contact-us-3,Integrity/Operations,false
+MUNICIPAL_OPERATIONS,Municipal Operations,Mon-Fri 08:00-16:00,,Municipal Operations,phone,secondary,031 311 4002,unverified,https://www.durban.gov.za/page/contact-us-3,,false
+MUNICIPAL_OPERATIONS,Municipal Operations,Mon-Fri 08:00-16:00,,Municipal Operations,email,secondary,ombuds@durban.gov.za,unverified,https://www.durban.gov.za/page/contact-us-3,,false
+PARKS_RECREATION,Parks and Recreation,Mon-Fri 08:00-16:00,,Community Services,phone,primary,031 322 4350,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,,false
+PARKS_RECREATION,Parks and Recreation,Mon-Fri 08:00-16:00,,Community Services,phone,secondary,031 322 4000,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,,false
+PARKS_RECREATION,Parks and Recreation,Mon-Fri 08:00-16:00,,Community Services,email,primary,eservices@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+PUBLIC_SAFETY,Public Safety,24/7,,Public Safety,phone,secondary,031 311 4699,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,true
+PUBLIC_SAFETY,Public Safety,24/7,,Public Safety,phone,primary,031 361 0000,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,true
+PUBLIC_SAFETY,Public Safety,24/7,,Public Safety,email,primary,sizakala@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+ROADS_STORMWATER,Roads and Stormwater,24/7 faults,,Engineering,phone,primary,080 131 3013,unverified,https://www.durban.gov.za/page/engineering,Engineering Unit call centre,true
+ROADS_STORMWATER,Roads and Stormwater,24/7 faults,,Engineering,email,primary,eservices@durban.gov.za,unverified,https://www.durban.gov.za/page/engineering,,false
+SAPS,SAPS,24/7,,National SAPS,phone,primary,10111,unverified,https://www.durban.gov.za/page/public-safety-emergency-services,,true
+SAPS,SAPS,24/7,,National SAPS,phone,secondary,031 325 4111,unverified,https://bridgecity.org.za/site/wp-content/uploads/2017/01/Ethekwini-Municipality-Contact-List_Jan17.pdf,Durban Central,true
+SAPS,SAPS,24/7,,National SAPS,email,primary,complaintsnodalpoint@saps.gov.za,unverified,https://www.gov.za/about-government/contact-directory/kzn-municipalities/ethekwini-metropolitan-municipality,,false
+SEWER_DRAINAGE,Sewer and Drainage,24/7 faults,,Engineering,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,true
+SEWER_DRAINAGE,Sewer and Drainage,24/7 faults,,Engineering,email,primary,eservices@durban.gov.za,unverified,https://www.durban.gov.za/page/engineering,,false
+STREET_LIGHTING,Street Lighting,24/7 faults,,Engineering,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,true
+STREET_LIGHTING,Street Lighting,24/7 faults,,Engineering,whatsapp,secondary,076 791 2449,unverified,https://www.durban.gov.za/page/sizakala-customer-services,WhatsApp,true
+STREET_LIGHTING,Street Lighting,24/7 faults,,Engineering,email,primary,electricity.faults@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+TRANSPORT_AUTHORITY,Traffic and Transport,Mon-Fri 08:00-16:00,,Transport Authority,phone,primary,0861 000 834,unverified,https://www.durban.gov.za/page/transportation,,false
+TRANSPORT_AUTHORITY,Traffic and Transport,Mon-Fri 08:00-16:00,,Transport Authority,email,primary,dtpmover@durban.gov.za,unverified,https://www.durban.gov.za/page/transportation,,false
+WASTE_MANAGEMENT,Waste Management,Mon-Sat 07:30-16:30,,Solid Waste,phone,primary,031 311 8804,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+WASTE_MANAGEMENT,Waste Management,Mon-Sat 07:30-16:30,,Solid Waste,phone,secondary,031 324 5000,unverified,https://www.durban.gov.za/page/sizakala-customer-services,,false
+WASTE_MANAGEMENT,Waste Management,Mon-Sat 07:30-16:30,,Solid Waste,email,primary,dsw@durban.gov.za,unverified,https://www.durban.gov.za/page/administrative-clusters,,false
+WASTE_MANAGEMENT,Waste Management,Mon-Sat 07:30-16:30,,Solid Waste,email,secondary,revline@durban.gov.za,unverified,https://www.durban.gov.za/page/sizakala-customer-services,Billing queries,false
+WATER_SANITATION,Water and Sanitation,24/7 faults,,Engineering,phone,primary,080 311 1111,unverified,https://www.durban.gov.za/page/water-and-sanitation-services,,true
+WATER_SANITATION,Water and Sanitation,24/7 faults,,Engineering,whatsapp,secondary,073 148 3477,unverified,https://www.durban.gov.za/page/water-and-sanitation-services,WhatsApp,true
+WATER_SANITATION,Water and Sanitation,24/7 faults,,Engineering,email,primary,eservices@durban.gov.za,unverified,https://www.durban.gov.za/page/water-and-sanitation-services,,false

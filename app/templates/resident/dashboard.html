@@ -100,6 +100,27 @@
 
     <div class="col-xl-4">
         <div class="resident-panel mb-4">
+            <div class="d-flex justify-content-between align-items-center mb-2">
+                <h4 class="resident-section-title mb-0">Community Safety Heatmap</h4>
+                <select id="residentHeatmapDays" class="form-select form-select-sm w-auto">
+                    <option value="7" selected>Last 7 days</option>
+                    <option value="30">Last 30 days</option>
+                </select>
+            </div>
+            <p class="text-muted small mb-3">
+                Shows general report concentration in the community. Individual report details are hidden for privacy.
+            </p>
+            {% if google_maps_api_key %}
+                <div id="residentHeatmapMap" style="height: 220px; border-radius: 0.75rem;"></div>
+            {% else %}
+                <div class="alert alert-info mb-0 small">Set `GOOGLE_MAPS_API_KEY` to enable map rendering.</div>
+            {% endif %}
+            <div id="residentHeatmapEmpty" class="text-muted small mt-2 d-none">
+                No community hotspot data is visible for this filter.
+            </div>
+        </div>
+
+        <div class="resident-panel mb-4">
             <h4 class="resident-section-title">Quick Actions</h4>
             <div class="d-grid gap-2 mt-3">
                 <a href="{{ url_for('resident.report_incident') }}" class="btn btn-outline-light rounded-3">
@@ -150,4 +171,66 @@
         </div>
     </div>
 </div>
+{% endblock %}
+
+{% block scripts %}
+{{ super() }}
+{% if google_maps_api_key %}
+<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
+<script>
+(() => {
+  const mapNode = document.getElementById("residentHeatmapMap");
+  const daysSelect = document.getElementById("residentHeatmapDays");
+  const emptyNode = document.getElementById("residentHeatmapEmpty");
+  if (!mapNode || !daysSelect || !emptyNode) return;
+
+  const map = new google.maps.Map(mapNode, {
+    center: { lat: -29.8587, lng: 31.0218 },
+    zoom: 11,
+    mapTypeControl: false,
+    streetViewControl: false,
+  });
+  let circles = [];
+
+  const renderHotspots = (hotspots) => {
+    circles.forEach((circle) => circle.setMap(null));
+    circles = [];
+    if (!hotspots.length) {
+      emptyNode.classList.remove("d-none");
+      return;
+    }
+    emptyNode.classList.add("d-none");
+    const bounds = new google.maps.LatLngBounds();
+    hotspots.forEach((hotspot) => {
+      bounds.extend({ lat: hotspot.lat, lng: hotspot.lng });
+      const intensity = hotspot.intensity || 0.2;
+      const circle = new google.maps.Circle({
+        strokeColor: "#ff6c6c",
+        strokeOpacity: 0.4,
+        strokeWeight: 1,
+        fillColor: "#ff3b3b",
+        fillOpacity: 0.15 + Math.min(0.5, intensity),
+        map,
+        center: { lat: hotspot.lat, lng: hotspot.lng },
+        radius: 260 + (intensity * 550),
+      });
+      circles.push(circle);
+    });
+    map.fitBounds(bounds, 24);
+  };
+
+  const loadHeatmap = async () => {
+    const params = new URLSearchParams({ days: daysSelect.value });
+    const response = await fetch(`/resident/api/resident/community-heatmap?${params.toString()}`, {
+      headers: { "Accept": "application/json" },
+    });
+    const payload = await response.json();
+    renderHotspots(payload.hotspots || []);
+  };
+
+  daysSelect.addEventListener("change", loadHeatmap);
+  loadHeatmap();
+})();
+</script>
+{% endif %}
 {% endblock %}

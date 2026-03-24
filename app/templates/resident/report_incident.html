@@ -7,7 +7,8 @@
 {% block resident_content %}
   {% set fd = form_data or {} %}
   {% set selected_cat_id = fd.category_id if fd and fd.category_id else '' %}
-  {% set current_preset = presets.get(selected_cat_id | int, other_preset) if selected_cat_id else other_preset %}
+  {% set current_preset = category_presets.get(selected_cat_id | int, other_preset) if selected_cat_id else other_preset %}
+  {% set existing_dynamic_details = fd.dynamic_details if fd and fd.dynamic_details is defined and fd.dynamic_details else {} %}
 
   <div class="row justify-content-center">
     <div class="col-lg-8">
@@ -35,7 +36,7 @@
           <select class="form-select form-select-lg" id="category_id" name="category_id" required>
             <option value="">Select a category</option>
             {% for c in categories %}
-              <option value="{{ c.id }}" {% if fd and fd.category_id == c.id | string %}selected{% endif %}>{{ c.name | replace('_', ' ') | title }}</option>
+              <option value="{{ c.id }}" data-category-key="{{ c.name | lower | replace(' ', '_') }}" {% if fd and fd.category_id == c.id | string %}selected{% endif %}>{{ c.name | replace('_', ' ') | title }}</option>
             {% endfor %}
           </select>
         </div>
@@ -53,16 +54,28 @@
           <div class="form-text">Auto-filled from the selected issue type. You can edit this title if needed.</div>
         </div>
 
+        <div class="mb-3 border rounded p-3">
+          <label class="form-label fw-bold">Guided Incident Details</label>
+          <div id="guided-details-container" class="small"></div>
+          <div id="category-change-warning" class="form-text mt-2 text-warning" style="display:none;"></div>
+        </div>
+
         <div class="mb-3">
-          <label for="description" class="form-label">Description</label>
+          <label for="additional_notes" class="form-label">Additional Notes (optional)</label>
+          <textarea class="form-control" id="additional_notes" name="additional_notes" rows="3">{{ fd.additional_notes if fd and fd.additional_notes is defined else '' }}</textarea>
+        </div>
+
+        <div class="mb-3">
+          <label for="description" class="form-label">Incident Summary</label>
           {% if selected_cat_id and current_preset.helper_prompts %}
-            <p class="small text-muted mb-1">Things that help us respond:</p>
+            <p class="small text-muted mb-1">Guided answers below help generate this summary:</p>
             <ul class="small text-muted mb-2">
               {% for prompt in current_preset.helper_prompts %}
                 <li>{{ prompt }}</li>
               {% endfor %}
             </ul>
           {% endif %}
+          <input type="hidden" id="description_manually_edited" name="description_manually_edited" value="{{ '1' if fd and fd.description_manually_edited else '' }}" />
           <textarea
             class="form-control"
             id="description"
@@ -70,6 +83,7 @@
             rows="4"
             required
           >{{ fd.description if fd and fd.description is defined else '' }}</textarea>
+          <div class="form-text">Generated from guided details and still editable before submitting.</div>
           {% if selected_cat_id and current_preset.safety_tip %}
             <div class="form-text mt-1">{{ current_preset.safety_tip }}</div>
           {% endif %}
@@ -134,10 +148,17 @@
             </div>
             <div class="col-12 mb-3">
               <div id="location-status" class="small mb-2" style="display:none;"></div>
+              <div class="d-flex flex-wrap align-items-center gap-2 mb-2">
+                <button type="button" id="find-on-map-btn" class="btn btn-sm btn-outline-primary">
+                  Find on map
+                </button>
+                <span class="small text-muted">Type an address, then find or wait briefly for auto-search.</span>
+              </div>
               <div id="incident_map" class="rounded border" style="width: 100%; height: 260px; display: none;"></div>
               <div class="form-text mb-2">
                 You can drag the pin to adjust the exact spot (when the map is available).
               </div>
+              <div id="selected-location-preview" class="small text-muted mb-2" style="display:none;"></div>
               <div id="location-autofill-helper" class="small text-muted mb-2" style="display:none;">
                 Auto-filled from your current location. You can edit these details or drag the pin.
               </div>
@@ -157,30 +178,6 @@
             />
           </div>
         </div>
-
-        {% if selected_cat_id and (current_preset.ask_is_happening_now or current_preset.ask_is_anyone_in_danger or current_preset.ask_is_issue_still_present) %}
-          <div class="mb-3">
-            <label class="form-label">Quick details</label>
-            {% if current_preset.ask_is_happening_now %}
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="is_happening_now" name="is_happening_now" value="1" {% if fd and fd.is_happening_now %}checked{% endif %} />
-                <label class="form-check-label" for="is_happening_now">Is it happening right now?</label>
-              </div>
-            {% endif %}
-            {% if current_preset.ask_is_anyone_in_danger %}
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="is_anyone_in_danger" name="is_anyone_in_danger" value="1" {% if fd and fd.is_anyone_in_danger %}checked{% endif %} />
-                <label class="form-check-label" for="is_anyone_in_danger">Is anyone in danger?</label>
-              </div>
-            {% endif %}
-            {% if current_preset.ask_is_issue_still_present %}
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="is_issue_still_present" name="is_issue_still_present" value="1" {% if fd and fd.is_issue_still_present %}checked{% endif %} />
-                <label class="form-check-label" for="is_issue_still_present">Is the issue still there?</label>
-              </div>
-            {% endif %}
-          </div>
-        {% endif %}
 
         <div class="mb-3">
           <label for="evidence" class="form-label">Evidence (at least one image required)</label>
@@ -218,31 +215,334 @@
     (function() {
       var titleInput = document.getElementById('title');
       var categorySelect = document.getElementById('category_id');
+      var urgencySelect = document.getElementById('urgency_level');
       var lastAutoTitle = titleInput ? titleInput.value : '';
+      var lastAutoUrgency = urgencySelect ? urgencySelect.value : 'soon';
+      var isAutoUpdatingUrgency = false;
+      var manualUrgencyChanged = false;
 
-      var titleMap = {
-        'Blocked Drain': 'Blocked Drain Reported',
-        'Pothole': 'Pothole Reported',
-        'Broken Streetlight': 'Broken Street Light Reported',
-        'Water Leak': 'Water Leak Reported',
-      };
+      var categoryPresetMap = {{ category_presets | tojson }};
+      var schemaMap = {{ category_schemas | tojson }};
+      var schemaMapByKey = {{ category_schemas_by_key | tojson }};
+      window.categorySchemas = schemaMapByKey;
+      var detailsContainer = document.getElementById('guided-details-container');
+      var descriptionInput = document.getElementById('description');
+      var additionalNotesInput = document.getElementById('additional_notes');
+      var manualEditInput = document.getElementById('description_manually_edited');
+      var categoryWarning = document.getElementById('category-change-warning');
+      var currentCategoryId = categorySelect ? categorySelect.value : '';
+      var currentDetails = {{ existing_dynamic_details | tojson }};
+      var isRegeneratingDescription = false;
 
-      function getSuggestedTitle(category) {
-        return titleMap[category] || (category + ' Reported');
+      function getSelectedCategoryKey() {
+        if (!categorySelect) return '';
+        var selectedOption = categorySelect.options[categorySelect.selectedIndex];
+        if (selectedOption && selectedOption.dataset && selectedOption.dataset.categoryKey) {
+          return selectedOption.dataset.categoryKey;
+        }
+        var text = selectedOption ? selectedOption.text : '';
+        return String(text || '').trim().toLowerCase().replace(/\s+/g, '_');
+      }
+
+      function getSchema(categoryId) {
+        var byId = schemaMap[String(categoryId)];
+        if (byId) return byId;
+        var byKey = schemaMapByKey[getSelectedCategoryKey()];
+        if (byKey) return byKey;
+        return { suggested_title: 'Incident Reported', urgency_value: 'soon', fields: [] };
+      }
+
+      function getPreset(categoryId) {
+        return categoryPresetMap[String(categoryId)] || {{ other_preset | tojson }};
+      }
+
+      function getSuggestedTitle(categoryId) {
+        var preset = getPreset(categoryId);
+        return preset.suggested_title || 'Incident reported';
+      }
+
+      function getSuggestedUrgency(categoryId) {
+        var preset = getPreset(categoryId);
+        return preset.urgency_value || 'soon';
+      }
+
+      function normalizeFieldValue(fieldType, value) {
+        if (fieldType === 'multiselect') {
+          return Array.isArray(value) ? value : [];
+        }
+        if (fieldType === 'boolean') {
+          return value === true || value === 'true' || value === '1' || value === 1;
+        }
+        return value == null ? '' : String(value);
+      }
+
+      function shouldShowField(field, details) {
+        if (!field.show_when || !field.show_when.length) return true;
+        for (var i = 0; i < field.show_when.length; i++) {
+          var cond = field.show_when[i];
+          var fieldValue = details[cond.field];
+          var equalsVal = cond.equals;
+          if (typeof fieldValue === 'boolean') {
+            if (String(fieldValue) !== String(equalsVal)) return false;
+          } else if (String(fieldValue || '') !== String(equalsVal)) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      function getPreserveGroupMap(schema) {
+        var map = {};
+        (schema.fields || []).forEach(function(field) {
+          map[field.key] = field.preserve_group || field.key;
+        });
+        return map;
+      }
+
+      function getDroppedFieldLabels(oldSchema, newSchema) {
+        var oldGroups = getPreserveGroupMap(oldSchema);
+        var newGroups = {};
+        (newSchema.fields || []).forEach(function(field) {
+          newGroups[field.preserve_group || field.key] = true;
+        });
+        var dropped = [];
+        (oldSchema.fields || []).forEach(function(field) {
+          var group = oldGroups[field.key];
+          var value = currentDetails[field.key];
+          var hasValue = Array.isArray(value) ? value.length > 0 : value !== undefined && value !== null && String(value).trim() !== '';
+          if (hasValue && !newGroups[group]) dropped.push(field.label);
+        });
+        return dropped;
+      }
+
+      function preserveCompatibleValues(oldSchema, newSchema) {
+        var oldGroups = getPreserveGroupMap(oldSchema);
+        var newByGroup = {};
+        (newSchema.fields || []).forEach(function(field) {
+          var group = field.preserve_group || field.key;
+          if (!newByGroup[group]) newByGroup[group] = field;
+        });
+        var nextDetails = {};
+        (oldSchema.fields || []).forEach(function(field) {
+          var group = oldGroups[field.key];
+          var targetField = newByGroup[group];
+          if (!targetField) return;
+          var value = currentDetails[field.key];
+          if (value === undefined || value === null || value === '') return;
+          nextDetails[targetField.key] = value;
+        });
+        return nextDetails;
+      }
+
+      function buildDescription(schema, details, notes) {
+        var cleanNotes = (notes || '').trim();
+        var text = 'An incident was reported.';
+        if (schema.key === 'suspicious_activity') {
+          var activity = Array.isArray(details.activity_types) ? details.activity_types.join(', ').replaceAll('_', ' ') : '';
+          text = 'Suspicious activity was reported';
+          if (activity) text += ' involving ' + activity;
+          if (details.people_count) text += ' with about ' + details.people_count + ' person(s)';
+          if (details.vehicle_description) text += ' and a vehicle described as ' + details.vehicle_description;
+          if (details.ongoing) text += '; the activity appears ongoing';
+          text += '.';
+        } else if (schema.key === 'theft') {
+          text = 'A theft incident was reported';
+          if (details.item_stolen) text += ', including item(s): ' + details.item_stolen;
+          if (details.forced_entry) text += ', with signs of forced entry';
+          if (details.suspect_seen) text += ', and a suspect was seen';
+          text += '.';
+        } else if (schema.key === 'vandalism') {
+          var damage = Array.isArray(details.damage_type) ? details.damage_type.join(', ').replaceAll('_', ' ') : '';
+          text = 'Vandalism was reported';
+          if (details.property_type) text += ' on ' + String(details.property_type).replaceAll('_', ' ');
+          if (damage) text += ', including ' + damage;
+          text += '.';
+        } else if (schema.key === 'noise_complaint') {
+          text = 'A noise complaint was reported';
+          if (details.noise_source) text += ' with source: ' + String(details.noise_source).replaceAll('_', ' ');
+          if (details.duration) text += ', lasting ' + details.duration;
+          if (details.still_active) text += ', and it is still active';
+          text += '.';
+        }
+        if (cleanNotes) {
+          text += ' Additional notes: ' + cleanNotes;
+        }
+        return text;
+      }
+
+      function maybeRegenerateDescription(force) {
+        if (!descriptionInput || !categorySelect || !categorySelect.value) return;
+        var manuallyEdited = manualEditInput && manualEditInput.value === '1';
+        if (manuallyEdited && !force) return;
+        var schema = getSchema(categorySelect.value);
+        var generated = buildDescription(schema, currentDetails, additionalNotesInput ? additionalNotesInput.value : '');
+        isRegeneratingDescription = true;
+        descriptionInput.value = generated;
+        isRegeneratingDescription = false;
+      }
+
+      function renderGuidedFields() {
+        if (!detailsContainer || !categorySelect) return;
+        var schema = getSchema(categorySelect.value);
+        detailsContainer.innerHTML = '';
+        if (!schema.fields || !schema.fields.length) {
+          detailsContainer.innerHTML = '<p class="text-muted mb-0">Select a category to view guided questions.</p>';
+          return;
+        }
+        schema.fields.forEach(function(field) {
+          if (!shouldShowField(field, currentDetails)) return;
+          var wrapper = document.createElement('div');
+          wrapper.className = 'mb-3';
+          var label = document.createElement('label');
+          label.className = 'form-label';
+          label.textContent = field.label;
+          wrapper.appendChild(label);
+
+          if (field.field_type === 'boolean') {
+            var checkWrap = document.createElement('div');
+            checkWrap.className = 'form-check';
+            var input = document.createElement('input');
+            input.type = 'checkbox';
+            input.className = 'form-check-input';
+            input.name = 'details__' + field.key;
+            input.value = 'true';
+            input.checked = normalizeFieldValue(field.field_type, currentDetails[field.key]);
+            input.addEventListener('change', function() {
+              currentDetails[field.key] = input.checked;
+              renderGuidedFields();
+              maybeRegenerateDescription(false);
+            });
+            var checkLabel = document.createElement('label');
+            checkLabel.className = 'form-check-label';
+            checkLabel.textContent = 'Yes';
+            checkWrap.appendChild(input);
+            checkWrap.appendChild(checkLabel);
+            wrapper.appendChild(checkWrap);
+          } else if (field.field_type === 'select') {
+            var select = document.createElement('select');
+            select.className = 'form-select';
+            select.name = 'details__' + field.key;
+            var emptyOpt = document.createElement('option');
+            emptyOpt.value = '';
+            emptyOpt.textContent = 'Select...';
+            select.appendChild(emptyOpt);
+            (field.options || []).forEach(function(opt) {
+              var option = document.createElement('option');
+              option.value = opt.value;
+              option.textContent = opt.label;
+              if (String(currentDetails[field.key] || '') === opt.value) option.selected = true;
+              select.appendChild(option);
+            });
+            select.addEventListener('change', function() {
+              currentDetails[field.key] = select.value;
+              renderGuidedFields();
+              maybeRegenerateDescription(false);
+            });
+            wrapper.appendChild(select);
+          } else if (field.field_type === 'multiselect') {
+            (field.options || []).forEach(function(opt) {
+              var checkWrap2 = document.createElement('div');
+              checkWrap2.className = 'form-check';
+              var check = document.createElement('input');
+              check.type = 'checkbox';
+              check.className = 'form-check-input';
+              check.name = 'details__' + field.key + '[]';
+              check.value = opt.value;
+              var existing = normalizeFieldValue('multiselect', currentDetails[field.key]);
+              check.checked = existing.indexOf(opt.value) >= 0;
+              check.addEventListener('change', function() {
+                var list = normalizeFieldValue('multiselect', currentDetails[field.key]);
+                if (check.checked && list.indexOf(opt.value) < 0) list.push(opt.value);
+                if (!check.checked) list = list.filter(function(v) { return v !== opt.value; });
+                currentDetails[field.key] = list;
+                maybeRegenerateDescription(false);
+              });
+              var checkLabel2 = document.createElement('label');
+              checkLabel2.className = 'form-check-label';
+              checkLabel2.textContent = opt.label;
+              checkWrap2.appendChild(check);
+              checkWrap2.appendChild(checkLabel2);
+              wrapper.appendChild(checkWrap2);
+            });
+          } else {
+            var input2 = document.createElement('input');
+            input2.type = field.field_type === 'number' ? 'number' : 'text';
+            input2.className = 'form-control';
+            input2.name = 'details__' + field.key;
+            input2.value = normalizeFieldValue(field.field_type, currentDetails[field.key]);
+            input2.addEventListener('input', function() {
+              currentDetails[field.key] = input2.value;
+              maybeRegenerateDescription(false);
+            });
+            wrapper.appendChild(input2);
+          }
+          detailsContainer.appendChild(wrapper);
+        });
       }
 
       if (categorySelect && titleInput) {
+        renderGuidedFields();
+        if (categorySelect.value && urgencySelect) {
+          lastAutoUrgency = getSuggestedUrgency(categorySelect.value);
+        }
+        maybeRegenerateDescription(false);
+
+        if (urgencySelect) {
+          urgencySelect.addEventListener('change', function() {
+            if (isAutoUpdatingUrgency) return;
+            if (urgencySelect.value !== lastAutoUrgency) {
+              manualUrgencyChanged = true;
+            }
+          });
+        }
+
+        if (descriptionInput) {
+          descriptionInput.addEventListener('input', function() {
+            if (isRegeneratingDescription) return;
+            if (manualEditInput) manualEditInput.value = '1';
+          });
+        }
+        if (additionalNotesInput) {
+          additionalNotesInput.addEventListener('input', function() {
+            maybeRegenerateDescription(false);
+          });
+        }
+
         categorySelect.addEventListener('change', function() {
           if (categorySelect.value === '') return;
-          var opt = categorySelect.options[categorySelect.selectedIndex];
-          var category = opt ? opt.text : '';
-          if (!category) return;
+          var newSchema = getSchema(categorySelect.value);
+          var oldSchema = getSchema(currentCategoryId);
+          var droppedLabels = getDroppedFieldLabels(oldSchema, newSchema);
+          if (droppedLabels.length) {
+            var message = 'Changing category will remove: ' + droppedLabels.join(', ') + '. Continue?';
+            if (categoryWarning) {
+              categoryWarning.style.display = 'block';
+              categoryWarning.textContent = 'Changing category may remove details that no longer apply.';
+            }
+            if (!window.confirm(message)) {
+              categorySelect.value = currentCategoryId;
+              return;
+            }
+          } else {
+            if (categoryWarning) categoryWarning.style.display = 'none';
+          }
+          currentDetails = preserveCompatibleValues(oldSchema, newSchema);
+          currentCategoryId = categorySelect.value;
+          renderGuidedFields();
+          maybeRegenerateDescription(true);
 
-          var suggested = getSuggestedTitle(category);
+          var suggested = getSuggestedTitle(categorySelect.value);
+          var suggestedUrgency = getSuggestedUrgency(categorySelect.value);
 
           if (titleInput.value.trim() === '' || titleInput.value === lastAutoTitle) {
             titleInput.value = suggested;
             lastAutoTitle = suggested;
+          }
+          if (urgencySelect && (!manualUrgencyChanged || urgencySelect.value === lastAutoUrgency)) {
+            isAutoUpdatingUrgency = true;
+            urgencySelect.value = suggestedUrgency;
+            lastAutoUrgency = suggestedUrgency;
+            isAutoUpdatingUrgency = false;
           }
         });
       }
@@ -341,6 +641,10 @@
         draggable: true,
       });
       window.incidentMarkerInstance = marker;
+      var nearestInput = document.getElementById('nearest_place');
+      var findOnMapBtn = document.getElementById('find-on-map-btn');
+      var geocoder = new google.maps.Geocoder();
+      var debouncedGeocodeTimer = null;
 
       function updateLatLng(latLng) {
         if (!latLng) return;
@@ -348,8 +652,86 @@
         lngInput.value = latLng.lng();
       }
 
+      function setSelectedLocationPreview(text) {
+        var previewEl = document.getElementById('selected-location-preview');
+        if (!previewEl) return;
+        var clean = String(text || '').trim();
+        if (!clean) {
+          previewEl.style.display = 'none';
+          previewEl.textContent = '';
+          return;
+        }
+        previewEl.style.display = 'block';
+        previewEl.textContent = 'Selected location: ' + clean;
+      }
+
+      function buildManualLocationQuery() {
+        var parts = [
+          streetInput ? streetInput.value : '',
+          suburbInput ? suburbInput.value : '',
+          nearestInput ? nearestInput.value : '',
+          'Durban',
+          'KwaZulu-Natal',
+          'South Africa'
+        ];
+        return parts
+          .map(function (part) { return String(part || '').trim(); })
+          .filter(function (part, index, arr) { return part && arr.indexOf(part) === index; })
+          .join(', ');
+      }
+
+      function geocodeTypedAddress(triggerSource) {
+        var otherRadio = document.getElementById('location_other');
+        var currentRadio = document.getElementById('location_current');
+        if (!otherRadio || !otherRadio.checked) {
+          return;
+        }
+        if (!streetInput || !suburbInput) return;
+        if (!streetInput.value.trim() || !suburbInput.value.trim()) {
+          return;
+        }
+
+        var query = buildManualLocationQuery();
+        if (!query) return;
+        console.debug('[incident-map] geocode query (' + triggerSource + '):', query);
+        showLocationStatus('Searching map for typed location...', false);
+        geocoder.geocode({ address: query }, function(results, status) {
+          console.debug('[incident-map] geocode status:', status, 'results:', results);
+          if (status === 'OK' && results && results[0] && results[0].geometry && results[0].geometry.location) {
+            var location = results[0].geometry.location;
+            map.setCenter(location);
+            map.setZoom(16);
+            marker.setPosition(location);
+            updateLatLng(location);
+            setSelectedLocationPreview(results[0].formatted_address || query);
+            showLocationStatus('Location found. Pin moved to the matched address.', true);
+            return;
+          }
+          setSelectedLocationPreview('');
+          showLocationStatus(
+            "We couldn't find that exact address. Try adding a suburb, nearby landmark, or drag the pin manually.",
+            false
+          );
+        });
+      }
+
+      function queueTypedAddressGeocode() {
+        if (debouncedGeocodeTimer) {
+          clearTimeout(debouncedGeocodeTimer);
+        }
+        debouncedGeocodeTimer = setTimeout(function() {
+          geocodeTypedAddress('debounced-input');
+        }, 700);
+      }
+
       marker.addListener('dragend', function (evt) {
         updateLatLng(evt.latLng);
+        geocoder.geocode({ location: evt.latLng }, function(results, status) {
+          console.debug('[incident-map] reverse geocode status:', status, 'results:', results);
+          if (status === 'OK' && results && results[0]) {
+            setSelectedLocationPreview(results[0].formatted_address || '');
+          }
+        });
       });
 
       if (google.maps.places) {
@@ -362,12 +744,28 @@
           map.panTo(place.geometry.location);
           marker.setPosition(place.geometry.location);
           updateLatLng(place.geometry.location);
+          setSelectedLocationPreview(place.formatted_address || '');
           if (suburbInput && place.address_components) {
             var suburbComp = place.address_components.find(function (c) {
               return c.types.includes('sublocality_level_1') || c.types.includes('locality');
             });
             if (suburbComp) suburbInput.value = suburbComp.long_name;
           }
+        });
+      }
+
+      if (streetInput) {
+        streetInput.addEventListener('input', queueTypedAddressGeocode);
+      }
+      if (suburbInput) {
+        suburbInput.addEventListener('input', queueTypedAddressGeocode);
+      }
+      if (nearestInput) {
+        nearestInput.addEventListener('input', queueTypedAddressGeocode);
+      }
+      if (findOnMapBtn) {
+        findOnMapBtn.addEventListener('click', function() {
+          geocodeTypedAddress('find-on-map-button');
         });
       }
 

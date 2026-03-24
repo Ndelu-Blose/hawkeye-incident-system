@@ -8,7 +8,11 @@
     <div class="hawkeye-hero">
       <div class="hawkeye-hero-copy">
         <span class="hawkeye-kicker">Incident reporting & response coordination</span>
-        <h1 class="hawkeye-title-xl">Smarter incident reporting for safer, more responsive communities</h1>
+        <h1 class="hawkeye-title-xl">
+          Smarter incident reporting<br />
+          for safer, more responsive<br />
+          communities
+        </h1>
         <p class="hawkeye-subtitle">
           Alertweb Solutions is a digital incident reporting and response coordination platform for communities, estates, campuses,
           municipalities, and private security operations—bringing structure, visibility, and accountability to every report.
@@ -23,10 +27,10 @@
           <a href="{{ url_for('auth.login', next=url_for('resident.report_incident')) }}" class="hawkeye-btn-ghost">
             <i class="bi bi-plus-circle"></i> Report an incident
           </a>
-          <a href="{{ url_for('public.area_incidents') }}" class="hawkeye-btn-ghost">
-            <i class="bi bi-geo-alt"></i> View incidents in your area
-          </a>
         </div>
+        <a href="{{ url_for('public.area_incidents') }}" class="hawkeye-inline-link">
+          <i class="bi bi-geo-alt"></i> View incidents in your area
+        </a>
         <div class="hawkeye-hero-microtrust">
           Reduce response delays. Improve visibility. Keep communities informed—without relying on chats and calls.
         </div>
@@ -171,6 +175,47 @@
         <div>
           <h3>Track to resolution</h3>
           <p>Everyone stays informed with visible status updates and a consistent record.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="hawkeye-landing-section hawkeye-platform-preview" id="platform-preview">
+  <div class="hawkeye-public-container">
+    <div class="hawkeye-preview-shell">
+      <div class="hawkeye-preview-copy">
+        <h2 class="hawkeye-section-title">Live operational visibility, not scattered updates</h2>
+        <p class="hawkeye-section-subtitle">
+          Give teams a shared, real-time view of what is active, what is blocked, and what has been resolved across your area.
+        </p>
+        <div class="hawkeye-preview-metrics" aria-label="Platform metrics">
+          <div class="hawkeye-preview-metric">
+            <span class="hawkeye-preview-value">99.9%</span>
+            <span class="hawkeye-preview-label">Uptime-ready platform design</span>
+          </div>
+          <div class="hawkeye-preview-metric">
+            <span class="hawkeye-preview-value">&lt;2 min</span>
+            <span class="hawkeye-preview-label">Average report capture flow</span>
+          </div>
+          <div class="hawkeye-preview-metric">
+            <span class="hawkeye-preview-value">End-to-end</span>
+            <span class="hawkeye-preview-label">Traceable incident lifecycle</span>
+          </div>
+        </div>
+      </div>
+      <div class="hawkeye-preview-map" role="img" aria-label="Map-like incident activity preview">
+        <div class="hawkeye-preview-grid"></div>
+        <div class="hawkeye-preview-pulse hawkeye-preview-pulse-1"></div>
+        <div class="hawkeye-preview-pulse hawkeye-preview-pulse-2"></div>
+        <div class="hawkeye-preview-pulse hawkeye-preview-pulse-3"></div>
+        <div class="hawkeye-preview-card hawkeye-preview-card-hotspot">
+          <span class="badge text-bg-danger">High priority</span>
+          <p>Public safety incident near Gate 3 under active response.</p>
+        </div>
+        <div class="hawkeye-preview-card hawkeye-preview-card-kpi">
+          <strong>Resolved today: 24</strong>
+          <p>Live update stream synced across operations teams.</p>
         </div>
       </div>
     </div>

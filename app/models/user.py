@@ -31,6 +31,7 @@ class User(UserMixin, db.Model):
     incidents_reported = db.relationship(
         "Incident",
         back_populates="reporter",
+        foreign_keys="Incident.reported_by_id",
         lazy="dynamic",
     )
 

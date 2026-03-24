@@ -1,0 +1,143 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "escalations" %}
+{% set admin_page_title = "Escalation Dashboard" %}
+{% set admin_page_subtitle = "Dispatch reminders due for follow-up and manual escalation actions." %}
+
+{% block admin_top_actions %}{% endblock %}
+
+{% block admin_content %}
+  <form class="row g-3 mb-3 align-items-end" method="get">
+    <div class="col-sm-6 col-md-4">
+      <label for="status" class="form-label">Dispatch status</label>
+      <select class="form-select" id="status" name="status" onchange="this.form.submit()">
+        {% set status_csv = (selected_statuses or [])|join(',') %}
+        <option value="pending,sent,failed" {% if status_csv == 'pending,sent,failed' %}selected{% endif %}>All escalation statuses</option>
+        <option value="failed" {% if status_csv == 'failed' %}selected{% endif %}>Failed only</option>
+        <option value="sent" {% if status_csv == 'sent' %}selected{% endif %}>Sent only</option>
+        <option value="pending" {% if status_csv == 'pending' %}selected{% endif %}>Pending only</option>
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-4">
+      <label for="authority_id" class="form-label">Department</label>
+      <select class="form-select" id="authority_id" name="authority_id" onchange="this.form.submit()">
+        <option value="" {% if not selected_authority_id %}selected{% endif %}>All departments</option>
+        {% for auth in authorities %}
+          <option value="{{ auth.id }}" {% if selected_authority_id|int == auth.id %}selected{% endif %}>{{ auth.name }}</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-2">
+      <label for="min_reminders" class="form-label">Min reminders</label>
+      <input
+        type="number"
+        min="0"
+        class="form-control"
+        id="min_reminders"
+        name="min_reminders"
+        value="{{ min_reminders or 0 }}"
+      />
+    </div>
+    <div class="col-sm-6 col-md-2 d-flex gap-2">
+      <button type="submit" class="btn btn-outline-light w-100">Apply</button>
+      <a href="{{ url_for('admin.escalations') }}" class="btn btn-outline-secondary w-100">Reset</a>
+    </div>
+  </form>
+
+  <div class="row mb-3">
+    <div class="col-12 col-md-4">
+      <div class="admin-stat-card text-center h-100 border border-warning">
+        <div class="admin-stat-label">Due for reminder</div>
+        <div class="admin-stat-value">{{ total_candidates }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">Pending</div>
+        <div class="admin-stat-value">{{ summary.pending }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="admin-stat-card text-center h-100">
+        <div class="admin-stat-label">Sent</div>
+        <div class="admin-stat-value">{{ summary.sent }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="admin-stat-card text-center h-100 border border-danger">
+        <div class="admin-stat-label">Failed</div>
+        <div class="admin-stat-value">{{ summary.failed }}</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-2">
+      <div class="admin-stat-card text-center h-100 border border-info">
+        <div class="admin-stat-label">At/over threshold</div>
+        <div class="admin-stat-value">{{ summary.over_threshold }}</div>
+      </div>
+    </div>
+  </div>
+
+  {% if candidates %}
+    <div class="table-responsive">
+      <table class="table table-dark table-striped align-middle">
+        <thead>
+          <tr>
+            <th>Incident Ref</th>
+            <th>Department</th>
+            <th>Dispatch status</th>
+            <th>Recipient</th>
+            <th>Reminders</th>
+            <th>Last update</th>
+            <th>Eligible because</th>
+            <th></th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for d in candidates %}
+            <tr>
+              <td>
+                <a href="{{ url_for('admin.incident_detail', incident_id=d.incident_id) }}">
+                  {{ d.incident.reference_code if d.incident else ('#%d' % d.incident_id) }}
+                </a>
+              </td>
+              <td>{{ d.authority.name if d.authority else 'Unknown' }}</td>
+              <td>
+                <span class="badge bg-warning text-dark">{{ d.status|replace('_', ' ')|title }}</span>
+              </td>
+              <td>{{ d.recipient_email or 'Not captured' }}</td>
+              <td>{{ d.reminder_count or 0 }}</td>
+              <td>
+                {{ d.last_status_update_at.strftime('%Y-%m-%d %H:%M') if d.last_status_update_at else '—' }}
+              </td>
+              <td>
+                {% if d.status == 'failed' %}
+                  <span class="badge bg-danger-subtle text-danger-emphasis">failed previous send</span>
+                {% elif (d.reminder_count or 0) >= alert_threshold %}
+                  <span class="badge bg-info-subtle text-info-emphasis">reminder threshold reached</span>
+                {% else %}
+                  <span class="badge bg-warning-subtle text-warning-emphasis">no acknowledgement</span>
+                {% endif %}
+              </td>
+              <td class="text-end">
+                <div class="d-flex flex-wrap justify-content-end gap-1">
+                  <form method="post" action="{{ url_for('admin.retry_dispatch', incident_id=d.incident_id, dispatch_id=d.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <button type="submit" class="btn btn-sm btn-outline-warning">Escalate now</button>
+                  </form>
+                  <a class="btn btn-sm btn-outline-light" href="{{ url_for('admin.incident_detail', incident_id=d.incident_id) }}">Open incident</a>
+                  <a class="btn btn-sm btn-outline-secondary" href="{{ url_for('admin.incident_detail', incident_id=d.incident_id) }}#dispatch-operations">Dispatch history</a>
+                </div>
+              </td>
+            </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  {% else %}
+    <div class="card hawkeye-admin-panel">
+      <div class="card-body text-muted">
+        No dispatches are currently due for escalation reminders.
+      </div>
+    </div>
+  {% endif %}
+{% endblock %}

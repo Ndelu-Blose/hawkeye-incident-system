@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import sys
 from collections.abc import Iterable
+from datetime import UTC, datetime
 
 from sqlalchemy.orm import Query
 
@@ -56,6 +57,9 @@ def _geocode_incident(incident: Incident) -> bool:
     if getattr(result, "ward", None):
         incident.ward = result.ward
     incident.location_validated = True
+    incident.location_precision = "exact"
+    incident.geocoded_at = datetime.now(UTC)
+    incident.geocode_source = "google_maps"
     return True
 
 

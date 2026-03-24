@@ -1,0 +1,26 @@
+<header class="app-mobile-topbar d-lg-none">
+  {% if drawer_target %}
+    <button
+      type="button"
+      class="btn btn-outline-light btn-sm app-mobile-menu-btn"
+      aria-label="Open navigation menu"
+      aria-expanded="false"
+      data-drawer-toggle
+      data-drawer-target="{{ drawer_target }}"
+    >
+      <i class="bi bi-list"></i>
+    </button>
+  {% else %}
+    <span class="app-mobile-menu-spacer" aria-hidden="true"></span>
+  {% endif %}
+
+  <div class="app-mobile-title-wrap">
+    <h1 class="app-mobile-title mb-0">{{ mobile_page_title }}</h1>
+  </div>
+
+  <div class="app-mobile-right">
+    {% if mobile_topbar_right %}
+      {{ mobile_topbar_right|safe }}
+    {% endif %}
+  </div>
+</header>

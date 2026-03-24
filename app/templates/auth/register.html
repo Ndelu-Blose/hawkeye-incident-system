@@ -3,38 +3,133 @@
 {% block title %}Alertweb Solutions | Register{% endblock %}
 
 {% block content %}
-<section class="hawkeye-public-page">
-  <div class="hawkeye-public-container" style="max-width: 620px;">
-    <div class="hawkeye-auth-card">
-      <h1 class="hawkeye-card-title">Create account</h1>
-      <p class="hawkeye-card-subtitle">Join Alertweb Solutions and start reporting incidents in your area.</p>
-      <form method="POST">
+<section class="hawkeye-public-page hawkeye-auth-page">
+  <div class="hawkeye-public-container hawkeye-auth-layout">
+    <div class="hawkeye-auth-copy">
+      <h1 class="hawkeye-title-xl mb-3">Create your Alertweb Solutions account</h1>
+      <p class="hawkeye-subtitle mb-4">
+        Report incidents with structure, track progress, and stay informed—whether you are a resident, response team member, or administrator.
+      </p>
+      <ul class="hawkeye-feature-list">
+        <li>Submit incidents with location, urgency, and evidence in one flow</li>
+        <li>See status updates as your report moves through triage and response</li>
+        <li>One account for secure access across web and future channels</li>
+      </ul>
+    </div>
+
+    <div class="hawkeye-auth-card hawkeye-auth-card-tight">
+      <h1 class="hawkeye-card-title mb-1">Create account</h1>
+      <p class="hawkeye-card-subtitle mb-3">
+        Join Alertweb Solutions and start reporting incidents in your area.
+      </p>
+
+      <form method="POST" novalidate data-hawkeye-auth-form>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-        <div class="hawkeye-form-group">
+
+        <div class="hawkeye-form-group mb-3">
           <label class="hawkeye-form-label" for="name">Name</label>
-          <input class="hawkeye-input" type="text" id="name" name="name" value="{{ (form_data.name if form_data is defined else '') | default('') }}" required />
+          <div class="hawkeye-input-wrap hawkeye-input-with-icon">
+            <i class="bi bi-person hawkeye-input-icon"></i>
+            <input
+              class="hawkeye-input"
+              type="text"
+              id="name"
+              name="name"
+              value="{{ (form_data.name if form_data is defined else '') | default('') }}"
+              autocomplete="name"
+              required
+            />
+          </div>
         </div>
-        <div class="hawkeye-form-group">
+
+        <div class="hawkeye-form-group mb-3">
           <label class="hawkeye-form-label" for="email">Email</label>
-          <input class="hawkeye-input" type="email" id="email" name="email" value="{{ (form_data.email if form_data is defined else '') | default('') }}" required />
+          <div class="hawkeye-input-wrap hawkeye-input-with-icon">
+            <i class="bi bi-envelope hawkeye-input-icon"></i>
+            <input
+              class="hawkeye-input"
+              type="email"
+              id="email"
+              name="email"
+              value="{{ (form_data.email if form_data is defined else '') | default('') }}"
+              autocomplete="email"
+              required
+            />
+          </div>
         </div>
-        <div class="hawkeye-form-group">
+
+        <div class="hawkeye-form-group mb-2">
           <label class="hawkeye-form-label" for="password">Password</label>
-          <input class="hawkeye-input" type="password" id="password" name="password" required />
+          <div class="hawkeye-input-wrap hawkeye-input-with-icon hawkeye-input-with-toggle">
+            <i class="bi bi-lock hawkeye-input-icon"></i>
+            <input
+              class="hawkeye-input"
+              type="password"
+              id="password"
+              name="password"
+              autocomplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              class="hawkeye-input-toggle"
+              aria-label="Show password"
+              data-password-toggle="#password"
+            >
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
+          <div class="hawkeye-input-helper text-warning small d-none" data-password-caps-lock>
+            Caps Lock is on.
+          </div>
         </div>
-        <div class="hawkeye-form-group">
-          <label class="hawkeye-form-label" for="password_confirm">Confirm Password</label>
-          <input class="hawkeye-input" type="password" id="password_confirm" name="password_confirm" required />
+
+        <div class="hawkeye-form-group mb-3">
+          <label class="hawkeye-form-label" for="password_confirm">Confirm password</label>
+          <div class="hawkeye-input-wrap hawkeye-input-with-icon hawkeye-input-with-toggle">
+            <i class="bi bi-lock-fill hawkeye-input-icon"></i>
+            <input
+              class="hawkeye-input"
+              type="password"
+              id="password_confirm"
+              name="password_confirm"
+              autocomplete="new-password"
+              required
+            />
+            <button
+              type="button"
+              class="hawkeye-input-toggle"
+              aria-label="Show password"
+              data-password-toggle="#password_confirm"
+            >
+              <i class="bi bi-eye"></i>
+            </button>
+          </div>
         </div>
+
         <div class="hawkeye-form-actions">
-          <button type="submit" class="hawkeye-btn-primary w-100">
-            <i class="bi bi-person-plus"></i> Create account
+          <button
+            type="submit"
+            class="hawkeye-btn-primary w-100"
+            data-submit-loading-text="Creating account..."
+          >
+            <span class="spinner-border spinner-border-sm me-2 d-none" role="status"></span>
+            <span class="btn-text">
+              <i class="bi bi-person-plus"></i>
+              Create account
+            </span>
           </button>
         </div>
       </form>
+
       <div class="hawkeye-auth-links">
-        Already have an account? <a href="{{ url_for('auth.login') }}">Login</a>
+        Already have an account? <a href="{{ url_for('auth.login') }}">Sign in</a>
       </div>
+
+      <p class="text-muted small mt-3 mb-0 d-flex align-items-center gap-2">
+        <i class="bi bi-shield-lock"></i>
+        <span>Your details are transmitted over a secure connection.</span>
+      </p>
     </div>
   </div>
 </section>

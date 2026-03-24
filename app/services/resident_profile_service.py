@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from typing import Any
+
 from app.constants import Roles
 from app.extensions import db
 from app.models import ResidentProfile, User
@@ -17,6 +19,10 @@ def get_or_create_profile(user: User) -> ResidentProfile:
         profile_completed=False,
         consent_location=False,
         location_verified=False,
+        share_anonymous_analytics=False,
+        notify_incident_updates=True,
+        notify_status_changes=True,
+        notify_community_alerts=False,
         created_at=utc_now(),
         updated_at=utc_now(),
     )
@@ -58,6 +64,23 @@ def update_profile(
     city = (payload.get("city") or "").strip()
     postal_code = (payload.get("postal_code") or "").strip() or None
     consent = payload.get("consent_location") in (True, "true", "1", "on", "yes")
+    share_analytics = payload.get("share_anonymous_analytics") in (True, "true", "1", "on", "yes")
+    notify_incident_updates = payload.get("notify_incident_updates") in (
+        True,
+        "true",
+        "1",
+        "on",
+        "yes",
+    )
+    notify_status_changes = payload.get("notify_status_changes") in (True, "true", "1", "on", "yes")
+    notify_community_alerts = payload.get("notify_community_alerts") in (
+        True,
+        "true",
+        "1",
+        "on",
+        "yes",
+    )
+    avatar_filename = (payload.get("avatar_filename") or "").strip() or None
     municipality_id = payload.get("municipality_id")
     district_id = payload.get("district_id")
     ward_id = payload.get("ward_id")
@@ -71,6 +94,11 @@ def update_profile(
     profile.city = city or None
     profile.postal_code = postal_code
     profile.consent_location = consent
+    profile.share_anonymous_analytics = share_analytics
+    profile.notify_incident_updates = notify_incident_updates
+    profile.notify_status_changes = notify_status_changes
+    profile.notify_community_alerts = notify_community_alerts
+    profile.avatar_filename = avatar_filename
 
     if municipality_id not in (None, ""):
         try:
@@ -108,3 +136,25 @@ def update_profile(
     profile.updated_at = utc_now()
     db.session.commit()
     return profile, errors
+
+
+def profile_completion_snapshot(profile: ResidentProfile) -> dict[str, Any]:
+    """Return completion breakdown and verification state for resident profile UI."""
+    checks = {
+        "phone_number": bool((profile.phone_number or "").strip()),
+        "street_address_1": bool((profile.street_address_1 or "").strip()),
+        "suburb": bool((profile.suburb or "").strip()),
+        "consent_location": bool(profile.consent_location),
+    }
+    completed_count = sum(1 for ok in checks.values() if ok)
+    total_count = len(checks)
+    percentage = int(round((completed_count / total_count) * 100)) if total_count else 0
+    is_verified = completed_count == total_count and bool(profile.profile_completed)
+    return {
+        "checks": checks,
+        "completed_count": completed_count,
+        "total_count": total_count,
+        "percentage": percentage,
+        "status_label": "Verified" if is_verified else "Pending",
+        "is_verified": is_verified,
+    }

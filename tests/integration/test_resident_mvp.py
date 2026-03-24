@@ -1,6 +1,9 @@
 """Tests for Resident MVP: create with evidence, edit rule, dashboard, access control, guided form."""
 
 import io
+from pathlib import Path
+
+from PIL import Image
 
 from app.constants import IncidentStatus, Roles
 from app.extensions import db
@@ -404,11 +407,61 @@ def test_can_resident_edit_helper(app):
             status=IncidentStatus.IN_PROGRESS.value,
             reference_code="HK-2026-03-000006",
         )
-        db.session.add_all([pending, in_progress])
+        awaiting = Incident(
+            reported_by_id=user.id,
+            title="P3",
+            description="D",
+            category="C",
+            suburb_or_ward="S",
+            street_or_landmark="St",
+            location="St, S",
+            severity="low",
+            status=IncidentStatus.AWAITING_EVIDENCE.value,
+            reference_code="HK-2026-03-000007",
+        )
+        db.session.add_all([pending, in_progress, awaiting])
         db.session.commit()
 
         assert incident_service.can_resident_edit(pending, user) is True
+        assert incident_service.can_resident_edit(awaiting, user) is True
         assert incident_service.can_resident_edit(in_progress, user) is False
+
+
+def test_incident_detail_shows_additional_evidence_form_for_normalized_awaiting_status(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="awaiting-form@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Need extra proof",
+            description="D",
+            category="C",
+            suburb_or_ward="S",
+            street_or_landmark="St",
+            location="St, S",
+            severity="low",
+            # Simulate inconsistent/cached status formatting from legacy data.
+            status="awaiting_evidence ",
+            reference_code="HK-2026-03-000008",
+            proof_request_reason="Send more proof",
+        )
+        db.session.add(incident)
+        db.session.commit()
+        incident_id = incident.id
+
+    client.post(
+        "/auth/login",
+        data={"email": "awaiting-form@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get(f"/resident/incidents/{incident_id}")
+    assert resp.status_code == 200
+    assert b"resident-additional-evidence" in resp.data
+    assert b"Submit evidence" in resp.data
 
 
 def test_report_incident_page_shows_guided_form_with_presets(app, client):
@@ -430,6 +483,13 @@ def test_report_incident_page_shows_guided_form_with_presets(app, client):
         )
         db.session.add(profile)
         db.session.add(IncidentCategory(name="dumping", description="Dumping", is_active=True))
+        db.session.add(
+            IncidentCategory(
+                name="broken_streetlight",
+                description="Streetlight issue",
+                is_active=True,
+            )
+        )
         db.session.commit()
 
     client.post(
@@ -447,6 +507,9 @@ def test_report_incident_page_shows_guided_form_with_presets(app, client):
         or b"saved address" in resp.data.lower()
         or b"different location" in resp.data.lower()
     )
+    assert b"Guided Incident Details" in resp.data
+    assert b"categoryPresetMap" in resp.data
+    assert b"Streetlight not working" in resp.data
 
 
 def test_guided_form_submit_with_category_id_and_saved_location(app, client):
@@ -626,3 +689,356 @@ def test_report_form_render_preserves_form_data_on_validation_error(app, client)
     assert str(category_id).encode() in resp.data
     assert b"Graffiti" in resp.data or b"graffiti" in resp.data.lower()
     assert b"Central" in resp.data
+
+
+def test_dynamic_details_submission_persists_structured_payload(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="dynamic-persist@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        profile = ResidentProfile(
+            user_id=user.id,
+            phone_number="0812345678",
+            street_address_1="123 Main St",
+            suburb="Test Suburb",
+            profile_completed=True,
+            consent_location=True,
+        )
+        cat = IncidentCategory(name="theft", description="Theft", is_active=True)
+        db.session.add(profile)
+        db.session.add(cat)
+        db.session.commit()
+        category_id = cat.id
+
+    client.post(
+        "/auth/login",
+        data={"email": "dynamic-persist@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.post(
+        "/resident/incidents/new",
+        data={
+            "category_id": str(category_id),
+            "title": "",
+            "description": "",
+            "description_manually_edited": "",
+            "additional_notes": "Wallet taken near gate",
+            "severity": "high",
+            "urgency_level": "urgent_now",
+            "location_mode": "other",
+            "suburb_or_ward": "Central",
+            "street_or_landmark": "Gate Road",
+            "details__theft_type": "personal_property",
+            "details__item_stolen": "Wallet",
+            "details__forced_entry": "true",
+            "confirm_real": "1",
+            "evidence": (io.BytesIO(MINIMAL_PNG_BYTES), "evidence.png"),
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    with app.app_context():
+        resident_user = (
+            db.session.query(User).filter_by(email="dynamic-persist@example.com").first()
+        )
+        assert resident_user is not None
+        incident = (
+            db.session.query(Incident)
+            .filter(Incident.reported_by_id == resident_user.id)
+            .order_by(Incident.id.desc())
+            .first()
+        )
+        assert incident is not None
+        assert incident.dynamic_details is not None
+        assert incident.dynamic_details.get("theft_type") == "personal_property"
+        assert incident.dynamic_details.get("item_stolen") == "Wallet"
+        assert incident.additional_notes == "Wallet taken near gate"
+
+
+def test_incidents_map_shows_satellite_switch_and_resolution_labels(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="map-switch@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        reported = Incident(
+            reported_by_id=user.id,
+            title="Open issue",
+            description="Open",
+            category="pothole",
+            suburb_or_ward="Ward 1",
+            street_or_landmark="Main",
+            location="Main, Ward 1",
+            severity="low",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-090001",
+        )
+        resolved = Incident(
+            reported_by_id=user.id,
+            title="Fixed issue",
+            description="Resolved",
+            category="blocked_drain",
+            suburb_or_ward="Ward 1",
+            street_or_landmark="Main",
+            location="Main, Ward 1",
+            severity="low",
+            status=IncidentStatus.RESOLVED.value,
+            reference_code="HK-2026-03-090002",
+        )
+        db.session.add_all([reported, resolved])
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "map-switch@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get("/resident/incidents/map")
+    assert resp.status_code == 200
+    assert b"mapTypeSatellite" in resp.data
+    assert b"Satellite" in resp.data
+    assert b"Unresolved" in resp.data
+    assert b"Resolved" in resp.data
+
+
+def test_incidents_map_resolution_filter_applies(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="map-resolution-filter@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        unresolved = Incident(
+            reported_by_id=user.id,
+            title="Open map incident",
+            description="Open",
+            category="pothole",
+            suburb_or_ward="Ward 1",
+            street_or_landmark="Main",
+            location="Main, Ward 1",
+            severity="low",
+            status=IncidentStatus.IN_PROGRESS.value,
+            reference_code="HK-2026-03-090003",
+        )
+        resolved = Incident(
+            reported_by_id=user.id,
+            title="Resolved map incident",
+            description="Resolved",
+            category="blocked_drain",
+            suburb_or_ward="Ward 1",
+            street_or_landmark="Main",
+            location="Main, Ward 1",
+            severity="low",
+            status=IncidentStatus.RESOLVED.value,
+            reference_code="HK-2026-03-090004",
+        )
+        db.session.add_all([unresolved, resolved])
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "map-resolution-filter@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp_unresolved = client.get(
+        "/resident/incidents/map", query_string={"resolution": "unresolved"}
+    )
+    assert resp_unresolved.status_code == 200
+    assert b"Open map incident" in resp_unresolved.data
+    assert b"Resolved map incident" not in resp_unresolved.data
+
+    resp_resolved = client.get("/resident/incidents/map", query_string={"resolution": "resolved"})
+    assert resp_resolved.status_code == 200
+    assert b"Resolved map incident" in resp_resolved.data
+    assert b"Open map incident" not in resp_resolved.data
+
+
+def test_resident_profile_page_shows_identity_completion_and_activity(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Thamsanqa Ndelu",
+            email="profile-page@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        profile = ResidentProfile(
+            user_id=user.id,
+            phone_number="069 138 3089",
+            street_address_1="140229 Nkanyisweni",
+            suburb="Amanzimtoti",
+            city="Durban",
+            consent_location=True,
+            profile_completed=True,
+        )
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Streetlight out",
+            description="Dark road",
+            category="electricity",
+            suburb_or_ward="Amanzimtoti",
+            street_or_landmark="Main Road",
+            location="Main Road, Amanzimtoti",
+            severity="low",
+            status=IncidentStatus.IN_PROGRESS.value,
+            reference_code="HK-2026-03-011111",
+        )
+        db.session.add_all([profile, incident])
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "profile-page@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get("/resident/profile")
+    assert resp.status_code == 200
+    assert b"Thamsanqa Ndelu" in resp.data
+    assert b"Profile Completion" in resp.data
+    assert b"Your Activity" in resp.data
+    assert b"Recent Activity" in resp.data
+
+
+def test_resident_profile_map_fallback_message_when_coordinates_missing(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Map Fallback",
+            email="profile-map-fallback@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        profile = ResidentProfile(
+            user_id=user.id,
+            phone_number="0812222222",
+            street_address_1="12 Main Street",
+            suburb="Amanzimtoti",
+            consent_location=True,
+            profile_completed=True,
+        )
+        db.session.add(profile)
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "profile-map-fallback@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get("/resident/profile")
+    assert resp.status_code == 200
+    assert b"Map preview appears after location coordinates are available." in resp.data
+
+
+def test_profile_avatar_upload_is_resized_thumbnail_and_saved_as_webp(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Avatar User",
+            email="avatar-resize@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        profile = ResidentProfile(user_id=user.id)
+        db.session.add(profile)
+        db.session.commit()
+
+    image_bytes = io.BytesIO()
+    Image.new("RGB", (1200, 800), color=(20, 120, 240)).save(image_bytes, format="PNG")
+    image_bytes.seek(0)
+
+    client.post(
+        "/auth/login",
+        data={"email": "avatar-resize@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.post(
+        "/resident/profile",
+        data={"profile_image": (image_bytes, "big-avatar.png")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+    with app.app_context():
+        resident = db.session.query(User).filter_by(email="avatar-resize@example.com").first()
+        assert resident is not None
+        assert resident.resident_profile is not None
+        filename = resident.resident_profile.avatar_filename
+        assert filename is not None
+        assert filename.endswith(".webp")
+        saved_path = Path(app.config["UPLOAD_FOLDER"]) / "profiles" / str(resident.id) / filename
+        assert saved_path.exists()
+        with Image.open(saved_path) as saved:
+            assert max(saved.size) <= 320
+
+
+def test_profile_avatar_remove_and_replace_controls_cleanup_old_file(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Avatar Replace",
+            email="avatar-replace@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        profile = ResidentProfile(user_id=user.id)
+        db.session.add(profile)
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "avatar-replace@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+
+    first = io.BytesIO()
+    Image.new("RGB", (700, 700), color=(200, 80, 80)).save(first, format="PNG")
+    first.seek(0)
+    client.post(
+        "/resident/profile",
+        data={"profile_image": (first, "first.png")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        resident = db.session.query(User).filter_by(email="avatar-replace@example.com").first()
+        assert resident is not None
+        first_name = resident.resident_profile.avatar_filename
+        assert first_name is not None
+        first_path = Path(app.config["UPLOAD_FOLDER"]) / "profiles" / str(resident.id) / first_name
+        assert first_path.exists()
+
+    second = io.BytesIO()
+    Image.new("RGB", (640, 640), color=(40, 180, 100)).save(second, format="PNG")
+    second.seek(0)
+    client.post(
+        "/resident/profile",
+        data={"profile_image": (second, "second.png")},
+        content_type="multipart/form-data",
+        follow_redirects=True,
+    )
+
+    with app.app_context():
+        resident = db.session.query(User).filter_by(email="avatar-replace@example.com").first()
+        assert resident is not None
+        second_name = resident.resident_profile.avatar_filename
+        assert second_name is not None and second_name != first_name
+        second_path = (
+            Path(app.config["UPLOAD_FOLDER"]) / "profiles" / str(resident.id) / second_name
+        )
+        assert second_path.exists()
+        assert not first_path.exists()
+
+    client.post(
+        "/resident/profile",
+        data={"remove_avatar": "1"},
+        follow_redirects=True,
+    )
+    with app.app_context():
+        resident = db.session.query(User).filter_by(email="avatar-replace@example.com").first()
+        assert resident is not None
+        assert resident.resident_profile.avatar_filename is None
+        assert not second_path.exists()

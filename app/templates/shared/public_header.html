@@ -1,0 +1,52 @@
+{# Single public shell header: same links for anonymous users on every page; role-aware when logged in. #}
+{% set home = url_for('main.home') %}
+<header class="hawkeye-public-header navbar navbar-expand-lg navbar-dark">
+  <div class="container-fluid hawkeye-public-header-inner">
+    <a class="navbar-brand hawkeye-public-logo mb-0" href="{{ home }}">
+      Alertweb <span>Solutions</span>
+    </a>
+    <button
+      class="navbar-toggler hawkeye-public-toggler border-0 shadow-none"
+      type="button"
+      data-bs-toggle="collapse"
+      data-bs-target="#hawkeyePublicNav"
+      aria-controls="hawkeyePublicNav"
+      aria-expanded="false"
+      aria-label="Toggle navigation"
+    >
+      <span class="navbar-toggler-icon"></span>
+    </button>
+    <div class="collapse navbar-collapse justify-content-lg-end" id="hawkeyePublicNav">
+      <nav class="hawkeye-public-links" aria-label="Main">
+        {% if current_user.is_authenticated %}
+          {% if current_user.role == 'resident' %}
+            <a class="hawkeye-public-link" href="{{ url_for('resident.dashboard') }}">Dashboard</a>
+            <a class="hawkeye-public-link" href="{{ url_for('resident.my_incidents') }}">My Incidents</a>
+            <a class="hawkeye-public-link" href="{{ url_for('resident.report_incident') }}">Report Incident</a>
+            <a class="hawkeye-public-link" href="{{ url_for('resident.notifications') }}">Notifications</a>
+            <a class="hawkeye-public-link" href="{{ url_for('resident.profile') }}">My Profile</a>
+          {% elif current_user.role == 'authority' %}
+            <a class="hawkeye-public-link" href="{{ url_for('authority.dashboard') }}">Dashboard</a>
+          {% elif current_user.role == 'admin' %}
+            <a class="hawkeye-public-link" href="{{ url_for('admin.dashboard') }}">Admin</a>
+          {% endif %}
+          <div class="hawkeye-public-links-right">
+            <span class="hawkeye-public-user">{{ current_user.name }}</span>
+            <a class="hawkeye-public-link" href="{{ url_for('auth.logout') }}">Logout</a>
+          </div>
+        {% else %}
+          <div class="hawkeye-public-links-main">
+            <a class="hawkeye-public-link" href="{{ home }}#solutions">Solutions</a>
+            <a class="hawkeye-public-link" href="{{ home }}#how-it-works">How it works</a>
+            <a class="hawkeye-public-link" href="{{ home }}#who-its-for">Who it’s for</a>
+            <a class="hawkeye-public-link" href="{{ url_for('public.area_incidents') }}">Incidents</a>
+          </div>
+          <div class="hawkeye-public-links-right">
+            <a class="hawkeye-public-link" href="{{ url_for('auth.login') }}">Login</a>
+            <a class="hawkeye-public-link hawkeye-public-link-cta" href="{{ url_for('auth.register') }}">Get started</a>
+          </div>
+        {% endif %}
+      </nav>
+    </div>
+  </div>
+</header>

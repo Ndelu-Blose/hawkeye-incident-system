@@ -1,0 +1,83 @@
+{% set role = app_role or 'resident' %}
+<div class="app-sidebar-brand">
+  <div class="resident-logo">ALERTWEB</div>
+</div>
+
+{% if role == 'admin' %}
+  <nav class="resident-nav app-nav-sections mt-3" aria-label="Admin navigation">
+    <div class="app-nav-section">
+      <div class="app-nav-section-label">Main</div>
+      <a href="{{ url_for('admin.dashboard') }}" class="resident-nav-link {% if admin_active_page == 'dashboard' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-grid-1x2-fill"></i><span>Overview</span>
+      </a>
+      <a href="{{ url_for('admin.incidents') }}" class="resident-nav-link {% if admin_active_page == 'incidents' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-inboxes"></i><span>Incidents</span>
+      </a>
+      <a href="{{ url_for('admin.analytics') }}" class="resident-nav-link {% if admin_active_page == 'analytics' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-graph-up"></i><span>Analytics</span>
+      </a>
+      <a href="{{ url_for('admin.escalations') }}" class="resident-nav-link {% if admin_active_page == 'escalations' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-exclamation-triangle"></i><span>Escalations</span>
+      </a>
+    </div>
+
+    <div class="app-nav-section">
+      <div class="app-nav-section-label">Management</div>
+      <a href="{{ url_for('admin.notifications') }}" class="resident-nav-link {% if admin_active_page == 'notifications' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-bell"></i>
+        <span class="d-flex align-items-center gap-2">
+          <span>Notifications</span>
+          {% if (admin_unread_notifications or 0) > 0 %}
+            <span class="badge rounded-pill bg-danger">{{ admin_unread_notifications }}</span>
+          {% endif %}
+        </span>
+      </a>
+      <a href="{{ url_for('admin.users') }}" class="resident-nav-link {% if admin_active_page == 'users' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-people"></i><span>Users</span>
+      </a>
+      <a href="{{ url_for('admin.authorities') }}" class="resident-nav-link {% if admin_active_page == 'authorities' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-diagram-3"></i><span>Departments</span>
+      </a>
+    </div>
+
+    <div class="app-nav-section">
+      <div class="app-nav-section-label">System</div>
+      <a href="{{ url_for('admin.department_directory') }}" class="resident-nav-link {% if admin_active_page == 'department_directory' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-journal-text"></i><span>Department directory</span>
+      </a>
+      <a href="{{ url_for('admin.routing_rules') }}" class="resident-nav-link {% if admin_active_page == 'routing_rules' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-shuffle"></i><span>Routing rules</span>
+      </a>
+      <a href="{{ url_for('admin.controls') }}" class="resident-nav-link {% if admin_active_page == 'controls' %}active{% endif %}" data-drawer-close>
+        <i class="bi bi-sliders"></i><span>Controls</span>
+      </a>
+    </div>
+  </nav>
+{% else %}
+  <nav class="resident-nav mt-4" aria-label="Resident navigation">
+    <a href="{{ url_for('resident.dashboard') }}" class="resident-nav-link {% if resident_active_page == 'dashboard' %}active{% endif %}" data-drawer-close>
+      <i class="bi bi-grid-1x2-fill"></i><span>Dashboard</span>
+    </a>
+    <a href="{{ url_for('resident.report_incident') }}" class="resident-nav-link {% if resident_active_page == 'report_incident' %}active{% endif %}" data-drawer-close>
+      <i class="bi bi-exclamation-circle"></i><span>Report Incident</span>
+    </a>
+    <a href="{{ url_for('resident.my_incidents') }}" class="resident-nav-link {% if resident_active_page == 'my_incidents' %}active{% endif %}" data-drawer-close>
+      <i class="bi bi-folder2-open"></i><span>My Incidents</span>
+    </a>
+    <a href="{{ url_for('resident.incidents_map') }}" class="resident-nav-link {% if resident_active_page == 'incidents_map' %}active{% endif %}" data-drawer-close>
+      <i class="bi bi-geo-alt"></i><span>Incident Map</span>
+    </a>
+    <a href="{{ url_for('resident.notifications') }}" class="resident-nav-link {% if resident_active_page == 'notifications' %}active{% endif %}" data-drawer-close>
+      <i class="bi bi-bell"></i>
+      <span class="d-flex align-items-center gap-2">
+        <span>Notifications</span>
+        {% if (resident_unread_notifications or 0) > 0 %}
+          <span class="badge rounded-pill bg-danger">{{ resident_unread_notifications }}</span>
+        {% endif %}
+      </span>
+    </a>
+    <a href="{{ url_for('resident.profile') }}" class="resident-nav-link {% if resident_active_page == 'profile' %}active{% endif %}" data-drawer-close>
+      <i class="bi bi-person-gear"></i><span>My Profile</span>
+    </a>
+  </nav>
+{% endif %}

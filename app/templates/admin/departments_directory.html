@@ -1,0 +1,75 @@
+{% extends "admin/admin_app.html" %}
+
+{% set admin_active_page = "department_directory" %}
+{% set admin_page_title = "Department Directory" %}
+{% set admin_page_subtitle = "Operational metadata, contacts, channels, and verification status." %}
+
+{% block admin_content %}
+  <form class="row g-3 mb-3 align-items-end" method="get">
+    <div class="col-sm-6 col-md-3">
+      <label for="channel" class="form-label">Channel</label>
+      <select class="form-select" id="channel" name="channel" onchange="this.form.submit()">
+        <option value="" {% if not selected_channel %}selected{% endif %}>All channels</option>
+        <option value="email" {% if selected_channel == 'email' %}selected{% endif %}>Email</option>
+        <option value="phone" {% if selected_channel == 'phone' %}selected{% endif %}>Phone</option>
+        <option value="whatsapp" {% if selected_channel == 'whatsapp' %}selected{% endif %}>WhatsApp</option>
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-3">
+      <label for="verification_status" class="form-label">Verification</label>
+      <select class="form-select" id="verification_status" name="verification_status" onchange="this.form.submit()">
+        <option value="" {% if not selected_verification_status %}selected{% endif %}>All statuses</option>
+        <option value="verified" {% if selected_verification_status == 'verified' %}selected{% endif %}>Verified</option>
+        <option value="unverified" {% if selected_verification_status == 'unverified' %}selected{% endif %}>Unverified</option>
+      </select>
+    </div>
+    <div class="col-sm-6 col-md-2 d-flex gap-2">
+      <a href="{{ url_for('admin.department_directory') }}" class="btn btn-outline-secondary w-100">Reset</a>
+    </div>
+  </form>
+
+  <div class="card hawkeye-admin-panel">
+    <div class="card-body">
+      <div class="table-responsive">
+        <table class="table table-dark table-striped align-middle">
+          <thead>
+            <tr>
+              <th>Department</th>
+              <th>Code</th>
+              <th>Operating hours</th>
+              <th>Service hub</th>
+              <th>Contacts</th>
+            </tr>
+          </thead>
+          <tbody>
+            {% for authority in authorities %}
+              {% set contacts = contacts_by_authority.get(authority.id, []) %}
+              <tr>
+                <td>{{ authority.name }}</td>
+                <td><code>{{ authority.code or "—" }}</code></td>
+                <td>{{ authority.operating_hours or "—" }}</td>
+                <td>{{ authority.service_hub or "—" }}</td>
+                <td>
+                  {% if contacts %}
+                    <div class="d-flex flex-wrap gap-1">
+                      {% for contact in contacts %}
+                        <span class="badge rounded-pill bg-secondary">
+                          {{ contact.channel }}:
+                          {{ contact.value }}
+                          {% if contact.is_primary %}(primary){% elif contact.is_secondary %}(secondary){% endif %}
+                          [{{ contact.verification_status }}]
+                        </span>
+                      {% endfor %}
+                    </div>
+                  {% else %}
+                    <span class="text-muted">No active contacts for current filters.</span>
+                  {% endif %}
+                </td>
+              </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+{% endblock %}
