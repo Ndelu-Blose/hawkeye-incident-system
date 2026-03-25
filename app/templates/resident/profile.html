@@ -26,7 +26,13 @@
         <div class="resident-profile-identity-top">
           <div class="resident-avatar-wrap">
             {% if avatar_url %}
-              <img src="{{ avatar_url }}" alt="Profile picture" class="resident-avatar-image" />
+              <img
+                src="{{ avatar_url }}"
+                alt="Profile picture"
+                class="resident-avatar-image"
+                onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
+              />
+              <div class="resident-avatar-fallback resident-avatar-fallback-hidden">{{ (current_user.name or 'R')[:1] }}</div>
             {% else %}
               <div class="resident-avatar-fallback">{{ (current_user.name or 'R')[:1] }}</div>
             {% endif %}

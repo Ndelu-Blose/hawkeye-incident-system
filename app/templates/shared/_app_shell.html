@@ -45,7 +45,11 @@
                                     src="{{ url_for('resident.serve_profile_avatar', filename=sidebar_avatar) }}"
                                     alt="{{ current_user.name }} avatar"
                                     class="resident-user-avatar"
+                                    onerror="this.style.display='none'; this.nextElementSibling.style.display='inline-flex';"
                                 />
+                                <span class="resident-user-avatar resident-user-avatar-fallback resident-avatar-fallback-hidden">
+                                    {{ (current_user.name or 'R')[:1] }}
+                                </span>
                             {% else %}
                                 <span class="resident-user-avatar resident-user-avatar-fallback">
                                     {{ (current_user.name or 'R')[:1] }}
