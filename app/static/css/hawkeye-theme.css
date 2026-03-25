@@ -3000,6 +3000,10 @@ body.app-shell-body.drawer-open {
   border: 1px solid rgba(124, 164, 224, 0.4);
 }
 
+.resident-avatar-fallback-hidden {
+  display: none;
+}
+
 .resident-profile-name {
   font-size: 1.5rem;
   font-weight: 800;
