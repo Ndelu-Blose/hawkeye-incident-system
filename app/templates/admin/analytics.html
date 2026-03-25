@@ -306,13 +306,23 @@
         const areasNode = document.getElementById("adminHotspotAreas");
         if (!filterForm || !mapNode || !areasNode) return;
 
-        const map = new google.maps.Map(mapNode, {
-          center: { lat: -29.8587, lng: 31.0218 },
-          zoom: 11,
-          mapTypeControl: false,
-          streetViewControl: false,
-        });
+        let map = null;
         let circles = [];
+
+        const hasGoogleMaps = window.google && window.google.maps;
+        if (hasGoogleMaps) {
+          map = new google.maps.Map(mapNode, {
+            center: { lat: -29.8587, lng: 31.0218 },
+            zoom: 11,
+            mapTypeControl: false,
+            streetViewControl: false,
+          });
+        } else {
+          // If the Google Maps script fails to load, keep the page functional by
+          // showing a lightweight message and still loading hotspot table data.
+          mapNode.innerHTML =
+            '<div class="text-muted small p-2">Heatmap unavailable (Google Maps failed to load).</div>';
+        }
 
         const renderAreas = (areas) => {
           if (!areas.length) {
@@ -329,6 +339,7 @@
         };
 
         const renderPoints = (points) => {
+          if (!map) return;
           circles.forEach((circle) => circle.setMap(null));
           circles = [];
           if (!points.length) {

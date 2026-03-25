@@ -116,30 +116,52 @@
 
             {% with messages = get_flashed_messages(with_categories=true) %}
                 {% if messages %}
+                    {% set first_category = messages[0][0] %}
+                    {% set first_cat = 'warning' if first_category == 'message' else (first_category if first_category in ['success', 'danger', 'warning', 'info'] else 'info') %}
+                    {% if first_cat == 'success' %}
+                        {% set first_icon = 'bi-check-circle-fill' %}
+                    {% elif first_cat == 'danger' %}
+                        {% set first_icon = 'bi-x-circle-fill' %}
+                    {% elif first_cat == 'warning' %}
+                        {% set first_icon = 'bi-exclamation-triangle-fill' %}
+                    {% elif first_cat == 'info' %}
+                        {% set first_icon = 'bi-info-circle-fill' %}
+                    {% else %}
+                        {% set first_icon = 'bi-info-circle-fill' %}
+                    {% endif %}
+
                     <div
-                        class="position-fixed top-50 start-50 translate-middle p-3"
-                        style="z-index: 1080; width: min(92vw, 560px);"
+                        class="hawkeye-flash-center-overlay position-fixed top-50 start-50 translate-middle p-2"
+                        style="z-index: 1080; width: min(92vw, 440px);"
                         aria-live="polite"
-                        data-flash-overlay
+                        data-flash-center
                     >
-                        <div class="card bg-dark border-info shadow-lg text-light">
-                            <div class="card-body">
-                                <div class="d-flex justify-content-between align-items-center mb-2">
-                                    <h2 class="h6 mb-0">Message</h2>
-                                    <button type="button" class="btn-close btn-close-white" aria-label="Close" data-flash-close></button>
+                        <div class="hawkeye-flash-center-card">
+                            <div class="hawkeye-flash-center-header">
+                                <div class="d-flex align-items-center gap-2">
+                                    <i class="bi {{ first_icon }} hawkeye-flash-center-icon"></i>
+                                    <div class="hawkeye-flash-center-title">Message</div>
                                 </div>
-                                <div class="d-flex flex-column gap-2">
-                                    {% for category, message in messages %}
-                                        {% set cat = 'warning' if category == 'message' else (category if category in ['success', 'danger', 'warning', 'info'] else 'info') %}
-                                        <div class="alert alert-{{ cat }} mb-0 py-2 px-3" role="alert">
-                                            {{ message }}
-                                        </div>
-                                    {% endfor %}
-                                </div>
+                                <button type="button" class="btn-close btn-close-white" aria-label="Close" data-flash-center-close></button>
+                            </div>
+
+                            <div class="hawkeye-flash-center-body">
+                                {% for category, message in messages %}
+                                    {% set cat = 'warning' if category == 'message' else (category if category in ['success', 'danger', 'warning', 'info'] else 'info') %}
+                                    <div class="hawkeye-flash-center-item hawkeye-flash-center-item-{{ cat }}">
+                                        <span>{{ message }}</span>
+                                    </div>
+                                {% endfor %}
                             </div>
                         </div>
                     </div>
-                    <div class="position-fixed top-0 start-0 w-100 h-100" style="z-index: 1070; background: rgba(0, 0, 0, 0.45);" data-flash-backdrop></div>
+
+                    <div
+                        class="position-fixed top-0 start-0 w-100 h-100 hawkeye-flash-center-backdrop"
+                        style="z-index: 1070;"
+                        data-flash-backdrop
+                        aria-hidden="true"
+                    ></div>
                 {% endif %}
             {% endwith %}
 
@@ -156,20 +178,27 @@
 
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
     <script>
-      (function() {
-        var overlay = document.querySelector('[data-flash-overlay]');
+      (function () {
+        var overlay = document.querySelector('[data-flash-center]');
         if (!overlay) return;
+        var card = overlay.querySelector('.hawkeye-flash-center-card');
         var backdrop = document.querySelector('[data-flash-backdrop]');
-        var close = overlay.querySelector('[data-flash-close]');
+        var close = overlay.querySelector('[data-flash-center-close]');
+
         function dismiss() {
-          overlay.remove();
-          if (backdrop) backdrop.remove();
+          if (card) card.classList.add('hawkeye-flash-center-out');
+          setTimeout(function () {
+            overlay.remove();
+            if (backdrop) backdrop.remove();
+          }, 180);
         }
+
         if (close) close.addEventListener('click', dismiss);
         if (backdrop) backdrop.addEventListener('click', dismiss);
-        setTimeout(dismiss, 5000);
+        setTimeout(dismiss, 4200);
       })();
     </script>
+    {% block scripts %}{% endblock %}
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
 </body>
 </html>
