@@ -33,6 +33,17 @@ class Incident(db.Model):
         db.ForeignKey("incident_categories.id", ondelete="SET NULL"),
         nullable=True,
     )
+    # Canonical category fields (Phase 2). Legacy fields remain for compatibility.
+    reported_category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    final_category_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_categories.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     # Screening & routing insight fields
     resident_category_id = db.Column(
@@ -134,6 +145,13 @@ class Incident(db.Model):
         db.ForeignKey("incidents.id", ondelete="SET NULL"),
         nullable=True,
     )
+    duplicate_reason = db.Column(db.Text, nullable=True)
+    duplicate_confirmed_by_user_id = db.Column(
+        db.Integer,
+        db.ForeignKey("users.id", ondelete="SET NULL"),
+        nullable=True,
+    )
+    duplicate_confirmed_at = db.Column(db.DateTime, nullable=True)
 
     reported_at = db.Column(db.DateTime, nullable=True)
     acknowledged_at = db.Column(db.DateTime, nullable=True)
@@ -159,6 +177,7 @@ class Incident(db.Model):
     verified_by = db.relationship("User", foreign_keys=[verified_by_user_id])
     proof_requested_by = db.relationship("User", foreign_keys=[proof_requested_by_user_id])
     escalated_by = db.relationship("User", foreign_keys=[escalated_by_user_id])
+    duplicate_confirmed_by = db.relationship("User", foreign_keys=[duplicate_confirmed_by_user_id])
 
     resident_profile = db.relationship("ResidentProfile")
 
@@ -167,6 +186,8 @@ class Incident(db.Model):
         foreign_keys=[category_id],
         back_populates="incidents",
     )
+    reported_category_rel = db.relationship("IncidentCategory", foreign_keys=[reported_category_id])
+    final_category_rel = db.relationship("IncidentCategory", foreign_keys=[final_category_id])
 
     location_rel = db.relationship("Location")
 
@@ -244,6 +265,12 @@ class Incident(db.Model):
         back_populates="incident",
         cascade="all, delete-orphan",
         lazy="dynamic",
+    )
+    sla_tracking = db.relationship(
+        "IncidentSlaTracking",
+        back_populates="incident",
+        uselist=False,
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self) -> str:  # pragma: no cover

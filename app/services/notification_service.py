@@ -28,10 +28,13 @@ class NotificationService:
         self,
         incident: Incident,
         authority_users: Iterable[User],
+        *,
+        event_id: int | None = None,
     ) -> None:
         for user in authority_users:
             notification = NotificationLog(
                 incident_id=incident.id,
+                event_id=event_id,
                 user_id=user.id,
                 recipient_email=user.email,
                 type="incident_created",
@@ -43,9 +46,12 @@ class NotificationService:
         self,
         incident: Incident,
         resident: User,
+        *,
+        event_id: int | None = None,
     ) -> None:
         notification = NotificationLog(
             incident_id=incident.id,
+            event_id=event_id,
             user_id=resident.id,
             recipient_email=resident.email,
             type="status_changed",
@@ -56,6 +62,8 @@ class NotificationService:
     def enqueue_admins_proof_submitted(
         self,
         incident: Incident,
+        *,
+        event_id: int | None = None,
     ) -> None:
         admins = list(
             db.session.execute(
@@ -71,6 +79,7 @@ class NotificationService:
             self.notification_repo.add(
                 NotificationLog(
                     incident_id=incident.id,
+                    event_id=event_id,
                     user_id=admin.id,
                     recipient_email=admin.email,
                     type="proof_submitted",

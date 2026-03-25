@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from app.constants import IncidentEventType
 from app.extensions import db
 from app.utils.datetime_helpers import utc_now
 
@@ -10,6 +11,14 @@ class IncidentEvent(db.Model):
     """Canonical event ledger for incident lifecycle. Immutable after insert."""
 
     __tablename__ = "incident_events"
+    __table_args__ = (
+        db.CheckConstraint(
+            "event_type IN ("
+            + ", ".join(f"'{event_type.value}'" for event_type in IncidentEventType)
+            + ")",
+            name="ck_incident_events_event_type_allowed",
+        ),
+    )
 
     id = db.Column(db.Integer, primary_key=True)
 
@@ -41,6 +50,11 @@ class IncidentEvent(db.Model):
         db.ForeignKey("incident_dispatches.id", ondelete="SET NULL"),
         nullable=True,
     )
+    assignment_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_assignments.id", ondelete="SET NULL"),
+        nullable=True,
+    )
 
     reason = db.Column(db.Text, nullable=True)
     note = db.Column(db.Text, nullable=True)
@@ -52,6 +66,7 @@ class IncidentEvent(db.Model):
     actor = db.relationship("User", foreign_keys=[actor_user_id])
     authority = db.relationship("Authority", foreign_keys=[authority_id])
     dispatch = db.relationship("IncidentDispatch", foreign_keys=[dispatch_id])
+    assignment = db.relationship("IncidentAssignment", foreign_keys=[assignment_id])
 
     def __repr__(self) -> str:  # pragma: no cover
         return f"<IncidentEvent id={self.id} incident_id={self.incident_id} event_type={self.event_type}>"

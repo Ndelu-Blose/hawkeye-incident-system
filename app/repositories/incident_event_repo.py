@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from sqlalchemy import select
 
+from app.constants import IncidentEventType
 from app.extensions import db
 from app.models.incident_event import IncidentEvent
 
@@ -31,6 +32,10 @@ class IncidentEventRepository:
         metadata_json: dict | None = None,
     ) -> IncidentEvent:
         """Create and add an event. Caller must commit."""
+        valid_event_types = {member.value for member in IncidentEventType}
+        if event_type not in valid_event_types:
+            raise ValueError(f"Unsupported incident event type: {event_type}")
+
         event = IncidentEvent(
             incident_id=incident_id,
             event_type=event_type,

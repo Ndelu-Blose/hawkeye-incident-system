@@ -17,8 +17,8 @@ from app.services.incident_service import incident_service
 from tests.conftest import MINIMAL_PNG_BYTES
 
 
-def test_auto_routed_incident_creates_assignment_and_dispatch(app):
-    """Auto-routed incident creation yields one IncidentAssignment and one IncidentDispatch."""
+def test_auto_routed_incident_suggests_authority_only(app):
+    """Phase-A routing: incident creation suggests authority only (no assignment/dispatch yet)."""
     with app.app_context():
         user, _ = auth_service.register_user(
             name="Resident",
@@ -57,28 +57,21 @@ def test_auto_routed_incident_creates_assignment_and_dispatch(app):
         assert incident is not None
         assert not errors
 
+        assert incident.suggested_authority_id == auth.id
+        assert incident.current_authority_id is None
+        assert incident.requires_admin_review is True
+
         assignments = list(
             db.session.query(IncidentAssignment).filter(
                 IncidentAssignment.incident_id == incident.id
             )
         )
-        assert len(assignments) == 1
-        assignment = assignments[0]
-        assert assignment.authority_id == auth.id
-        assert assignment.incident_id == incident.id
+        assert len(assignments) == 0
 
         dispatches = list(
             db.session.query(IncidentDispatch).filter(IncidentDispatch.incident_id == incident.id)
         )
-        assert len(dispatches) == 1
-        dispatch = dispatches[0]
-        assert dispatch.incident_assignment_id == assignment.id
-        assert dispatch.incident_id == incident.id
-        assert dispatch.authority_id == auth.id
-        assert dispatch.dispatch_method == "internal_queue"
-        assert dispatch.dispatched_by_type == "system"
-        assert dispatch.delivery_status == "pending"
-        assert dispatch.ack_status == "pending"
+        assert len(dispatches) == 0
 
 
 def test_log_department_action_persists_row(app):
