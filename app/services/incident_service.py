@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from collections.abc import Iterable
 from dataclasses import dataclass
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 
 from sqlalchemy import select, text
@@ -16,6 +16,8 @@ from app.models import (
     IncidentAssignment,
     IncidentCategory,
     IncidentDispatch,
+    IncidentEvent,
+    IncidentSlaTracking,
     Location,
 )
 from app.models.incident_update import IncidentUpdate
@@ -93,6 +95,8 @@ class IncidentService:
     def _resolve_routing_category(self, incident: Incident) -> IncidentCategory | None:
         """Resolve best category for routing lookups using IDs first, then normalized text fallback."""
         for category_id in (
+            getattr(incident, "final_category_id", None),
+            getattr(incident, "reported_category_id", None),
             getattr(incident, "system_category_id", None),
             getattr(incident, "resident_category_id", None),
             getattr(incident, "category_id", None),
@@ -115,14 +119,85 @@ class IncidentService:
 
     def _backfill_suggested_authority(self, incident: Incident) -> None:
         """Populate suggested_authority_id from routing rules when screening suggestion is missing."""
-        category = self._resolve_routing_category(incident)
-        if category is None:
+        decision = routing_service.resolve_best_route(incident)
+        routing_service.apply_route_suggestion(incident, decision)
+
+    @staticmethod
+    def _resolve_sla_hours_for_incident(incident: Incident) -> int:
+        if (
+            incident.category_rel is not None
+            and incident.category_rel.default_sla_hours is not None
+        ):
+            return int(incident.category_rel.default_sla_hours)
+        if incident.category_id:
+            category = db.session.get(IncidentCategory, incident.category_id)
+            if category is not None and category.default_sla_hours is not None:
+                return int(category.default_sla_hours)
+        return 72
+
+    @staticmethod
+    def _to_naive_utc(value: datetime | None) -> datetime | None:
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            return value
+        return value.astimezone(UTC).replace(tzinfo=None)
+
+    def _upsert_sla_tracking(self, incident: Incident) -> IncidentSlaTracking:
+        now = self._to_naive_utc(utc_now())
+        started_at = (
+            self._to_naive_utc(incident.reported_at)
+            or self._to_naive_utc(incident.created_at)
+            or now
+        )
+        sla_hours = self._resolve_sla_hours_for_incident(incident)
+        deadline_at = started_at + timedelta(hours=sla_hours)
+        tracking = db.session.execute(
+            select(IncidentSlaTracking).where(IncidentSlaTracking.incident_id == incident.id)
+        ).scalar_one_or_none()
+        if tracking is None:
+            tracking = IncidentSlaTracking(
+                incident_id=incident.id,
+                status="open",
+                sla_hours=sla_hours,
+                deadline_at=deadline_at,
+            )
+            db.session.add(tracking)
+        else:
+            tracking.sla_hours = sla_hours
+            tracking.deadline_at = deadline_at
+            if tracking.status != "closed":
+                tracking.status = "open"
+                tracking.closed_at = None
+        deadline_at = self._to_naive_utc(tracking.deadline_at)
+        if deadline_at is not None and deadline_at <= now and tracking.status != "closed":
+            tracking.status = "breached"
+            tracking.breached_at = tracking.breached_at or now
+        return tracking
+
+    def _close_sla_tracking_if_needed(self, incident: Incident) -> None:
+        tracking = db.session.execute(
+            select(IncidentSlaTracking).where(IncidentSlaTracking.incident_id == incident.id)
+        ).scalar_one_or_none()
+        if tracking is None:
             return
-        location = db.session.get(Location, incident.location_id) if incident.location_id else None
-        decision = routing_service.resolve(category=category, location=location)
-        if decision is None:
+        if tracking.status != "closed":
+            tracking.status = "closed"
+            tracking.closed_at = utc_now()
+
+    def _refresh_sla_breach_state(self, incident: Incident) -> None:
+        tracking = db.session.execute(
+            select(IncidentSlaTracking).where(IncidentSlaTracking.incident_id == incident.id)
+        ).scalar_one_or_none()
+        if tracking is None or tracking.status == "closed":
             return
-        incident.suggested_authority_id = decision.authority.id
+        now = self._to_naive_utc(utc_now())
+        deadline_at = self._to_naive_utc(tracking.deadline_at)
+        if deadline_at is not None and deadline_at <= now:
+            tracking.status = "breached"
+            tracking.breached_at = tracking.breached_at or now
+        elif tracking.status == "breached":
+            tracking.status = "open"
 
     def create_incident(
         self,
@@ -323,6 +398,7 @@ class IncidentService:
             dynamic_details=dynamic_details or None,
             category=category,
             category_id=category_obj.id if category_obj else None,
+            reported_category_id=category_obj.id if category_obj else None,
             suburb_or_ward=suburb_or_ward,
             street_or_landmark=street_or_landmark,
             nearest_place=nearest_place,
@@ -364,6 +440,11 @@ class IncidentService:
         incident.system_category_id = (
             screening_result.system_category.id if screening_result.system_category else None
         )
+        incident.final_category_id = (
+            screening_result.system_category.id
+            if screening_result.system_category
+            else (category_obj.id if category_obj else None)
+        )
         incident.suggested_authority_id = (
             screening_result.suggested_authority.id
             if screening_result.suggested_authority
@@ -399,28 +480,9 @@ class IncidentService:
         )
         self.update_repo.add(created_update)
 
-        # Resolve routing based on category and location if possible (best-effort).
-        routing_decision = None
-        routing_category = self._resolve_routing_category(incident)
-        if routing_category is not None:
-            routing_decision = routing_service.resolve(
-                category=routing_category,
-                location=location_obj,
-            )
-        if routing_decision is not None:
-            incident.suggested_authority_id = routing_decision.authority.id
-            incident.current_authority_id = routing_decision.authority.id
-            incident.assigned_at = reported_at
-            if not severity and routing_decision.priority:
-                incident.severity = routing_decision.priority
-            routing_update = IncidentUpdate(
-                incident=incident,
-                updated_by_id=resident_user.id,
-                from_status=IncidentStatus.REPORTED.value,
-                to_status=IncidentStatus.REPORTED.value,
-                note=f"Incident auto-routed to {routing_decision.authority.name}",
-            )
-            self.update_repo.add(routing_update)
+        # Phase-A routing: suggest best authority only (no auto assignment/dispatch yet).
+        decision = routing_service.resolve_best_route(incident)
+        routing_service.apply_route_suggestion(incident, decision)
 
         # Record screening decision in history for later analytics.
         if screening_result is not None:
@@ -444,31 +506,6 @@ class IncidentService:
 
         db.session.flush()
 
-        if routing_decision is not None and incident.id is not None:
-            assignment = IncidentAssignment(
-                incident_id=incident.id,
-                authority_id=routing_decision.authority.id,
-                assigned_by_user_id=resident_user.id,
-                assigned_at=reported_at,
-            )
-            db.session.add(assignment)
-            db.session.flush()
-            dispatch = IncidentDispatch(
-                incident_assignment_id=assignment.id,
-                incident_id=incident.id,
-                authority_id=routing_decision.authority.id,
-                dispatch_method="internal_queue",
-                dispatched_by_type="system",
-                dispatched_by_id=None,
-                destination_reference=None,
-                status="pending",
-                delivery_status="pending",
-                ack_status="pending",
-                dispatched_at=reported_at,
-                last_status_update_at=reported_at,
-            )
-            db.session.add(dispatch)
-
         file_list = list(files) if files else []
         if not file_list:
             errors.append("At least one evidence image is required.")
@@ -490,6 +527,79 @@ class IncidentService:
                 note="Evidence uploaded",
             )
             self.update_repo.add(evidence_update)
+
+        # Phase B1: auto-apply high-confidence, exact-location routing (assignment + ownership only).
+        #
+        # Guardrails:
+        # - only when routing is "high" confidence
+        # - only when there is an exact `location_id` match
+        # - only when incident is not flagged for admin review
+        # - only when no current authority/ownership exists
+        if (
+            decision.authority_id is not None
+            and decision.confidence == "high"
+            and incident.location_id is not None
+            and decision.matched_location_id == incident.location_id
+            and incident.requires_admin_review is False
+            and incident.current_authority_id is None
+            and incident.duplicate_of_incident_id is None
+        ):
+            current_ownership = self.ownership_repo.get_current(incident.id)
+            if current_ownership is None:
+                existing_assignment = (
+                    db.session.execute(
+                        select(IncidentAssignment).where(
+                            IncidentAssignment.incident_id == incident.id,
+                            IncidentAssignment.authority_id == decision.authority_id,
+                        )
+                    )
+                    .scalars()
+                    .first()
+                )
+                if existing_assignment is None:
+                    existing_assignment = IncidentAssignment(
+                        incident_id=incident.id,
+                        authority_id=decision.authority_id,
+                        assigned_to_user_id=None,
+                        assigned_by_user_id=None,
+                        assignment_reason="Auto-assigned after high-confidence routing (phase B1).",
+                        assigned_at=reported_at,
+                    )
+                    db.session.add(existing_assignment)
+                    db.session.flush()
+
+                incident.current_authority_id = decision.authority_id
+                self.ownership_repo.start_ownership(
+                    incident_id=incident.id,
+                    authority_id=decision.authority_id,
+                    assigned_by_user_id=None,
+                    dispatch_id=None,
+                    reason="Auto-assigned after high-confidence routing (phase B1).",
+                )
+
+                route_applied_event = IncidentEvent(
+                    incident_id=incident.id,
+                    event_type=IncidentEventType.ROUTE_APPLIED.value,
+                    actor_user_id=None,
+                    actor_role="system",
+                    authority_id=decision.authority_id,
+                    dispatch_id=None,
+                    assignment_id=existing_assignment.id,
+                    from_status=None,
+                    to_status=None,
+                    reason="Route applied (phase B1 auto-assignment).",
+                    note=decision.reason,
+                    metadata_json={
+                        "routing_rule_id": decision.routing_rule_id,
+                        "matched_location_id": decision.matched_location_id,
+                        "matched_category_id": decision.matched_category_id,
+                        "confidence": decision.confidence,
+                        "priority": decision.priority,
+                        "score": decision.score,
+                    },
+                )
+                db.session.add(route_applied_event)
+        self._upsert_sla_tracking(incident)
         db.session.commit()
         return incident, []
 
@@ -532,31 +642,63 @@ class IncidentService:
             if not ok:
                 return False, errors
 
-        assignment = IncidentAssignment(
-            incident_id=incident.id,
-            authority_id=authority_id,
-            assigned_by_user_id=actor_user.id,
+        # Phase B1 safety: if the incident was auto-assigned, reuse the existing assignment.
+        assignment = (
+            db.session.execute(
+                select(IncidentAssignment)
+                .where(
+                    IncidentAssignment.incident_id == incident.id,
+                    IncidentAssignment.authority_id == authority_id,
+                )
+                .order_by(IncidentAssignment.id.desc())
+            )
+            .scalars()
+            .first()
         )
-        db.session.add(assignment)
-        db.session.flush()
+        if assignment is None:
+            assignment = IncidentAssignment(
+                incident_id=incident.id,
+                authority_id=authority_id,
+                assigned_by_user_id=actor_user.id,
+            )
+            db.session.add(assignment)
+            db.session.flush()
+        else:
+            # If system created assignment without an assigning admin, annotate it now.
+            if assignment.assigned_by_user_id is None:
+                assignment.assigned_by_user_id = actor_user.id
 
-        dispatch = IncidentDispatch(
-            incident_assignment_id=assignment.id,
-            incident_id=incident.id,
-            authority_id=authority_id,
-            dispatch_method="internal_queue",
-            dispatched_by_type="admin",
-            dispatched_by_id=actor_user.id,
-            status="pending",
-            delivery_status="pending",
-            ack_status="pending",
-            last_status_update_at=utc_now(),
+        dispatch = (
+            db.session.execute(
+                select(IncidentDispatch)
+                .where(IncidentDispatch.incident_assignment_id == assignment.id)
+                .order_by(IncidentDispatch.id.desc())
+            )
+            .scalars()
+            .first()
         )
-        db.session.add(dispatch)
-        db.session.flush()
         from app.services.dispatch_service import dispatch_service
 
-        dispatch_service.send_assignment_dispatch(dispatch)
+        if dispatch is None:
+            dispatch = IncidentDispatch(
+                incident_assignment_id=assignment.id,
+                incident_id=incident.id,
+                authority_id=authority_id,
+                dispatch_method="internal_queue",
+                dispatched_by_type="admin",
+                dispatched_by_id=actor_user.id,
+                status="pending",
+                delivery_status="pending",
+                ack_status="pending",
+                last_status_update_at=utc_now(),
+            )
+            db.session.add(dispatch)
+            db.session.flush()
+            dispatch_service.send_assignment_dispatch(dispatch)
+        else:
+            # Only send again if we haven't actually sent the dispatch before.
+            if (dispatch.delivery_status or "").strip().lower() != "sent":
+                dispatch_service.send_assignment_dispatch(dispatch)
 
         if incident.status == IncidentStatus.SCREENED.value:
             ok, errors = self.change_status(
@@ -774,6 +916,25 @@ class IncidentService:
                 "acknowledged",
                 "Department acknowledged",
                 note or f"Acknowledged by {auth}.",
+            )
+        if ev.event_type == IncidentEventType.ROUTE_SUGGESTED.value:
+            return (
+                "route_suggested",
+                "Route suggested",
+                note or "Routing engine suggested a department.",
+            )
+        if ev.event_type == IncidentEventType.ROUTING_FAILED.value:
+            return (
+                "routing_failed",
+                "Routing failed",
+                note or "No routing rule matched; admin review required.",
+            )
+        if ev.event_type == IncidentEventType.ROUTE_APPLIED.value:
+            auth = ev.authority.name if ev.authority else "Department"
+            return (
+                "route_applied",
+                "Route applied",
+                note or f"Auto-assigned to {auth}.",
             )
         if ev.event_type in (
             IncidentEventType.INCIDENT_ASSIGNED.value,
@@ -1428,7 +1589,7 @@ class IncidentService:
             to_status,
             actor_role=actor_role,
         )
-        self.event_repo.create(
+        event = self.event_repo.create(
             incident_id=incident.id,
             event_type=event_type,
             from_status=from_status,
@@ -1440,6 +1601,7 @@ class IncidentService:
             reason=reason,
             note=note,
         )
+        db.session.flush()
 
         if current_status == IncidentStatus.SCREENED and to_status == IncidentStatus.ASSIGNED:
             if authority_id:
@@ -1456,6 +1618,7 @@ class IncidentService:
             IncidentStatus.REJECTED,
         ):
             self.ownership_repo.close_current(incident.id, ended_at=now)
+            self._close_sla_tracking_if_needed(incident)
 
         if is_sensitive:
             if to_status == IncidentStatus.REJECTED:
@@ -1487,7 +1650,15 @@ class IncidentService:
         notification_service.enqueue_status_changed(
             incident=incident,
             resident=incident.reporter,
+            event_id=event.id,
         )
+        if to_status not in (
+            IncidentStatus.RESOLVED,
+            IncidentStatus.CLOSED,
+            IncidentStatus.REJECTED,
+        ):
+            self._upsert_sla_tracking(incident)
+            self._refresh_sla_breach_state(incident)
 
         return True, []
 

@@ -5,3 +5,7 @@ __pycache__/
 .coverage
 
 .cursor/
+
+# Local uploaded assets (not committed)
+instance/uploads/
+instance/uploads_test/

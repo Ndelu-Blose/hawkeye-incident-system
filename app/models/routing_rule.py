@@ -27,6 +27,9 @@ class RoutingRule(db.Model):
 
     priority_override = db.Column(db.String(32))
     sla_hours_override = db.Column(db.Integer)
+    priority = db.Column(db.Integer, nullable=False, default=100, index=True)
+    effective_from = db.Column(db.DateTime, nullable=True, index=True)
+    effective_to = db.Column(db.DateTime, nullable=True, index=True)
     is_active = db.Column(db.Boolean, nullable=False, default=True)
 
     created_at = db.Column(db.DateTime, nullable=False, default=utc_now)
