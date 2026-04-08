@@ -26,13 +26,13 @@
         </div>
       {% endif %}
 
-      <form method="post" novalidate enctype="multipart/form-data">
+      <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <input type="hidden" id="latitude" name="latitude" value="{{ fd.latitude if fd and fd.latitude is defined else '' }}">
         <input type="hidden" id="longitude" name="longitude" value="{{ fd.longitude if fd and fd.longitude is defined else '' }}">
 
         <div class="mb-4">
-          <label for="category_id" class="form-label fw-bold">What type of issue is this?</label>
+          <label for="category_id" class="form-label fw-bold">What type of issue is this? <span class="text-danger">*</span></label>
           <select class="form-select form-select-lg" id="category_id" name="category_id" required>
             <option value="">Select a category</option>
             {% for c in categories %}
@@ -66,7 +66,7 @@
         </div>
 
         <div class="mb-3">
-          <label for="description" class="form-label">Incident Summary</label>
+          <label for="description" class="form-label">Incident Summary <span class="text-danger">*</span></label>
           {% if selected_cat_id and current_preset.helper_prompts %}
             <p class="small text-muted mb-1">Guided answers below help generate this summary:</p>
             <ul class="small text-muted mb-2">
@@ -90,7 +90,7 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label fw-bold">How urgent is it?</label>
+          <label class="form-label fw-bold">How urgent is it? <span class="text-danger">*</span></label>
           <select class="form-select" id="urgency_level" name="urgency_level" required>
             <option value="urgent_now" {% if (fd.urgency_level if fd else '') == 'urgent_now' %}selected{% elif not fd and current_preset.urgency_value == 'urgent_now' %}selected{% endif %}>Urgent – happening now or someone at risk</option>
             <option value="soon" {% if (fd.urgency_level if fd else '') == 'soon' %}selected{% elif not fd and current_preset.urgency_value == 'soon' %}selected{% endif %}>Soon – needs attention in the next few days</option>
@@ -99,7 +99,7 @@
         </div>
 
         <div class="mb-4">
-          <label class="form-label fw-bold">Where did it happen?</label>
+          <label class="form-label fw-bold">Where did it happen? <span class="text-danger">*</span></label>
           <div class="mb-2">
             <div class="form-check">
               <input class="form-check-input" type="radio" name="location_mode" id="location_saved" value="saved" {% if (fd.location_mode if fd else '') == 'saved' or (not fd and saved_address.suburb) %}checked{% endif %} required />
@@ -180,7 +180,9 @@
         </div>
 
         <div class="mb-3">
-          <label for="evidence" class="form-label">Evidence (at least one image required)</label>
+          <label for="evidence" class="form-label" id="evidence_label">
+            Evidence ({% if current_preset.evidence_policy == 'recommended' %}recommended{% else %}optional{% endif %})
+          </label>
           <input
             type="file"
             class="form-control"
@@ -189,6 +191,9 @@
             accept=".jpg,.jpeg,.png,.webp"
             multiple
           />
+          <div class="form-text" id="evidence_help_category" {% if not current_preset.evidence_help %}style="display:none"{% endif %}>
+            {{ current_preset.evidence_help }}
+          </div>
           <div class="form-text">Accepted: JPG, PNG, WebP. Max 5 images, 5 MB each.</div>
         </div>
 
@@ -266,6 +271,21 @@
         return preset.urgency_value || 'soon';
       }
 
+      function syncEvidenceUi(categoryId) {
+        var preset = getPreset(categoryId);
+        var policy = preset.evidence_policy || 'optional';
+        var labelEl = document.getElementById('evidence_label');
+        var helpEl = document.getElementById('evidence_help_category');
+        if (labelEl) {
+          labelEl.textContent = policy === 'recommended' ? 'Evidence (recommended)' : 'Evidence (optional)';
+        }
+        if (helpEl) {
+          var txt = preset.evidence_help || '';
+          helpEl.textContent = txt;
+          helpEl.style.display = txt.trim() ? 'block' : 'none';
+        }
+      }
+
       function normalizeFieldValue(fieldType, value) {
         if (fieldType === 'multiselect') {
           return Array.isArray(value) ? value : [];
@@ -334,51 +354,227 @@
         return nextDetails;
       }
 
-      function buildDescription(schema, details, notes) {
-        var cleanNotes = (notes || '').trim();
-        var text = 'An incident was reported.';
-        if (schema.key === 'suspicious_activity') {
-          var activity = Array.isArray(details.activity_types) ? details.activity_types.join(', ').replaceAll('_', ' ') : '';
-          text = 'Suspicious activity was reported';
-          if (activity) text += ' involving ' + activity;
-          if (details.people_count) text += ' with about ' + details.people_count + ' person(s)';
-          if (details.vehicle_description) text += ' and a vehicle described as ' + details.vehicle_description;
-          if (details.ongoing) text += '; the activity appears ongoing';
-          text += '.';
-        } else if (schema.key === 'theft') {
-          text = 'A theft incident was reported';
-          if (details.item_stolen) text += ', including item(s): ' + details.item_stolen;
-          if (details.forced_entry) text += ', with signs of forced entry';
-          if (details.suspect_seen) text += ', and a suspect was seen';
-          text += '.';
-        } else if (schema.key === 'vandalism') {
-          var damage = Array.isArray(details.damage_type) ? details.damage_type.join(', ').replaceAll('_', ' ') : '';
-          text = 'Vandalism was reported';
-          if (details.property_type) text += ' on ' + String(details.property_type).replaceAll('_', ' ');
-          if (damage) text += ', including ' + damage;
-          text += '.';
-        } else if (schema.key === 'noise_complaint') {
-          text = 'A noise complaint was reported';
-          if (details.noise_source) text += ' with source: ' + String(details.noise_source).replaceAll('_', ' ');
-          if (details.duration) text += ', lasting ' + details.duration;
-          if (details.still_active) text += ', and it is still active';
-          text += '.';
+      function optionLabelFromSchema(schema, fieldKey, value) {
+        if (value === undefined || value === null || value === '') return '';
+        var fields = schema.fields || [];
+        for (var fi = 0; fi < fields.length; fi++) {
+          if (fields[fi].key !== fieldKey) continue;
+          var opts = fields[fi].options || [];
+          for (var oi = 0; oi < opts.length; oi++) {
+            if (opts[oi].value === value) return opts[oi].label;
+          }
+          return String(value).replace(/_/g, ' ');
         }
-        if (cleanNotes) {
-          text += ' Additional notes: ' + cleanNotes;
-        }
-        return text;
+        return String(value).replace(/_/g, ' ');
       }
 
-      function maybeRegenerateDescription(force) {
+      function joinDetailList(arr) {
+        if (!Array.isArray(arr)) return '';
+        var items = [];
+        for (var i = 0; i < arr.length; i++) {
+          var s = String(arr[i] || '').replace(/_/g, ' ').trim();
+          if (s) items.push(s);
+        }
+        if (!items.length) return '';
+        if (items.length === 1) return items[0];
+        return items.slice(0, -1).join(', ') + ' and ' + items[items.length - 1];
+      }
+
+      function boolVal(v) {
+        return v === true || v === 'true' || v === '1' || v === 1;
+      }
+
+      /** Mirrors app.services.incident_dynamic_schema.build_generated_description (body only). */
+      function buildDescriptionBody(schema, details) {
+        var key = schema.key || 'other';
+        var sentence = '';
+
+        if (key === 'suspicious_activity') {
+          var activity = joinDetailList(details.activity_types);
+          var peopleCount = details.people_count;
+          var ongoing = details.ongoing;
+          var vehicle = (details.vehicle_description || '').trim();
+          var parts = [];
+          if (peopleCount) {
+            parts.push(String(peopleCount) + ' individual(s) were seen');
+          } else {
+            parts.push('Suspicious activity was reported');
+          }
+          if (activity) parts.push('involving ' + activity);
+          if (vehicle) parts.push('with a vehicle described as ' + vehicle);
+          if (boolVal(ongoing)) parts.push('and the activity appears ongoing');
+          sentence = parts.join(' ').trim();
+        } else if (key === 'theft') {
+          var theftType = details.theft_type;
+          var item = (details.item_stolen || '').trim();
+          var forced = details.forced_entry;
+          var suspect = details.suspect_seen;
+          sentence = 'A theft incident was reported';
+          if (theftType) {
+            sentence += ' (' + optionLabelFromSchema(schema, 'theft_type', theftType).toLowerCase() + ')';
+          }
+          if (item) sentence += ', involving stolen item(s): ' + item;
+          if (boolVal(forced)) sentence += ', with signs of forced entry';
+          if (boolVal(suspect)) sentence += ', and a suspect was seen';
+        } else if (key === 'vandalism') {
+          var propertyType = details.property_type;
+          var damageType = joinDetailList(details.damage_type);
+          var severity = details.damage_severity;
+          sentence = 'Vandalism was reported';
+          if (propertyType) {
+            sentence += ' on ' + optionLabelFromSchema(schema, 'property_type', propertyType).toLowerCase();
+          }
+          if (damageType) sentence += ', including ' + damageType;
+          if (severity) {
+            sentence += ' (severity: ' + optionLabelFromSchema(schema, 'damage_severity', severity).toLowerCase() + ')';
+          }
+        } else if (key === 'noise_complaint') {
+          var nSource = details.noise_source;
+          var duration = (details.duration || '').trim();
+          var repeated = details.repeated_issue;
+          var active = details.still_active;
+          sentence = 'A noise complaint was reported';
+          if (nSource) {
+            sentence += ' with source: ' + optionLabelFromSchema(schema, 'noise_source', nSource).toLowerCase();
+          }
+          if (duration) sentence += ', lasting ' + duration;
+          if (boolVal(repeated)) sentence += ', and this appears to be a repeated issue';
+          if (boolVal(active)) sentence += ', and it is still active';
+        } else if (key === 'blocked_drain') {
+          var condition = details.drain_condition;
+          var standingWater = details.standing_water;
+          var affectingAccess = details.affecting_access;
+          sentence = 'A blocked drain was reported';
+          if (condition) {
+            sentence += ' (' + optionLabelFromSchema(schema, 'drain_condition', condition).toLowerCase() + ')';
+          }
+          if (boolVal(standingWater)) sentence += ', with standing water visible';
+          if (boolVal(affectingAccess)) sentence += ', and access is affected';
+        } else if (key === 'water_leak') {
+          var leakSource = details.leak_source;
+          var flooding = details.flooding;
+          var leakOngoing = details.ongoing;
+          sentence = 'A water leak was reported';
+          if (leakSource) {
+            sentence += ' from ' + optionLabelFromSchema(schema, 'leak_source', leakSource).toLowerCase();
+          }
+          if (boolVal(flooding)) sentence += ', with visible flooding';
+          if (boolVal(leakOngoing)) sentence += ', and the leak appears ongoing';
+        } else if (key === 'pothole') {
+          var pSize = details.pothole_size;
+          var trafficRisk = details.traffic_risk;
+          sentence = 'A pothole was reported';
+          if (pSize) {
+            sentence += ' (' + optionLabelFromSchema(schema, 'pothole_size', pSize).toLowerCase() + ')';
+          }
+          if (boolVal(trafficRisk)) sentence += ', creating traffic risk';
+        } else if (key === 'broken_streetlight') {
+          var lightIssue = details.light_issue;
+          var darkness = details.area_darkness;
+          sentence = 'A broken streetlight was reported';
+          if (lightIssue) {
+            sentence += ' (' + optionLabelFromSchema(schema, 'light_issue', lightIssue).toLowerCase() + ')';
+          }
+          if (boolVal(darkness)) sentence += ', and the area is very dark at night';
+        } else if (key === 'dumping') {
+          var dumpType = details.dump_type;
+          var dumpSize = details.dump_size;
+          var blocked = details.blocking_access;
+          var pestRisk = details.pest_or_health_risk;
+          sentence = 'Illegal dumping was reported';
+          if (dumpType) {
+            sentence += ' (' + optionLabelFromSchema(schema, 'dump_type', dumpType).toLowerCase() + ')';
+          }
+          if (dumpSize) {
+            sentence += ', approximately ' + optionLabelFromSchema(schema, 'dump_size', dumpSize).toLowerCase() + ' in size';
+          }
+          if (boolVal(blocked)) sentence += ', and access is blocked';
+          if (boolVal(pestRisk)) sentence += ', with a possible pest or health risk';
+        } else {
+          sentence = buildGenericDescriptionBody(schema, details);
+        }
+
+        sentence = String(sentence || '').trim();
+        if (!sentence) sentence = 'An incident was reported';
+        if (!/[.!?]$/.test(sentence)) sentence += '.';
+        return sentence;
+      }
+
+      /** When no tailored narrative exists, list guided answers (matches new categories automatically). */
+      function buildGenericDescriptionBody(schema, details) {
+        var label = (schema.label || 'Incident').trim();
+        var bits = [];
+        (schema.fields || []).forEach(function(field) {
+          if (!shouldShowField(field, details)) return;
+          var v = details[field.key];
+          if (v === undefined || v === null || v === '') return;
+          if (field.field_type === 'boolean') {
+            if (boolVal(v)) bits.push(field.label + ': yes');
+          } else if (field.field_type === 'multiselect') {
+            var j = joinDetailList(Array.isArray(v) ? v : []);
+            if (j) bits.push(field.label + ': ' + j);
+          } else if (field.field_type === 'select') {
+            bits.push(field.label + ': ' + optionLabelFromSchema(schema, field.key, v));
+          } else {
+            bits.push(field.label + ': ' + String(v).trim());
+          }
+        });
+        if (!bits.length) return label + ' was reported';
+        return label + ' was reported: ' + bits.join('; ') + '.';
+      }
+
+      function getUrgencyContextText() {
+        if (!urgencySelect) return '';
+        var v = urgencySelect.value;
+        if (v === 'urgent_now') return 'Urgency: urgent — happening now or someone at risk.';
+        if (v === 'soon') return 'Urgency: soon — needs attention in the next few days.';
+        if (v === 'scheduled') return 'Urgency: can be scheduled — not time-critical.';
+        return '';
+      }
+
+      function getLocationContextText() {
+        var savedRadio = document.getElementById('location_saved');
+        var savedDisplay = document.getElementById('saved_address_display');
+        if (savedRadio && savedRadio.checked && savedDisplay) {
+          var raw = (savedDisplay.textContent || '').replace(/\s+/g, ' ').trim();
+          var addr = raw.replace(/^We'll use:\s*/i, '').trim();
+          if (addr) return 'Location: ' + addr + '.';
+        }
+        var street = document.getElementById('street_or_landmark');
+        var suburb = document.getElementById('suburb_or_ward');
+        var nearest = document.getElementById('nearest_place');
+        var parts = [];
+        if (street && street.value.trim()) parts.push(street.value.trim());
+        if (suburb && suburb.value.trim()) parts.push(suburb.value.trim());
+        if (nearest && nearest.value.trim()) parts.push('near ' + nearest.value.trim());
+        if (parts.length) return 'Location: ' + parts.join(', ') + '.';
+        return '';
+      }
+
+      function assembleFullDescription(bodySentence, notes) {
+        var n = (notes || '').trim();
+        var parts = [bodySentence.trim()];
+        var urg = getUrgencyContextText();
+        var loc = getLocationContextText();
+        if (urg) parts.push(urg);
+        if (loc) parts.push(loc);
+        var out = parts.join(' ');
+        if (n) out += ' Additional notes: ' + n;
+        return out;
+      }
+
+      function maybeRegenerateDescription() {
         if (!descriptionInput || !categorySelect || !categorySelect.value) return;
-        var manuallyEdited = manualEditInput && manualEditInput.value === '1';
-        if (manuallyEdited && !force) return;
         var schema = getSchema(categorySelect.value);
-        var generated = buildDescription(schema, currentDetails, additionalNotesInput ? additionalNotesInput.value : '');
+        var body = buildDescriptionBody(schema, currentDetails);
+        var generated = assembleFullDescription(
+          body,
+          additionalNotesInput ? additionalNotesInput.value : ''
+        );
         isRegeneratingDescription = true;
         descriptionInput.value = generated;
         isRegeneratingDescription = false;
+        if (manualEditInput) manualEditInput.value = '';
       }
 
       function renderGuidedFields() {
@@ -410,7 +606,7 @@
             input.addEventListener('change', function() {
               currentDetails[field.key] = input.checked;
               renderGuidedFields();
-              maybeRegenerateDescription(false);
+              maybeRegenerateDescription();
             });
             var checkLabel = document.createElement('label');
             checkLabel.className = 'form-check-label';
@@ -436,7 +632,7 @@
             select.addEventListener('change', function() {
               currentDetails[field.key] = select.value;
               renderGuidedFields();
-              maybeRegenerateDescription(false);
+              maybeRegenerateDescription();
             });
             wrapper.appendChild(select);
           } else if (field.field_type === 'multiselect') {
@@ -455,7 +651,7 @@
                 if (check.checked && list.indexOf(opt.value) < 0) list.push(opt.value);
                 if (!check.checked) list = list.filter(function(v) { return v !== opt.value; });
                 currentDetails[field.key] = list;
-                maybeRegenerateDescription(false);
+                maybeRegenerateDescription();
               });
               var checkLabel2 = document.createElement('label');
               checkLabel2.className = 'form-check-label';
@@ -472,7 +668,7 @@
             input2.value = normalizeFieldValue(field.field_type, currentDetails[field.key]);
             input2.addEventListener('input', function() {
               currentDetails[field.key] = input2.value;
-              maybeRegenerateDescription(false);
+              maybeRegenerateDescription();
             });
             wrapper.appendChild(input2);
           }
@@ -480,12 +676,13 @@
         });
       }
 
-      if (categorySelect && titleInput) {
+      if (categorySelect) {
         renderGuidedFields();
         if (categorySelect.value && urgencySelect) {
           lastAutoUrgency = getSuggestedUrgency(categorySelect.value);
         }
-        maybeRegenerateDescription(false);
+        if (categorySelect.value) syncEvidenceUi(categorySelect.value);
+        maybeRegenerateDescription();
 
         if (urgencySelect) {
           urgencySelect.addEventListener('change', function() {
@@ -493,8 +690,21 @@
             if (urgencySelect.value !== lastAutoUrgency) {
               manualUrgencyChanged = true;
             }
+            maybeRegenerateDescription();
           });
         }
+
+        ['suburb_or_ward', 'street_or_landmark', 'nearest_place'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener('input', maybeRegenerateDescription);
+          el.addEventListener('change', maybeRegenerateDescription);
+        });
+        ['location_saved', 'location_current', 'location_other'].forEach(function (id) {
+          var el = document.getElementById(id);
+          if (!el) return;
+          el.addEventListener('change', maybeRegenerateDescription);
+        });
 
         if (descriptionInput) {
           descriptionInput.addEventListener('input', function() {
@@ -504,7 +714,7 @@
         }
         if (additionalNotesInput) {
           additionalNotesInput.addEventListener('input', function() {
-            maybeRegenerateDescription(false);
+            maybeRegenerateDescription();
           });
         }
 
@@ -529,12 +739,13 @@
           currentDetails = preserveCompatibleValues(oldSchema, newSchema);
           currentCategoryId = categorySelect.value;
           renderGuidedFields();
-          maybeRegenerateDescription(true);
+          syncEvidenceUi(categorySelect.value);
+          maybeRegenerateDescription();
 
           var suggested = getSuggestedTitle(categorySelect.value);
           var suggestedUrgency = getSuggestedUrgency(categorySelect.value);
 
-          if (titleInput.value.trim() === '' || titleInput.value === lastAutoTitle) {
+          if (titleInput && (titleInput.value.trim() === '' || titleInput.value === lastAutoTitle)) {
             titleInput.value = suggested;
             lastAutoTitle = suggested;
           }

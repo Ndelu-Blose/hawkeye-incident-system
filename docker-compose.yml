@@ -42,8 +42,14 @@ services:
       MAIL_USERNAME: ""
       MAIL_PASSWORD: ""
       MAIL_DEFAULT_SENDER: noreply@hawkeye.local
+      # Public URL for links in emails (match the host/port you use in the browser).
+      APP_BASE_URL: ${APP_BASE_URL:-http://127.0.0.1:5005}
+      RESEND_API_KEY: ${RESEND_API_KEY:-}
+      RESEND_FROM_EMAIL: ${RESEND_FROM_EMAIL:-}
     ports:
+      # 5000: legacy; 5005 avoids host port clashes when stray local Flask binds 5000
       - "5000:5000"
+      - "5005:5000"
     volumes:
       - .:/app
     command: >

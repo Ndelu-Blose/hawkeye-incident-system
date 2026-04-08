@@ -52,6 +52,9 @@
       <div class="col-12 col-md-2">
         <button class="btn resident-primary-btn w-100" type="submit">Apply</button>
       </div>
+      <div class="col-12 col-md-2">
+        <a class="btn btn-outline-light w-100" href="{{ url_for('resident.incidents_map') }}">Clear filters</a>
+      </div>
       <div class="col-12 col-md-12">
         <div class="form-check mt-1">
           <input class="form-check-input" type="checkbox" value="1" id="my_only" name="my_only" {% if my_only %}checked{% endif %}>
@@ -95,6 +98,11 @@
       </div>
       {% if google_maps_api_key %}
         <div id="residentIncidentMap" class="resident-incident-map-canvas"></div>
+        {% if not (incident_points|selectattr('latitude')|list) %}
+          <div class="alert alert-info mt-3 mb-0">
+            No incidents in this view have map coordinates yet. Incidents may still appear in the list.
+          </div>
+        {% endif %}
       {% else %}
         <div class="alert alert-warning mb-0">
           Google Maps API key is missing. Configure <code>GOOGLE_MAPS_API_KEY</code> to view map markers.
@@ -107,11 +115,16 @@
       {% if incident_points %}
         <div class="resident-map-list">
           {% for inc in incident_points %}
-            <div class="resident-map-item">
+            <div
+              class="resident-map-item {% if inc.has_coordinates %}resident-map-item-selectable{% endif %}"
+              data-incident-id="{{ inc.id }}"
+              data-has-coordinates="{{ '1' if inc.has_coordinates else '0' }}"
+              {% if inc.has_coordinates %}tabindex="0" role="button" aria-label="Focus incident on map"{% endif %}
+            >
               <div class="d-flex justify-content-between align-items-start gap-2">
                 <div>
                   <div class="resident-incident-title mb-1">{{ inc.title }}</div>
-                  <div class="resident-incident-meta">{{ inc.reference_code }} • {{ inc.category|replace('_', ' ')|title }}</div>
+                  <div class="resident-incident-meta">{{ inc.reference_code }} • {{ inc.category_label or (inc.category|replace('_', ' ')|title) }}</div>
                 </div>
                 {% if inc.is_own %}
                   <span class="badge text-bg-primary">Your incident</span>
@@ -125,7 +138,7 @@
                 {% endif %}
               </div>
               <div class="resident-incident-meta mt-2">
-                {{ inc.location or inc.suburb_or_ward or "Location unavailable" }}<br />
+                {{ inc.location_label }}<br />
                 {{ inc.created_at }}
               </div>
               <div class="mt-2">
@@ -194,6 +207,93 @@
 
         var bounds = new google.maps.LatLngBounds();
         var info = new google.maps.InfoWindow();
+        var markerByIncidentId = {};
+        var listByIncidentId = {};
+        var listItems = Array.prototype.slice.call(document.querySelectorAll(".resident-map-item[data-incident-id]"));
+        listItems.forEach(function (el) {
+          listByIncidentId[String(el.dataset.incidentId)] = el;
+        });
+        function clearActiveState() {
+          listItems.forEach(function (el) { el.classList.remove("resident-map-item-active"); });
+        }
+        function setActive(incidentId) {
+          clearActiveState();
+          var row = listByIncidentId[String(incidentId)];
+          if (row) {
+            row.classList.add("resident-map-item-active");
+            row.scrollIntoView({ behavior: "smooth", block: "nearest" });
+          }
+        }
+        function popupNode(p) {
+          var wrap = document.createElement("div");
+          wrap.style.maxWidth = "260px";
+          wrap.style.color = "#0f172a";
+          wrap.style.fontSize = "13px";
+          wrap.style.lineHeight = "1.35";
+          var title = document.createElement("div");
+          title.style.fontWeight = "700";
+          title.style.marginBottom = "4px";
+          title.textContent = p.title || "";
+          wrap.appendChild(title);
+          var ref = document.createElement("div");
+          ref.style.fontSize = "12px";
+          ref.style.opacity = "0.85";
+          ref.textContent = p.reference_code || "";
+          wrap.appendChild(ref);
+          var meta = document.createElement("div");
+          meta.style.fontSize = "12px";
+          meta.style.marginTop = "6px";
+          meta.textContent = (p.category_label || p.category || "") + (p.created_at ? " · " + p.created_at : "");
+          wrap.appendChild(meta);
+          var location = document.createElement("div");
+          location.style.marginTop = "6px";
+          location.textContent = p.location_label || p.location || p.suburb_or_ward || "";
+          wrap.appendChild(location);
+          if (p.is_own && p.description_preview) {
+            var desc = document.createElement("div");
+            desc.style.marginTop = "8px";
+            desc.style.fontSize = "12px";
+            desc.style.maxHeight = "72px";
+            desc.style.overflow = "hidden";
+            desc.textContent = p.description_preview;
+            wrap.appendChild(desc);
+          }
+          if (p.is_own && p.detail_url) {
+            var action = document.createElement("a");
+            action.href = p.detail_url;
+            action.style.display = "inline-block";
+            action.style.marginTop = "10px";
+            action.style.padding = "4px 10px";
+            action.style.borderRadius = "6px";
+            action.style.background = "#2563eb";
+            action.style.color = "#fff";
+            action.style.textDecoration = "none";
+            action.style.fontSize = "12px";
+            action.textContent = "Open details";
+            wrap.appendChild(action);
+          } else if (!p.is_own) {
+            var note = document.createElement("div");
+            note.style.marginTop = "8px";
+            note.style.fontSize = "11px";
+            note.style.color = "#64748b";
+            note.textContent = "Full details are only visible for incidents you reported.";
+            wrap.appendChild(note);
+          }
+          return wrap;
+        }
+        function focusIncident(p) {
+          if (!p || p.latitude === null || p.longitude === null) return;
+          var marker = markerByIncidentId[String(p.id)];
+          if (!marker) return;
+          var pos = marker.getPosition();
+          if (pos) {
+            map.panTo(pos);
+            if ((map.getZoom() || 0) < 15) map.setZoom(15);
+          }
+          info.setContent(popupNode(p));
+          info.open(map, marker);
+          setActive(p.id);
+        }
         var markers = [];
         withCoords.forEach(function (p) {
           var marker = new google.maps.Marker({
@@ -211,20 +311,10 @@
           });
           bounds.extend(marker.getPosition());
           marker.addListener("click", function () {
-            var action = p.is_own && p.detail_url
-              ? '<a href="' + p.detail_url + '" class="btn btn-sm btn-primary mt-2">Open details</a>'
-              : '<div class="small text-muted mt-2">Details available only for your own incidents.</div>';
-            info.setContent(
-              '<div style="max-width:240px">' +
-                '<strong>' + p.title + '</strong><br />' +
-                '<span>' + (p.category || "") + '</span><br />' +
-                '<span>' + (p.location || p.suburb_or_ward || "") + '</span><br />' +
-                action +
-              "</div>"
-            );
-            info.open(map, marker);
+            focusIncident(p);
           });
           markers.push(marker);
+          markerByIncidentId[String(p.id)] = marker;
         });
         if (window.markerClusterer && markers.length > 0) {
           new markerClusterer.MarkerClusterer({ map: map, markers: markers });
@@ -232,6 +322,19 @@
         if (withCoords.length > 1) {
           map.fitBounds(bounds);
         }
+        listItems.forEach(function (row) {
+          if (row.dataset.hasCoordinates !== "1") return;
+          var incidentId = row.dataset.incidentId;
+          var point = points.find(function (x) { return String(x.id) === String(incidentId); });
+          if (!point) return;
+          row.addEventListener("click", function () { focusIncident(point); });
+          row.addEventListener("keydown", function (event) {
+            if (event.key === "Enter" || event.key === " ") {
+              event.preventDefault();
+              focusIncident(point);
+            }
+          });
+        });
       };
     </script>
     <script src="https://unpkg.com/@googlemaps/markerclusterer/dist/index.min.js"></script>

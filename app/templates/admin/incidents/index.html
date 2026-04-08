@@ -115,6 +115,8 @@
         id="date_from"
         name="date_from"
         value="{{ date_from }}"
+        max="{{ filter_max_date }}"
+        autocomplete="off"
       />
     </div>
 
@@ -126,6 +128,8 @@
         id="date_to"
         name="date_to"
         value="{{ date_to }}"
+        max="{{ filter_max_date }}"
+        autocomplete="off"
       />
     </div>
 
@@ -253,8 +257,8 @@
         <tbody>
           {% for incident in page.items %}
             {% set sla = (incident | sla_due) %}
-            {% set is_overdue = sla and sla < (now() if false else sla) %}
-            <tr class="{% if sla and sla < (incident.created_at or sla) %}table-warning{% endif %}">
+            {% set is_overdue = sla is not none and sla < now %}
+            <tr class="{% if is_overdue %}table-warning{% endif %}">
               <td>
                 <a href="{{ url_for('admin.incident_detail', incident_id=incident.id) }}">
                   {{ incident.reference_code or ('#%d' % incident.id) }}
@@ -266,9 +270,9 @@
               <td>{{ incident.reported_at.strftime('%Y-%m-%d %H:%M') if incident.reported_at else (incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at else '—') }}</td>
               <td>
                 {% if sla %}
-                  <span class="{% if sla < (incident.created_at or sla) %}text-warning fw-semibold{% endif %}">
+                  <span class="{% if is_overdue %}text-warning fw-semibold{% endif %}">
                     {{ sla.strftime('%Y-%m-%d %H:%M') }}
-                    {% if sla < (incident.created_at or sla) %}
+                    {% if is_overdue %}
                       <span class="badge bg-danger ms-1">Overdue</span>
                     {% endif %}
                   </span>

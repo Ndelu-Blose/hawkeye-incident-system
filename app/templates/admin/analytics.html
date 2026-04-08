@@ -52,14 +52,40 @@
             <h5 class="mb-0">Incident Hotspot Heatmap</h5>
             <small class="text-muted">Visualizes report concentration by area for response planning.</small>
           </div>
-          <form id="adminHotspotFilters" class="d-flex flex-wrap gap-2">
-            <select class="form-select form-select-sm bg-dark text-light border-secondary" name="days">
-              <option value="1">Last 24h</option>
-              <option value="7" selected>Last 7 days</option>
-              <option value="30">Last 30 days</option>
-            </select>
-            <input class="form-control form-control-sm bg-dark text-light border-secondary" name="category" placeholder="Category" />
-            <input class="form-control form-control-sm bg-dark text-light border-secondary" name="status" placeholder="Status" />
+          <form id="adminHotspotFilters" class="d-flex flex-wrap gap-2 align-items-end admin-hotspot-filters">
+            <div>
+              <label class="form-label small text-muted mb-0" for="adminHotspotDays">Period</label>
+              <select id="adminHotspotDays" class="form-select form-select-sm bg-dark text-light border-secondary" name="days">
+                <option value="1" {% if hotspot_days == 1 %}selected{% endif %}>Last 24h</option>
+                <option value="7" {% if hotspot_days == 7 %}selected{% endif %}>Last 7 days</option>
+                <option value="14" {% if hotspot_days == 14 %}selected{% endif %}>Last 14 days</option>
+                <option value="30" {% if hotspot_days == 30 %}selected{% endif %}>Last 30 days</option>
+              </select>
+            </div>
+            <div>
+              <label class="form-label small text-muted mb-0" for="adminHotspotCategory">Category</label>
+              <input
+                id="adminHotspotCategory"
+                class="form-control form-control-sm bg-dark text-light border-secondary"
+                name="category"
+                type="search"
+                autocomplete="off"
+                placeholder="e.g. pothole"
+                title="Filter by incident category key or name (optional)"
+              />
+            </div>
+            <div>
+              <label class="form-label small text-muted mb-0" for="adminHotspotStatus">Status</label>
+              <input
+                id="adminHotspotStatus"
+                class="form-control form-control-sm bg-dark text-light border-secondary"
+                name="status"
+                type="search"
+                autocomplete="off"
+                placeholder="e.g. reported"
+                title="Comma-separated status values (optional)"
+              />
+            </div>
             <button class="btn btn-outline-light btn-sm" type="submit">Apply</button>
           </form>
         </div>
@@ -149,6 +175,38 @@
             </div>
           {% else %}
             <div class="p-3 text-muted">No incidents in this period.</div>
+          {% endif %}
+        </div>
+      </div>
+    </div>
+    <div class="col-lg-6">
+      <div class="card hawkeye-admin-panel">
+        <div class="card-header">
+          <h5 class="mb-0">Incidents created by day</h5>
+          <small class="text-muted">Server-rendered volume summary, last {{ summary.days }} days</small>
+        </div>
+        <div class="card-body p-0">
+          {% if summary.volume_by_day %}
+            <div class="table-responsive">
+              <table class="table table-dark table-striped mb-0">
+                <thead>
+                  <tr>
+                    <th>Day</th>
+                    <th>Created incidents</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {% for row in summary.volume_by_day %}
+                    <tr>
+                      <td>{{ row.day }}</td>
+                      <td>{{ row.count }}</td>
+                    </tr>
+                  {% endfor %}
+                </tbody>
+              </table>
+            </div>
+          {% else %}
+            <div class="p-3 text-muted">No incident creation activity in this period.</div>
           {% endif %}
         </div>
       </div>
@@ -298,90 +356,108 @@
   {{ super() }}
   {% if google_maps_api_key %}
     <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
-    <script>
-      (() => {
-        const filterForm = document.getElementById("adminHotspotFilters");
-        const mapNode = document.getElementById("adminHotspotMap");
-        const emptyNode = document.getElementById("adminHotspotEmpty");
-        const areasNode = document.getElementById("adminHotspotAreas");
-        if (!filterForm || !mapNode || !areasNode) return;
+  {% endif %}
+  <script>
+    (() => {
+      const hotspotApiUrl = {{ url_for("admin.analytics_hotspots") | tojson }};
+      const filterForm = document.getElementById("adminHotspotFilters");
+      const mapNode = document.getElementById("adminHotspotMap");
+      const emptyNode = document.getElementById("adminHotspotEmpty");
+      const areasNode = document.getElementById("adminHotspotAreas");
+      if (!filterForm || !areasNode) return;
 
-        const map = new google.maps.Map(mapNode, {
+      let map = null;
+      let circles = [];
+      if (mapNode && window.google && window.google.maps) {
+        map = new google.maps.Map(mapNode, {
           center: { lat: -29.8587, lng: 31.0218 },
           zoom: 11,
           mapTypeControl: false,
           streetViewControl: false,
         });
-        let circles = [];
+      }
 
-        const renderAreas = (areas) => {
-          if (!areas.length) {
-            areasNode.innerHTML = '<tr><td colspan="2" class="text-muted">No hotspot areas for this filter.</td></tr>';
-            return;
+      const escapeHtml = (value) => String(value ?? "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+
+      const renderAreas = (areas) => {
+        if (!areas.length) {
+          areasNode.innerHTML = '<tr><td colspan="2" class="text-muted">No hotspot areas for this filter.</td></tr>';
+          return;
+        }
+        areasNode.innerHTML = areas.map((area) => (
+          `<tr><td>${escapeHtml(area.name)}</td><td>${escapeHtml(area.count)}</td></tr>`
+        )).join("");
+      };
+
+      const renderAreasError = (message) => {
+        areasNode.innerHTML = `<tr><td colspan="2" class="text-warning">${escapeHtml(message)}</td></tr>`;
+      };
+
+      const renderPoints = (points) => {
+        circles.forEach((circle) => circle.setMap(null));
+        circles = [];
+        if (!map) {
+          if (emptyNode) {
+            if (!points.length) emptyNode.classList.remove("d-none");
+            else emptyNode.classList.add("d-none");
           }
-          areasNode.innerHTML = areas.map((area) => (
-            `<tr><td>${area.name}</td><td>${area.count}</td></tr>`
-          )).join("");
-        };
-
-        const renderAreasError = (message) => {
-          areasNode.innerHTML = `<tr><td colspan="2" class="text-warning">${message}</td></tr>`;
-        };
-
-        const renderPoints = (points) => {
-          circles.forEach((circle) => circle.setMap(null));
-          circles = [];
-          if (!points.length) {
-            emptyNode.classList.remove("d-none");
-            return;
-          }
-          emptyNode.classList.add("d-none");
-          const bounds = new google.maps.LatLngBounds();
-          points.forEach((point) => {
-            bounds.extend({ lat: point.lat, lng: point.lng });
-            const circle = new google.maps.Circle({
-              strokeColor: "#ff5f5f",
-              strokeOpacity: 0.55,
-              strokeWeight: 1,
-              fillColor: "#ff2e2e",
-              fillOpacity: 0.2 + Math.min(0.55, (point.weight || 1) / 8),
-              map,
-              center: { lat: point.lat, lng: point.lng },
-              radius: 140 + ((point.weight || 1) * 120),
-            });
-            circles.push(circle);
+          return;
+        }
+        if (!points.length) {
+          if (emptyNode) emptyNode.classList.remove("d-none");
+          return;
+        }
+        if (emptyNode) emptyNode.classList.add("d-none");
+        const bounds = new google.maps.LatLngBounds();
+        points.forEach((point) => {
+          bounds.extend({ lat: point.lat, lng: point.lng });
+          const circle = new google.maps.Circle({
+            strokeColor: "#ff5f5f",
+            strokeOpacity: 0.55,
+            strokeWeight: 1,
+            fillColor: "#ff2e2e",
+            fillOpacity: 0.2 + Math.min(0.55, (point.weight || 1) / 8),
+            map,
+            center: { lat: point.lat, lng: point.lng },
+            radius: 140 + ((point.weight || 1) * 120),
           });
-          map.fitBounds(bounds, 48);
-        };
-
-        const loadHotspots = async () => {
-          try {
-            const params = new URLSearchParams(new FormData(filterForm));
-            renderAreasError("Loading hotspot areas...");
-            emptyNode.classList.add("d-none");
-            const response = await fetch(`/admin/api/admin/analytics/hotspots?${params.toString()}`, {
-              headers: { "Accept": "application/json" },
-            });
-            if (!response.ok) {
-              throw new Error(`Hotspot API failed (${response.status})`);
-            }
-            const payload = await response.json();
-            renderPoints(payload.points || []);
-            renderAreas(payload.areas || []);
-          } catch (error) {
-            console.error("Failed to load admin hotspots", error);
-            renderPoints([]);
-            renderAreasError("Unable to load hotspots right now. Please retry.");
-          }
-        };
-
-        filterForm.addEventListener("submit", (event) => {
-          event.preventDefault();
-          loadHotspots();
+          circles.push(circle);
         });
+        map.fitBounds(bounds, 48);
+      };
 
+      const loadHotspots = async () => {
+        try {
+          const params = new URLSearchParams(new FormData(filterForm));
+          renderAreasError("Loading hotspot areas...");
+          if (emptyNode) emptyNode.classList.add("d-none");
+          const response = await fetch(`${hotspotApiUrl}?${params.toString()}`, {
+            headers: { Accept: "application/json" },
+            credentials: "same-origin",
+          });
+          if (!response.ok) {
+            throw new Error(`Hotspot API failed (${response.status})`);
+          }
+          const payload = await response.json();
+          renderPoints(payload.points || []);
+          renderAreas(payload.areas || []);
+        } catch (error) {
+          console.error("Failed to load admin hotspots", error);
+          renderPoints([]);
+          renderAreasError("Unable to load hotspots right now. Please retry.");
+        }
+      };
+
+      filterForm.addEventListener("submit", (event) => {
+        event.preventDefault();
         loadHotspots();
-      })();
-    </script>
-  {% endif %}
+      });
+
+      loadHotspots();
+    })();
+  </script>
 {% endblock %}

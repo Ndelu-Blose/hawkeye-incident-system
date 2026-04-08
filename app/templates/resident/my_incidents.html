@@ -80,6 +80,8 @@
           id="date_from"
           name="date_from"
           value="{{ date_from }}"
+          max="{{ filter_max_date }}"
+          autocomplete="off"
         />
       </div>
       <div class="col-6 col-md-2">
@@ -90,10 +92,15 @@
           id="date_to"
           name="date_to"
           value="{{ date_to }}"
+          max="{{ filter_max_date }}"
+          autocomplete="off"
         />
       </div>
       <div class="col-6 col-md-1 d-flex gap-2 justify-content-end">
         <button type="submit" class="btn btn-sm btn-outline-light w-100">Apply</button>
+      </div>
+      <div class="col-6 col-md-2 d-flex gap-2 justify-content-end">
+        <a href="{{ url_for('resident.my_incidents') }}" class="btn btn-sm btn-outline-secondary w-100">Clear filters</a>
       </div>
     </div>
   </form>

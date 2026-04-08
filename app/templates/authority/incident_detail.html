@@ -17,7 +17,7 @@
         <p class="mb-2">
           Status:
           {{ render_status_badge(incident.status) }}
-          <span class="ms-2 small text-muted">
+          <span class="ms-2 small hawkeye-inline-help">
             Business view:
             {% if incident.status == 'screened' %}Verified{% elif incident.status == 'assigned' %}Escalated{% else %}{{ incident.status|replace('_',' ')|title }}{% endif %}
           </span>
@@ -82,38 +82,51 @@
           <input type="hidden" name="note" value="Acknowledged by department" />
           <button type="submit" class="btn btn-success">Acknowledge incident</button>
         </form>
-        <p class="text-muted small mt-2 mb-0">Confirm receipt of this incident before updating status.</p>
+        <p class="text-muted small mt-2 mb-0">
+          This is the only way to record receipt—it moves the workflow to <strong class="text-light">Acknowledged</strong> and matches the dispatch log.
+        </p>
       </div>
       {% endif %}
 
       <div class="hawkeye-admin-panel p-4">
-        <h3 class="h5 mb-3">Update status</h3>
-        <form method="post" action="{{ url_for('authority.update_incident_status', incident_id=incident.id) }}">
-          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-
-          <div class="mb-3">
-            <label for="status" class="form-label">New status</label>
-            <select class="form-select" id="status" name="status" required>
-              <option value="">Select status</option>
-              <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
-              <option value="awaiting_evidence" {% if incident.status == 'awaiting_evidence' %}selected{% endif %}>Awaiting Evidence</option>
-              <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
-              <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
-              <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
-              <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
-              <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
-              <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
-              <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
-            </select>
-          </div>
-
-          <div class="mb-3">
-            <label for="note" class="form-label">Resolution / progress note</label>
-            <textarea class="form-control" id="note" name="note" rows="3"></textarea>
-          </div>
-
-          <button type="submit" class="btn btn-primary">Save status</button>
-        </form>
+        <h3 class="h5 mb-2">Department actions</h3>
+        <p class="small text-muted mb-3">
+          Routing and “escalated / assigned” states are set when your organisation is dispatched. You do not pick those from a list.
+          Use <strong class="text-light">Acknowledge</strong> when shown, then the actions below.
+        </p>
+        {% if workflow_actions %}
+          {% for action in workflow_actions %}
+            <form
+              method="post"
+              action="{{ url_for('authority.update_incident_status', incident_id=incident.id) }}"
+              class="mb-3 {% if not loop.last %}pb-3 border-bottom border-secondary{% endif %}"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+              <input type="hidden" name="status" value="{{ action.status }}" />
+              {% if action.hint %}
+                <p class="small text-muted mb-2">{{ action.hint }}</p>
+              {% endif %}
+              <div class="mb-2">
+                <label for="workflow-note-{{ loop.index }}" class="form-label small mb-1">
+                  {% if action.note_required %}Note (required){% else %}Note (optional){% endif %}
+                </label>
+                <textarea
+                  class="form-control"
+                  id="workflow-note-{{ loop.index }}"
+                  name="note"
+                  rows="2"
+                  {% if action.note_required %}required{% endif %}
+                  placeholder="{% if action.note_required %}Required for this action.{% else %}Add context if helpful.{% endif %}"
+                ></textarea>
+              </div>
+              <button type="submit" class="btn {{ action.btn_class }}">{{ action.label }}</button>
+            </form>
+          {% endfor %}
+        {% else %}
+          <p class="small text-muted mb-0">
+            No extra steps here right now. If the incident is still with your admin for routing, check back after dispatch is sent.
+          </p>
+        {% endif %}
       </div>
     </div>
 

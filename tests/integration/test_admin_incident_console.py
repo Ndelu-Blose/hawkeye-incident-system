@@ -1,3 +1,5 @@
+from datetime import date
+
 from sqlalchemy import event
 
 from app.constants import IncidentStatus, Roles
@@ -26,6 +28,25 @@ def test_admin_incident_console_requires_admin(app, client):
 
     resp = client.get("/admin/incidents")
     assert resp.status_code == 403
+
+
+def test_admin_incidents_list_date_inputs_max_today(app, client):
+    with app.app_context():
+        auth_service.register_user(
+            name="Admin Max",
+            email="admin_maxdate@example.com",
+            password="password123",
+            role=Roles.ADMIN.value,
+        )
+    client.post(
+        "/auth/login",
+        data={"email": "admin_maxdate@example.com", "password": "password123"},
+        follow_redirects=True,
+    )
+    resp = client.get("/admin/incidents")
+    assert resp.status_code == 200
+    assert b'max="' in resp.data
+    assert date.today().strftime("%Y-%m-%d").encode() in resp.data
 
 
 def test_admin_status_update_visible_to_resident(app, client):

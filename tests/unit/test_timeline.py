@@ -160,6 +160,57 @@ def test_assemble_timeline_uses_incident_events_when_present(app):
         assert "Work started" in [e.description for e in timeline if e.kind == "status_update"][0]
 
 
+def test_assemble_timeline_merges_legacy_updates_when_ledger_exists(app):
+    """Updates that never wrote incident_events (e.g. proof OK while status stayed reported) appear."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="timeline-merge@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Merge Test",
+            description="Desc",
+            category="Cat",
+            suburb_or_ward="Sub",
+            street_or_landmark="St",
+            location="St, Sub",
+            severity="low",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-000200",
+        )
+        db.session.add(incident)
+        db.session.commit()
+        incident_id = incident.id
+
+        ev1 = IncidentEvent(
+            incident_id=incident_id,
+            event_type=IncidentEventType.INCIDENT_CREATED.value,
+            to_status=IncidentStatus.REPORTED.value,
+            actor_user_id=user.id,
+            actor_role="resident",
+            note="Incident created",
+        )
+        db.session.add(ev1)
+        db.session.commit()
+
+        orphan = IncidentUpdate(
+            incident_id=incident_id,
+            updated_by_id=user.id,
+            from_status=IncidentStatus.REPORTED.value,
+            to_status=IncidentStatus.REPORTED.value,
+            note="Proof approved by admin",
+        )
+        db.session.add(orphan)
+        db.session.commit()
+
+        timeline = incident_service.assemble_timeline(incident_id)
+        assert len([e for e in timeline if e.kind == "incident_created"]) == 1
+        assert any("Proof approved" in (e.description or "") for e in timeline)
+
+
 def test_assemble_timeline_returns_empty_for_missing_incident(app):
     """assemble_timeline returns empty list for non-existent incident."""
     with app.app_context():
@@ -243,3 +294,5 @@ def test_admin_detail_page_includes_timeline_content(app, client):
     assert resp.status_code == 200
     assert b"Timeline" in resp.data
     assert b"Incident reported" in resp.data or b"reported" in resp.data.lower()
+    assert b"Recommended workflow" in resp.data
+    assert b"Next: review resident proof" in resp.data

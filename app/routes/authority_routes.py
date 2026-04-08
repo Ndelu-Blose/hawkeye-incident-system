@@ -83,6 +83,7 @@ def incident_detail(incident_id: int):
         incident_id,
         current_user,  # type: ignore[arg-type]
     )
+    workflow_actions = incident_service.get_authority_workflow_actions(incident)
 
     return render_template(
         "authority/incident_detail.html",
@@ -90,6 +91,7 @@ def incident_detail(incident_id: int):
         updates=updates,
         timeline=incident_service.assemble_timeline(incident_id),
         can_acknowledge=can_acknowledge,
+        workflow_actions=workflow_actions,
     )
 
 
@@ -125,12 +127,39 @@ def update_incident_status(incident_id: int):
         flash("Invalid status.", "danger")
         return redirect(url_for("authority.incident_detail", incident_id=incident_id))
 
+    incident = incident_service.incident_repo.get_by_id(incident_id)
+    if incident is None:
+        flash("Incident not found.", "warning")
+        return redirect(url_for("authority.dashboard"))
+
+    # Receipt must use acknowledge_incident so dispatch ack + incident event stay aligned.
+    if to_status == IncidentStatus.ACKNOWLEDGED:
+        flash(
+            "Use “Acknowledge incident” above to confirm receipt—that updates dispatch and status together.",
+            "warning",
+        )
+        return redirect(url_for("authority.incident_detail", incident_id=incident_id))
+
+    actions = incident_service.get_authority_workflow_actions(incident)
+    allowed = {a["status"] for a in actions}
+    if to_status.value not in allowed:
+        flash(
+            "That status is set automatically by the system or by your admin team—not from this form.",
+            "warning",
+        )
+        return redirect(url_for("authority.incident_detail", incident_id=incident_id))
+
+    meta = next((a for a in actions if a["status"] == to_status.value), None)
+    if meta and meta.get("note_required") and not (note or "").strip():
+        flash("A note is required for this action.", "warning")
+        return redirect(url_for("authority.incident_detail", incident_id=incident_id))
+
     ok, errors = incident_service.update_status(
         incident_id=incident_id,
         to_status=to_status,
         note=note,
         authority_user=current_user,  # type: ignore[arg-type]
-        allow_admin_override=getattr(current_user, "role", None) == Roles.ADMIN.value,
+        allow_admin_override=False,
     )
 
     if not ok:

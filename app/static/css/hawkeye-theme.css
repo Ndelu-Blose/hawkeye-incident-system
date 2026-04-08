@@ -6,6 +6,8 @@
   --hawkeye-border: rgba(104, 142, 255, 0.28);
   --hawkeye-text: #f5f8ff;
   --hawkeye-text-soft: #a9bbd7;
+  /* Readable secondary copy on dark navy (Bootstrap default .text-muted is too dark/muddy here) */
+  --hawkeye-text-muted: #c9d8ee;
   --hawkeye-primary: #3b82f6;
   --hawkeye-primary-hover: #2563eb;
   --hawkeye-success: #22c55e;
@@ -60,6 +62,38 @@
 
 .alert .btn-close:hover {
   opacity: 1;
+}
+
+/* Required fields (HTML5 `required`): red outline so mandatory inputs stand out from optional */
+form .form-control:required:not([type="file"]):not([type="hidden"]),
+form .form-select:required,
+form textarea.form-control:required {
+  border-color: rgba(248, 113, 113, 0.9);
+  box-shadow: inset 0 0 0 1px rgba(239, 68, 68, 0.35);
+}
+
+form .form-control:required:not([type="file"]):not([type="hidden"]):focus,
+form .form-select:required:focus,
+form textarea.form-control:required:focus {
+  border-color: var(--hawkeye-danger);
+  box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.28);
+}
+
+form .form-check-input:required:not(:checked) {
+  border-color: rgba(248, 113, 113, 0.95);
+  box-shadow: 0 0 0 1px rgba(239, 68, 68, 0.25);
+}
+
+form .form-check-input[type="radio"][required] {
+  border-color: rgba(248, 113, 113, 0.85);
+}
+
+/* Prefer red focus ring over browser default blue on invalid required fields */
+form .form-control:required:invalid:focus,
+form .form-select:required:invalid:focus,
+form textarea.form-control:required:invalid:focus {
+  border-color: var(--hawkeye-danger);
+  box-shadow: 0 0 0 0.2rem rgba(239, 68, 68, 0.32);
 }
 
 /* Toasts – fixed, non-blocking, no layout shift */
@@ -713,6 +747,338 @@ body.app-shell-body.drawer-open {
   color: #cbd5f5 !important;
 }
 
+/* Admin & authority: same shell background as resident, but main has no .resident-main — fix Bootstrap muted */
+.app-main.app-content:not(.resident-main) .text-muted,
+.app-main.app-content:not(.resident-main) .form-text {
+  color: var(--hawkeye-text-muted) !important;
+}
+
+.app-main.app-content:not(.resident-main) .text-secondary {
+  color: var(--hawkeye-text-soft) !important;
+}
+
+/* Inline explanatory text next to badges (e.g. “Business view: …”) — no Bootstrap text-muted */
+.hawkeye-inline-help {
+  color: var(--hawkeye-text-muted);
+  font-weight: 500;
+}
+
+/* Admin incident detail page — Bootstrap .text-muted stays too dark on navy; normalize whole page */
+.admin-incident-detail-page {
+  color: var(--hawkeye-text);
+}
+
+.admin-incident-detail-page .text-muted,
+.admin-incident-detail-page .form-text {
+  color: var(--hawkeye-text-muted) !important;
+  opacity: 1 !important;
+}
+
+.admin-incident-detail-page .form-label {
+  color: #e5edff;
+}
+
+.admin-incident-detail-page strong {
+  color: var(--hawkeye-text);
+  font-weight: 600;
+}
+
+.hawkeye-detail-secondary {
+  color: var(--hawkeye-text-muted) !important;
+  opacity: 1;
+}
+
+.hawkeye-detail-emphasis {
+  color: var(--hawkeye-text) !important;
+  font-weight: 600;
+}
+
+/* Admin incident detail — workflow status (no accidental “error” red outline; deliberate controls) */
+.admin-status-update-card {
+  box-shadow: var(--hawkeye-shadow);
+}
+
+.admin-status-current-row {
+  padding: 0.85rem 1rem;
+  border-radius: 14px;
+  background: rgba(6, 16, 41, 0.55);
+  border: 1px solid rgba(124, 164, 224, 0.22);
+}
+
+.admin-status-current-label {
+  font-size: 0.72rem;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--hawkeye-text-muted);
+  font-weight: 600;
+}
+
+.admin-status-update-form .admin-status-select,
+.admin-status-update-form .admin-status-note {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  color: #f8fafc !important;
+}
+
+.admin-status-update-form .admin-status-select:focus,
+.admin-status-update-form .admin-status-note:focus {
+  border-color: rgba(96, 165, 250, 0.75) !important;
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.22) !important;
+}
+
+/* Incident detail — named workflow steps (titles + what-to-do copy always readable on navy) */
+.admin-recommended-workflow-card .admin-recommended-workflow-intro {
+  color: #cbd5e1 !important;
+  opacity: 1 !important;
+}
+
+.admin-recommended-workflow-card .admin-workflow-next-action-banner {
+  padding: 0.85rem 1rem;
+  border-radius: 12px;
+  border: 1px solid rgba(250, 204, 21, 0.55);
+  background: linear-gradient(
+    135deg,
+    rgba(234, 179, 8, 0.18) 0%,
+    rgba(30, 58, 138, 0.22) 100%
+  );
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.4) inset;
+}
+
+.admin-recommended-workflow-card .admin-workflow-next-action-title {
+  font-size: 1rem;
+  font-weight: 700;
+  color: #fef08a !important;
+  letter-spacing: 0.01em;
+  margin-bottom: 0.35rem;
+}
+
+.admin-recommended-workflow-card .admin-workflow-next-action-body {
+  font-size: 0.9rem !important;
+  line-height: 1.55 !important;
+  color: #f1f5f9 !important;
+  opacity: 1 !important;
+}
+
+.admin-recommended-workflow-card .admin-workflow-next-action-link {
+  display: inline-block;
+  margin-top: 0.5rem;
+  font-weight: 600;
+  color: #fde047 !important;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.admin-recommended-workflow-card .admin-workflow-next-action-link:hover {
+  color: #fef9c3 !important;
+}
+
+.admin-recommended-workflow-card .admin-recommended-workflow-step > div {
+  transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.admin-recommended-workflow-card .admin-recommended-workflow-step:hover > div {
+  background: rgba(30, 58, 138, 0.18);
+}
+
+.admin-recommended-workflow-card a.admin-recommended-workflow-step {
+  color: #f8fafc !important;
+}
+
+.admin-recommended-workflow-card .admin-recommended-workflow-step-desc {
+  font-size: 0.8rem !important;
+  line-height: 1.45 !important;
+  color: #e2e8f0 !important;
+  opacity: 1 !important;
+}
+
+.admin-recommended-workflow-card .admin-recommended-workflow-step-emphasis {
+  color: #ffffff !important;
+  font-weight: 600;
+}
+
+.admin-recommended-workflow-card .admin-recommended-workflow-step-active-hint {
+  color: #fde047 !important;
+  font-weight: 600;
+  line-height: 1.45;
+}
+
+.admin-incident-snapshot .admin-recent-action-desc {
+  font-size: 0.72rem;
+  line-height: 1.35;
+  opacity: 0.92;
+}
+
+/* Department directory — code column was Bootstrap pink-on-dark; contact pills were flat grey */
+.admin-department-directory-page .admin-dept-code {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 0.82rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 8px;
+  background: rgba(15, 23, 42, 0.85);
+  border: 1px solid rgba(124, 164, 224, 0.28);
+  color: var(--hawkeye-text-muted) !important;
+  font-weight: 500;
+}
+
+.admin-dept-contact-list {
+  max-width: 520px;
+}
+
+.admin-dept-contact-chip {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.35rem 0.55rem;
+  padding: 0.45rem 0.65rem;
+  border-radius: 12px;
+  background: rgba(8, 20, 45, 0.75);
+  border: 1px solid rgba(124, 164, 224, 0.22);
+  font-size: 0.8rem;
+  line-height: 1.35;
+}
+
+.admin-dept-contact-channel {
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.65rem;
+  font-weight: 800;
+  color: #93c5fd;
+}
+
+.admin-dept-contact-value {
+  color: var(--hawkeye-text);
+  word-break: break-word;
+  flex: 1 1 140px;
+  min-width: 0;
+}
+
+.admin-dept-contact-role {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: rgba(203, 213, 245, 0.85);
+  padding: 0.1rem 0.4rem;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.admin-dept-contact-verify {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  padding: 0.15rem 0.45rem;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  white-space: nowrap;
+}
+
+.admin-dept-contact-verify--verified {
+  color: #bbf7d0;
+  background: rgba(34, 197, 94, 0.14);
+  border-color: rgba(34, 197, 94, 0.4);
+}
+
+.admin-dept-contact-verify--unverified {
+  color: #fde68a;
+  background: rgba(245, 158, 11, 0.1);
+  border-color: rgba(245, 158, 11, 0.38);
+}
+
+.admin-dept-contact-verify--unknown {
+  color: var(--hawkeye-text-muted);
+  background: rgba(255, 255, 255, 0.05);
+  border-color: rgba(148, 163, 184, 0.35);
+}
+
+/* Department detail — match dark shell; avoid white inputs + fake “error” red on required name */
+.admin-authority-form .form-control,
+.admin-authority-form textarea.form-control {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.45) !important;
+  color: #f8fafc !important;
+}
+
+.admin-authority-form .form-control::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+  opacity: 1;
+}
+
+.admin-authority-form .form-control:focus,
+.admin-authority-form textarea.form-control:focus {
+  border-color: rgba(96, 165, 250, 0.75) !important;
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2) !important;
+}
+
+form.admin-authority-form .form-control:required:not([type="file"]):not([type="hidden"]) {
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2) !important;
+}
+
+form.admin-authority-form .form-control:required:focus {
+  border-color: rgba(96, 165, 250, 0.85) !important;
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.22) !important;
+}
+
+.admin-authority-detail-page .admin-authority-form .form-label {
+  color: #e5edff;
+}
+
+/* Routing rule form — dark inputs/selects; no “error” red on required dropdowns */
+.admin-routing-rule-page .admin-routing-rule-form .form-label {
+  color: #e5edff;
+}
+
+.admin-routing-rule-form .form-control,
+.admin-routing-rule-form .form-select {
+  background: rgba(15, 23, 42, 0.96) !important;
+  border-color: rgba(148, 163, 184, 0.45) !important;
+  color: #f8fafc !important;
+}
+
+.admin-routing-rule-form .form-control::placeholder {
+  color: rgba(148, 163, 184, 0.75);
+  opacity: 1;
+}
+
+.admin-routing-rule-form .form-control:focus,
+.admin-routing-rule-form .form-select:focus {
+  border-color: rgba(96, 165, 250, 0.75) !important;
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.2) !important;
+}
+
+form.admin-routing-rule-form .form-select:required,
+form.admin-routing-rule-form .form-control:required:not([type="file"]):not([type="hidden"]) {
+  border-color: rgba(148, 163, 184, 0.5) !important;
+  box-shadow: inset 0 0 0 1px rgba(148, 163, 184, 0.2) !important;
+}
+
+form.admin-routing-rule-form .form-select:required:focus,
+form.admin-routing-rule-form .form-control:required:focus {
+  border-color: rgba(96, 165, 250, 0.85) !important;
+  box-shadow: 0 0 0 0.2rem rgba(59, 130, 246, 0.22) !important;
+}
+
+.admin-routing-rule-callout {
+  padding: 0.9rem 1rem;
+  border-radius: 10px;
+  border: 1px solid rgba(96, 165, 250, 0.28);
+  background: linear-gradient(
+    135deg,
+    rgba(30, 58, 138, 0.35) 0%,
+    rgba(15, 23, 42, 0.65) 100%
+  );
+  color: #cbd5e1;
+  box-shadow: 0 1px 0 rgba(255, 255, 255, 0.04) inset;
+}
+
+.admin-routing-rule-callout strong {
+  color: #e2e8f0;
+  font-size: 0.8rem;
+  letter-spacing: 0.02em;
+}
+
 .resident-topbar {
   display: flex;
   justify-content: space-between;
@@ -970,6 +1336,12 @@ body.app-shell-body.drawer-open {
   border-radius: 16px;
   border: 1px solid rgba(124, 164, 224, 0.22);
   overflow: hidden;
+}
+
+/* Map InfoWindow defaults to inheriting page color; dark theme used light text → invisible on white balloon */
+.gm-style .gm-style-iw-c,
+.gm-style .gm-style-iw-d {
+  color: #0f172a !important;
 }
 
 .resident-map-list {
@@ -1719,7 +2091,7 @@ body.app-shell-body.drawer-open {
 
 .hawkeye-admin-panel .card-header .text-muted,
 .hawkeye-admin-panel .card-header small {
-  color: rgba(169, 187, 215, 0.9) !important;
+  color: var(--hawkeye-text-muted) !important;
 }
 
 .hawkeye-admin-panel .card-body {
@@ -1727,7 +2099,21 @@ body.app-shell-body.drawer-open {
 }
 
 .hawkeye-admin-panel .text-muted {
-  color: rgba(169, 187, 215, 0.95) !important;
+  color: var(--hawkeye-text-muted) !important;
+}
+
+.hawkeye-admin-panel .form-control::placeholder,
+.hawkeye-admin-panel .form-select option {
+  color: rgba(169, 187, 215, 0.72);
+}
+
+.hawkeye-admin-panel .form-control::placeholder {
+  opacity: 1;
+}
+
+.admin-hotspot-filters .form-label {
+  font-size: 0.75rem;
+  letter-spacing: 0.02em;
 }
 
 .hawkeye-hero-microtrust {
@@ -2833,6 +3219,36 @@ body.app-shell-body.drawer-open {
   display: none;
 }
 
+.resident-profile-picture-current {
+  display: flex;
+  gap: 1rem;
+  align-items: flex-start;
+  margin-bottom: 0.85rem;
+}
+
+.resident-profile-picture-preview-wrap {
+  flex-shrink: 0;
+}
+
+.resident-profile-picture-preview {
+  display: block;
+  width: 88px;
+  height: 88px;
+  border-radius: 999px;
+  object-fit: cover;
+  border: 1px solid rgba(124, 164, 224, 0.35);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.resident-profile-picture-preview-missing .resident-profile-picture-preview {
+  display: none;
+}
+
+.resident-profile-picture-current-copy {
+  flex: 1;
+  min-width: 0;
+}
+
 .resident-profile-name {
   font-size: 1.5rem;
   font-weight: 800;
@@ -3059,5 +3475,26 @@ body.app-shell-body.drawer-open {
     border-radius: 14px;
     padding: 0.65rem;
   }
+}
+
+/* Fix: Bootstrap row state colors can get washed out on dark striped tables */
+.table.table-striped > tbody > tr.table-warning > td,
+.table.table-striped > tbody > tr.table-warning > th {
+  background-color: var(--bs-table-warning-bg, rgba(255, 193, 7, 0.22)) !important;
+  border-color: var(--bs-table-warning-border-color, rgba(255, 193, 7, 0.35)) !important;
+}
+
+.resident-map-item-selectable {
+  cursor: pointer;
+  transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+
+.resident-map-item-selectable:hover {
+  border-color: rgba(59, 130, 246, 0.7);
+}
+
+.resident-map-item-active {
+  border-color: rgba(34, 197, 94, 0.85) !important;
+  background: rgba(34, 197, 94, 0.08);
 }
 

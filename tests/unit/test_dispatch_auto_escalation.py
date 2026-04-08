@@ -84,7 +84,10 @@ def _seed_escalation_dispatch(*, status: str = "sent", reminder_count: int = 0):
 def test_process_auto_escalations_sends_reminder_for_stale_dispatch(app, monkeypatch):
     with app.app_context():
         dispatch_id = _seed_escalation_dispatch(status="sent", reminder_count=0)
-        monkeypatch.setattr("app.services.dispatch_service.mail.send", lambda msg: None)
+        monkeypatch.setattr(
+            "app.services.dispatch_service.send_outbound_email",
+            lambda *a, **k: (True, None, "resend"),
+        )
         result = dispatch_service.process_auto_escalations(limit=50)
         dispatch = db.session.get(IncidentDispatch, dispatch_id)
         assert result["processed"] >= 1
@@ -97,7 +100,10 @@ def test_process_auto_escalations_sends_reminder_for_stale_dispatch(app, monkeyp
 def test_process_auto_escalations_respects_max_reminders(app, monkeypatch):
     with app.app_context():
         dispatch_id = _seed_escalation_dispatch(status="failed", reminder_count=3)
-        monkeypatch.setattr("app.services.dispatch_service.mail.send", lambda msg: None)
+        monkeypatch.setattr(
+            "app.services.dispatch_service.send_outbound_email",
+            lambda *a, **k: (True, None, "resend"),
+        )
         result = dispatch_service.process_auto_escalations(limit=50)
         dispatch = db.session.get(IncidentDispatch, dispatch_id)
         assert result["processed"] == 0

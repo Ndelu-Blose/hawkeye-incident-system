@@ -69,6 +69,29 @@ Alertweb Solutions is a Flask + SQLAlchemy + PostgreSQL web application for repo
    docker compose up --build
    ```
 
+### Mail and environment readiness
+
+Use `.env.example` as the source of truth for local setup. A fresh clone should work after copying it to `.env` and setting at least `SECRET_KEY` and database credentials.
+
+Mail-related environment variables:
+
+- `MAIL_SERVER`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_DEFAULT_SENDER`
+- `MAIL_USE_TLS`, `MAIL_USE_SSL`
+- `MAIL_SUPPRESS_SEND` (useful in local/testing to avoid external sends)
+- `APP_BASE_URL` (used for absolute links in notifications/password reset flows)
+
+Local mail testing with MailHog:
+
+1. Start MailHog (locally or via Docker).
+2. Set `MAIL_SERVER=localhost`, `MAIL_PORT=1025`, `MAIL_USE_TLS=false`, `MAIL_USE_SSL=false`.
+3. Open MailHog UI (`http://localhost:8025`) and verify outgoing emails.
+
+Failure behavior notes:
+
+- Dispatch email failures set dispatch status to `failed` and persist `failure_reason`.
+- Dispatch failures are also logged at warning level with incident/dispatch/authority identifiers.
+- In non-production, password reset flow provides a dev fallback link if email send is unavailable.
+
 ### Project structure (high level)
 
 - `app/` – Flask application package (config, extensions, models, services, routes, templates, static assets)

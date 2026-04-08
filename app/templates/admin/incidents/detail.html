@@ -11,13 +11,13 @@
 {% endblock %}
 
 {% block admin_content %}
-  <div class="row">
-    <div class="col-lg-7 mb-4">
+  <div class="row admin-incident-detail-page">
+    <div class="col-lg-7 mb-4 admin-incident-detail-column">
       {% set latest_dispatch = dispatches[0] if dispatches else None %}
       {% set proof_approved = (incident.verification_status == 'approved') %}
       {% set status_update_locked = not proof_approved %}
       {% set external_reference_enabled = latest_dispatch and latest_dispatch.status in ('sent', 'delivered', 'acknowledged', 'in_progress', 'resolved', 'closed') %}
-      {% set status_step_complete = incident.status in ('assigned', 'acknowledged', 'in_progress', 'resolved', 'closed', 'rejected') %}
+      {% set status_step_complete = incident.status in ('screened', 'assigned', 'acknowledged', 'in_progress', 'resolved', 'closed', 'rejected') %}
       {% set dispatch_step_complete = latest_dispatch and (latest_dispatch.status in ('sent', 'delivered', 'acknowledged', 'resolved', 'closed')) and (latest_dispatch.external_reference_number or '') %}
 
       {% if proof_approved %}
@@ -52,30 +52,126 @@
       {% elif dispatch_step_state == 'needs_action' %}
         {% set active_step = 'dispatch' %}
       {% endif %}
+      {% set wf = namespace(heading="", body="") %}
+      {% if active_step == 'proof' %}
+        {% set wf.heading = "Next: review resident proof" %}
+        {% set wf.body = "Scroll to Proof verification below and click Approve proof or Reject proof. Workflow status stays locked until proof is decided." %}
+      {% elif active_step == 'status' %}
+        {% set wf.heading = "Next: advance workflow status" %}
+        {% set wf.body = "This incident is still " ~ (incident.status|replace('_', ' ')|title) ~ ". Scroll to Workflow status below, pick the next status (for example Screened after you confirm screening, then Assigned when escalating), and add a short note for the audit trail." %}
+      {% elif active_step == 'dispatch' %}
+        {% set wf.heading = "Next: save the department case reference" %}
+        {% set wf.body = "Dispatch is in progress but the external case ID is missing or not saved. Scroll to Dispatch operations below to enter or auto-generate the reference." %}
+      {% else %}
+        {% set wf.heading = "No blocking step in this checklist" %}
+        {% set wf.body = "Proof, status, and dispatch reference are complete here, or the next action is outside this list (for example waiting on a department response)." %}
+      {% endif %}
 
       <h2 class="mb-3">Incident #{{ incident.id }} – {{ incident.title }}</h2>
 
+      {% set action_events = namespace(items=[]) %}
       {% if timeline %}
-        {% set action_events = namespace(items=[]) %}
         {% for event in timeline %}
           {% if event.kind in ('proof_verified', 'proof_rejected', 'proof_requested', 'status_update', 'dispatched', 'acknowledged') %}
             {% set action_events.items = action_events.items + [event] %}
           {% endif %}
         {% endfor %}
-        {% if action_events.items %}
-          <div class="card bg-dark border-secondary mb-3">
-            <div class="card-body py-2">
-              <div class="small text-muted mb-1">Recent action history</div>
+      {% endif %}
+
+      <div class="card hawkeye-admin-panel border-secondary mb-3 admin-incident-snapshot">
+        <div class="card-body text-light">
+          <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+            <h3 class="h5 mb-0">Incident snapshot</h3>
+            <span class="badge bg-primary">{{ incident.reference_code or ('#' ~ incident.id) }}</span>
+          </div>
+          <p class="small text-white-50 mb-3">
+            Quick context: who reported it, what was attached, and where it is. Scroll down for the full description, proof workflow, and dispatch tools.
+          </p>
+          <div class="row g-3">
+            <div class="col-md-4">
+              <div class="small text-uppercase text-white-50 fw-normal mb-1">Reporter &amp; time</div>
+              <div class="fw-semibold">{{ incident.reporter.name if incident.reporter else '—' }}</div>
+              <div class="small text-white-50 mt-1">
+                {{ (incident.reported_at or incident.created_at).strftime('%Y-%m-%d %H:%M') if (incident.reported_at or incident.created_at) else '—' }}
+              </div>
+            </div>
+            <div class="col-md-4">
+              <div class="small text-uppercase text-white-50 fw-normal mb-1">Evidence</div>
+              {% if media %}
+                <div class="d-flex flex-wrap gap-1">
+                  {% for m in media[:4] %}
+                    {% set media_url = url_for('admin.serve_incident_media_admin', incident_id=incident.id, filename=m.file_path.replace('\\', '/').split('/')[-1]) %}
+                    <button
+                      type="button"
+                      class="btn p-0 border-0 bg-transparent rounded hawkeye-evidence-thumb"
+                      data-bs-toggle="modal"
+                      data-bs-target="#adminEvidenceModal"
+                      data-evidence-src="{{ media_url }}"
+                      aria-label="Open evidence image"
+                    >
+                      <img
+                        src="{{ media_url }}"
+                        alt=""
+                        class="rounded border"
+                        width="72"
+                        height="72"
+                        style="object-fit: cover;"
+                      />
+                    </button>
+                  {% endfor %}
+                </div>
+                {% if media|length > 4 %}
+                  <a href="#incident-evidence" class="small link-info d-inline-block mt-1">View all {{ media|length }} images</a>
+                {% endif %}
+              {% else %}
+                <p class="small text-white-50 mb-0">No images attached to this report.</p>
+              {% endif %}
+            </div>
+            <div class="col-md-4">
+              <div class="small text-uppercase text-white-50 fw-normal mb-1">Address / area</div>
+              <p class="small mb-0">
+                {{ incident.location or (incident.street_or_landmark ~ ', ' ~ incident.suburb_or_ward if incident.street_or_landmark or incident.suburb_or_ward else '—') }}
+              </p>
+            </div>
+          </div>
+          {% if action_events.items %}
+            <div class="border-top border-secondary mt-3 pt-3">
+              <div class="small text-white-50 mb-2">Recent actions</div>
               {% for event in action_events.items[:3] %}
-                <div class="small d-flex justify-content-between gap-2 mb-1">
-                  <span>{{ event.title }}</span>
-                  <span class="text-muted">{{ event.at.strftime('%H:%M') if event.at else '' }}</span>
+                {% set action_title = (event.title or '')|trim %}
+                {% if not action_title %}
+                  {% set action_title = event.kind|replace('_', ' ')|title %}
+                {% endif %}
+                {% set action_desc = (event.description or '')|trim %}
+                <div class="d-flex justify-content-between gap-2 small mb-2">
+                  <div class="min-w-0">
+                    <div class="text-white fw-medium">{{ action_title }}</div>
+                    {% if action_desc %}
+                      <div class="text-white-50 mt-1 admin-recent-action-desc">
+                        {{ action_desc[:140] }}{% if action_desc|length > 140 %}…{% endif %}
+                      </div>
+                    {% endif %}
+                  </div>
+                  <span class="text-white-50 text-nowrap flex-shrink-0">{{ event.at.strftime('%Y-%m-%d %H:%M') if event.at else '' }}</span>
                 </div>
               {% endfor %}
             </div>
-          </div>
-        {% endif %}
-      {% endif %}
+          {% endif %}
+          {% if google_maps_api_key and incident.latitude is not none and incident.longitude is not none %}
+            <div
+              id="adminIncidentDetailMap"
+              class="mt-3 rounded border border-secondary overflow-hidden"
+              style="height: 200px; min-height: 180px;"
+              role="img"
+              aria-label="Map of reported location"
+            ></div>
+          {% elif not incident.latitude or not incident.longitude %}
+            <p class="small text-white-50 mb-0 mt-3">Map preview is unavailable — this report has no stored coordinates (pin may not have been set).</p>
+          {% else %}
+            <p class="small text-white-50 mb-0 mt-3">Map preview needs <code class="text-white-50">GOOGLE_MAPS_API_KEY</code> in the server environment.</p>
+          {% endif %}
+        </div>
+      </div>
 
       <p class="mb-2">
         Status:
@@ -83,7 +179,7 @@
         {% if incident.status == 'awaiting_evidence' and incident.evidence_resubmitted_at %}
           <span class="badge bg-success ms-2">New proof submitted (Needs review)</span>
         {% endif %}
-        <span class="ms-2 small text-muted">
+        <span class="ms-2 small hawkeye-inline-help">
           Business view:
           {% if incident.status == 'screened' %}Verified{% elif incident.status == 'assigned' %}Escalated{% else %}{{ incident.status|replace('_',' ')|title }}{% endif %}
         </span>
@@ -98,44 +194,115 @@
         <strong>Category:</strong> {{ incident.category_rel.name if incident.category_rel else incident.category }}
       </p>
 
-      <div class="card border-info bg-dark mb-3">
-        <div class="card-body">
-          <h3 class="h6 mb-2 text-info">Recommended workflow (follow in order)</h3>
+      <div class="card border-info bg-dark mb-3 admin-recommended-workflow-card">
+        <div class="card-body text-light">
+          <h3 class="h6 mb-1 text-info">Recommended workflow (follow in order)</h3>
+          <p class="small admin-recommended-workflow-intro mb-3 mb-md-2">
+            Each step names the work to do next—proof, lifecycle status, then dispatch handoff—so nothing is ambiguous for audits or escalations.
+          </p>
+          <div class="admin-workflow-next-action-banner mb-3" role="status" aria-live="polite">
+            <div class="admin-workflow-next-action-title">{{ wf.heading }}</div>
+            <p class="admin-workflow-next-action-body mb-0">{{ wf.body }}</p>
+            {% if active_step == 'proof' %}
+              <p class="mb-0 mt-2">
+                <a href="#proof-verification" class="admin-workflow-next-action-link">Jump to Proof verification →</a>
+              </p>
+            {% elif active_step == 'status' %}
+              <p class="mb-0 mt-2">
+                <a href="#status-update" class="admin-workflow-next-action-link">Jump to Workflow status →</a>
+              </p>
+            {% elif active_step == 'dispatch' %}
+              <p class="mb-0 mt-2">
+                <a href="#dispatch-operations" class="admin-workflow-next-action-link">Jump to Dispatch operations →</a>
+              </p>
+            {% endif %}
+          </div>
           <div class="small d-flex flex-column gap-2">
-            <a href="#proof-verification" class="text-decoration-none text-reset">
-              <div class="d-flex justify-content-between align-items-center px-2 py-1 rounded {% if active_step == 'proof' %}border border-warning{% else %}border border-secondary{% endif %}">
-                <span>1) Verify proof {% if active_step == 'proof' %}<span class="badge bg-warning text-dark ms-1">Do this now</span>{% endif %}</span>
-                {% if proof_step_state == 'complete' %}
-                  <span class="badge bg-success">Complete</span>
-                {% elif proof_step_state == 'needs_action' %}
-                  <span class="badge bg-warning text-dark">Needs action</span>
-                {% else %}
-                  <span class="badge bg-secondary">Not started</span>
-                {% endif %}
+            <a
+              href="#proof-verification"
+              class="text-decoration-none text-white d-block admin-recommended-workflow-step"
+              aria-label="Step 1: Approve or reject resident proof. Opens proof verification section."
+            >
+              <div class="d-flex justify-content-between align-items-start gap-2 px-2 py-2 rounded {% if active_step == 'proof' %}border border-warning{% else %}border border-secondary{% endif %}">
+                <div class="min-w-0">
+                  <div class="fw-semibold">
+                    1 · Approve resident proof
+                    {% if active_step == 'proof' %}<span class="badge bg-warning text-dark ms-1 align-middle">Do this now</span>{% endif %}
+                  </div>
+                  <p class="mb-0 mt-1 small admin-recommended-workflow-step-desc">
+                    Review attached evidence, then use <span class="admin-recommended-workflow-step-emphasis">Approve proof</span> or <span class="admin-recommended-workflow-step-emphasis">Reject proof</span> in the section below—status changes stay locked until proof is decided.
+                  </p>
+                  {% if active_step == 'proof' %}
+                    <p class="mb-0 mt-2 small admin-recommended-workflow-step-active-hint">Use the Proof verification section on this page—do not skip this step or status controls will stay disabled.</p>
+                  {% endif %}
+                </div>
+                <div class="flex-shrink-0 pt-1">
+                  {% if proof_step_state == 'complete' %}
+                    <span class="badge bg-success">Complete</span>
+                  {% elif proof_step_state == 'needs_action' %}
+                    <span class="badge bg-warning text-dark">Needs action</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Not started</span>
+                  {% endif %}
+                </div>
               </div>
             </a>
-            <a href="#status-update" class="text-decoration-none text-reset">
-              <div class="d-flex justify-content-between align-items-center px-2 py-1 rounded {% if active_step == 'status' %}border border-warning{% else %}border border-secondary{% endif %}">
-                <span>2) Update incident status {% if active_step == 'status' %}<span class="badge bg-warning text-dark ms-1">Do this now</span>{% endif %}</span>
-                {% if status_step_state == 'complete' %}
-                  <span class="badge bg-success">Complete</span>
-                {% elif status_step_state == 'needs_action' %}
-                  <span class="badge bg-warning text-dark">Needs action</span>
-                {% else %}
-                  <span class="badge bg-secondary">Not started</span>
-                {% endif %}
+            <a
+              href="#status-update"
+              class="text-decoration-none text-white d-block admin-recommended-workflow-step"
+              aria-label="Step 2: Update workflow status. Opens workflow status section."
+            >
+              <div class="d-flex justify-content-between align-items-start gap-2 px-2 py-2 rounded {% if active_step == 'status' %}border border-warning{% else %}border border-secondary{% endif %}">
+                <div class="min-w-0">
+                  <div class="fw-semibold">
+                    2 · Set the right workflow status
+                    {% if active_step == 'status' %}<span class="badge bg-warning text-dark ms-1 align-middle">Do this now</span>{% endif %}
+                  </div>
+                  <p class="mb-0 mt-1 small admin-recommended-workflow-step-desc">
+                    Move the incident forward (for example screened → assigned) and add a short note—required for audit and escalation timelines.
+                  </p>
+                  {% if active_step == 'status' %}
+                    <p class="mb-0 mt-2 small admin-recommended-workflow-step-active-hint">Open Workflow status below, choose the next status from the dropdown, and submit—add a note when the workflow asks for one.</p>
+                  {% endif %}
+                </div>
+                <div class="flex-shrink-0 pt-1">
+                  {% if status_step_state == 'complete' %}
+                    <span class="badge bg-success">Complete</span>
+                  {% elif status_step_state == 'needs_action' %}
+                    <span class="badge bg-warning text-dark">Needs action</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Not started</span>
+                  {% endif %}
+                </div>
               </div>
             </a>
-            <a href="#dispatch-operations" class="text-decoration-none text-reset">
-              <div class="d-flex justify-content-between align-items-center px-2 py-1 rounded {% if active_step == 'dispatch' %}border border-warning{% else %}border border-secondary{% endif %}">
-                <span>3) Dispatch + external reference {% if active_step == 'dispatch' %}<span class="badge bg-warning text-dark ms-1">Do this now</span>{% endif %}</span>
-                {% if dispatch_step_state == 'complete' %}
-                  <span class="badge bg-success">Complete</span>
-                {% elif dispatch_step_state == 'needs_action' %}
-                  <span class="badge bg-warning text-dark">Needs action</span>
-                {% else %}
-                  <span class="badge bg-secondary">Not started</span>
-                {% endif %}
+            <a
+              href="#dispatch-operations"
+              class="text-decoration-none text-white d-block admin-recommended-workflow-step"
+              aria-label="Step 3: Dispatch and external reference. Opens dispatch operations section."
+            >
+              <div class="d-flex justify-content-between align-items-start gap-2 px-2 py-2 rounded {% if active_step == 'dispatch' %}border border-warning{% else %}border border-secondary{% endif %}">
+                <div class="min-w-0">
+                  <div class="fw-semibold">
+                    3 · Hand off to the department + case reference
+                    {% if active_step == 'dispatch' %}<span class="badge bg-warning text-dark ms-1 align-middle">Do this now</span>{% endif %}
+                  </div>
+                  <p class="mb-0 mt-1 small admin-recommended-workflow-step-desc">
+                    After dispatch is live, save the department’s ticket or case ID (or auto-generate) so follow-up and SLA checks match their system.
+                  </p>
+                  {% if active_step == 'dispatch' %}
+                    <p class="mb-0 mt-2 small admin-recommended-workflow-step-active-hint">In Dispatch operations, fill external reference (or auto-generate) and click Save—this step cannot be completed until dispatch has been sent.</p>
+                  {% endif %}
+                </div>
+                <div class="flex-shrink-0 pt-1">
+                  {% if dispatch_step_state == 'complete' %}
+                    <span class="badge bg-success">Complete</span>
+                  {% elif dispatch_step_state == 'needs_action' %}
+                    <span class="badge bg-warning text-dark">Needs action</span>
+                  {% else %}
+                    <span class="badge bg-secondary">Not started</span>
+                  {% endif %}
+                </div>
               </div>
             </a>
           </div>
@@ -216,7 +383,7 @@
       <p>{{ incident.description }}</p>
 
       {% if media %}
-        <h3 class="h6 mt-4 mb-2">Evidence</h3>
+        <h3 class="h6 mt-4 mb-2" id="incident-evidence">Evidence</h3>
         <div class="row g-2">
           {% for m in media %}
             <div class="col-6 col-md-4">
@@ -243,9 +410,9 @@
       <hr class="my-4" />
 
       <h3 class="h5 mb-3" id="proof-verification">Proof verification</h3>
-      <div class="mb-3 small text-muted">
+      <div class="mb-3 small hawkeye-detail-secondary">
         Current verification status:
-        <strong class="text-capitalize">{{ incident.verification_status or 'pending' }}</strong>
+        <strong class="text-capitalize hawkeye-detail-emphasis">{{ incident.verification_status or 'pending' }}</strong>
       </div>
       {% if incident.verification_status != 'approved' %}
         <div class="d-flex flex-wrap gap-2 mb-3">
@@ -263,8 +430,8 @@
           </form>
         </div>
       {% else %}
-        <p class="small text-muted mb-3">
-          Proof is approved. Incident status should be <strong>Reported</strong> (or later) so you can confirm screening or update status as needed.
+        <p class="small hawkeye-detail-secondary mb-3">
+          Proof is approved. Status auto-advances to <strong class="hawkeye-detail-emphasis">Screened</strong> so you can confirm the screening suggestion and proceed to assignment.
         </p>
       {% endif %}
       {% if incident.status in ('reported', 'screened') %}
@@ -276,42 +443,106 @@
         </form>
       {% endif %}
 
-      <h3 class="h5 mb-3" id="status-update">Update status</h3>
-      {% if status_update_locked %}
-        <div class="alert alert-warning py-2 small" role="alert">
-          Approve or reject proof first. Status updates are temporarily locked to prevent out-of-order actions.
+      <section class="card hawkeye-admin-panel border-secondary admin-status-update-card mb-0" id="status-update" aria-labelledby="status-update-heading">
+        <div class="card-body">
+          <h3 class="h5 mb-2" id="status-update-heading">Workflow status</h3>
+          <p class="small hawkeye-detail-secondary mb-3 mb-md-4">
+            The incident’s current state is shown below. You move it forward (or correct it) deliberately — accidental saves are blocked when nothing actually changes.
+          </p>
+
+          <div class="admin-status-current-row mb-4">
+            <span class="admin-status-current-label">Current workflow status</span>
+            <div class="mt-1">{{ render_status_badge(incident.status) }}</div>
+          </div>
+
+          {% if status_update_locked %}
+            <div class="alert alert-warning py-2 small mb-0" role="alert">
+              Approve or reject proof first. Status updates are temporarily locked to prevent out-of-order actions.
+            </div>
+          {% else %}
+            <form
+              method="post"
+              action="{{ url_for('admin.update_incident_status', incident_id=incident.id) }}"
+              class="admin-status-update-form"
+              id="adminIncidentStatusForm"
+              data-initial-status="{{ incident.status }}"
+              data-initial-status-label="{{ incident.status|replace('_',' ')|title }}"
+            >
+              <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+              <div class="mb-3">
+                <label for="status" class="form-label">Change status to</label>
+                <select class="form-select admin-status-select" id="status" name="status" aria-describedby="status-help">
+                  <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
+                  <option value="awaiting_evidence" {% if incident.status == 'awaiting_evidence' %}selected{% endif %}>Awaiting Evidence</option>
+                  <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
+                  <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
+                  <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
+                  <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
+                  <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
+                  <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
+                  <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
+                </select>
+                <p id="status-help" class="form-text hawkeye-detail-secondary mb-0 small">
+                  Pick the <strong class="hawkeye-detail-emphasis">next</strong> lifecycle state (must differ from the current status). The dropdown defaults to today’s status so you see exactly what you are changing from.
+                </p>
+              </div>
+
+              <div class="mb-3">
+                <label for="note" class="form-label">Resolution / progress note</label>
+                <textarea class="form-control admin-status-note" id="note" name="note" rows="3" placeholder="e.g. Routed to Metro Police, awaiting acknowledgement…"></textarea>
+                <p class="form-text hawkeye-detail-secondary mb-0 small">
+                  Required for reject, close, and certain sensitive transitions. Otherwise recommended whenever you move the workflow forward.
+                </p>
+              </div>
+
+              <div class="d-flex flex-wrap gap-2 align-items-center">
+                <button type="submit" class="btn btn-primary">Apply status change</button>
+                <span class="small hawkeye-detail-secondary mb-0 d-none d-md-inline">Review the summary above before you apply.</span>
+              </div>
+            </form>
+          {% endif %}
         </div>
-      {% endif %}
-      <form method="post" action="{{ url_for('admin.update_incident_status', incident_id=incident.id) }}">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+      </section>
 
-        <div class="mb-3">
-          <label for="status" class="form-label">New status</label>
-          <select class="form-select" id="status" name="status" required {% if status_update_locked %}disabled{% endif %}>
-            <option value="">Select status</option>
-            <option value="reported" {% if incident.status == 'reported' %}selected{% endif %}>Reported</option>
-            <option value="awaiting_evidence" {% if incident.status == 'awaiting_evidence' %}selected{% endif %}>Awaiting Evidence</option>
-            <option value="screened" {% if incident.status == 'screened' %}selected{% endif %}>Screened</option>
-            <option value="assigned" {% if incident.status == 'assigned' %}selected{% endif %}>Assigned</option>
-            <option value="acknowledged" {% if incident.status == 'acknowledged' %}selected{% endif %}>Acknowledged</option>
-            <option value="in_progress" {% if incident.status == 'in_progress' %}selected{% endif %}>In Progress</option>
-            <option value="resolved" {% if incident.status == 'resolved' %}selected{% endif %}>Resolved</option>
-            <option value="rejected" {% if incident.status == 'rejected' %}selected{% endif %}>Rejected</option>
-            <option value="closed" {% if incident.status == 'closed' %}selected{% endif %}>Closed</option>
-          </select>
-        </div>
+      <script>
+        (function () {
+          var form = document.getElementById("adminIncidentStatusForm");
+          if (!form) return;
+          var sel = document.getElementById("status");
+          var note = document.getElementById("note");
+          var initial = (form.getAttribute("data-initial-status") || "").trim();
+          form.addEventListener("submit", function (e) {
+            var next = (sel && sel.value ? sel.value : "").trim();
+            if (next === initial) {
+              e.preventDefault();
+              window.alert(
+                "Choose a different status than the current one. Saving without a real change is blocked to avoid mistakes."
+              );
+              return;
+            }
+            var terminal = ["rejected", "closed"];
+            if (terminal.indexOf(next) !== -1 && next !== initial) {
+              var opt = sel.options[sel.selectedIndex];
+              var label = opt ? opt.text : next;
+              if (
+                !window.confirm(
+                  'Set workflow status to "' +
+                    label +
+                    '"? Confirm this is intentional — this is a significant outcome.'
+                )
+              ) {
+                e.preventDefault();
+              }
+            }
+          });
+        })();
+      </script>
 
-        <div class="mb-3">
-          <label for="note" class="form-label">Resolution / progress note</label>
-          <textarea class="form-control" id="note" name="note" rows="3" {% if status_update_locked %}disabled{% endif %}></textarea>
-        </div>
-
-        <button type="submit" class="btn btn-primary" {% if status_update_locked %}disabled{% endif %}>Save status</button>
-      </form>
-
+      <section id="dispatch-operations" class="admin-dispatch-operations-section" aria-label="Dispatch operations">
       {% if dispatches %}
         <hr class="my-4" />
-        <h3 class="h5 mb-3" id="dispatch-operations">Dispatch operations</h3>
+        <h3 class="h5 mb-3">Dispatch operations</h3>
         <div class="card bg-dark border-secondary mb-3">
           <div class="card-body text-light">
             <p class="mb-1">
@@ -378,18 +609,30 @@
             <button type="submit" class="btn btn-outline-success btn-sm" {% if not external_reference_enabled %}disabled{% endif %}>Save external reference</button>
           </div>
         </form>
+      {% else %}
+        <hr class="my-4" />
+        <h3 class="h5 mb-3">Dispatch operations</h3>
+        <div class="card bg-dark border-secondary mb-3">
+          <div class="card-body text-light small admin-recommended-workflow-intro">
+            No dispatch record for this incident yet. When a department handoff is created, channel, recipient, retry, and external reference fields will show here—use step 3 in the recommended workflow above once dispatch exists.
+          </div>
+        </div>
       {% endif %}
+      </section>
     </div>
 
-    <div class="col-lg-5">
-      <h3 class="h5 mb-3">Timeline</h3>
+    <div class="col-lg-5 admin-incident-detail-column">
+      <h3 class="h5 mb-2">Timeline</h3>
+      <p class="small text-muted mb-3">
+        Merges the signed event log with status updates and dispatch activity so the list lines up with proof, routing, and department actions—not only the initial “incident created” row.
+      </p>
       {% if timeline %}
         <ul class="list-group">
           {% for event in timeline %}
             <li class="list-group-item bg-dark text-light">
               <div class="d-flex justify-content-between">
                 <div>
-                  <strong>{{ event.title }}</strong>
+                  <strong>{{ (event.title or '')|trim or (event.kind|replace('_', ' ')|title) }}</strong>
                   <span class="badge bg-secondary ms-1">{{ event.kind }}</span>
                 </div>
                 <small class="text-muted">
@@ -541,4 +784,25 @@
       }, 150);
     })();
   </script>
+  {% if google_maps_api_key and incident.latitude is not none and incident.longitude is not none %}
+    <script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
+    <script>
+      (function() {
+        var el = document.getElementById("adminIncidentDetailMap");
+        if (!el || !window.google || !google.maps) return;
+        var lat = {{ incident.latitude|float }};
+        var lng = {{ incident.longitude|float }};
+        if (isNaN(lat) || isNaN(lng)) return;
+        var center = { lat: lat, lng: lng };
+        var map = new google.maps.Map(el, {
+          center: center,
+          zoom: 15,
+          mapTypeControl: false,
+          streetViewControl: false,
+          fullscreenControl: false,
+        });
+        new google.maps.Marker({ position: center, map: map });
+      })();
+    </script>
+  {% endif %}
 {% endblock %}

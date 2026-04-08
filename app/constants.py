@@ -59,3 +59,8 @@ class UrgencyLevel(StrEnum):
     URGENT_NOW = "urgent_now"
     NEEDS_ATTENTION_SOON = "soon"
     CAN_BE_SCHEDULED = "scheduled"
+
+
+# Incident severity and routing-rule priority override use the same canonical strings.
+# `RoutingService` applies override to `incident.severity` when the resident did not set one.
+SEVERITY_LEVELS: tuple[str, ...] = ("low", "medium", "high", "critical")

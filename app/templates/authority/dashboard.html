@@ -68,6 +68,10 @@
         <option value="closed" {% if selected_status == 'closed' %}selected{% endif %}>Closed</option>
       </select>
     </div>
+    <div class="col-sm-8 col-md-4 d-flex gap-2 align-items-end">
+      <button type="submit" class="btn btn-outline-light">Apply</button>
+      <a href="{{ url_for('authority.dashboard') }}" class="btn btn-outline-secondary">Clear filters</a>
+    </div>
   </form>
 
   {% if incidents %}

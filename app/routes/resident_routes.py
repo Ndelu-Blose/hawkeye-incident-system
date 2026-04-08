@@ -18,9 +18,10 @@ from flask import (
     send_from_directory,
     url_for,
 )
-from flask_login import current_user, login_required
+from flask_login import current_user, login_required, logout_user
 from PIL import Image, ImageOps, UnidentifiedImageError
 from sqlalchemy import func, or_
+from sqlalchemy.orm import joinedload
 from werkzeug.datastructures import FileStorage
 
 from app.constants import IncidentStatus, Roles
@@ -40,7 +41,10 @@ from app.services.resident_profile_service import (
     profile_completion_snapshot,
     update_profile,
 )
+from app.utils.datetime_helpers import utc_now_naive
 from app.utils.decorators import role_required
+from app.utils.incident_date_filters import clamp_incident_list_date_filters
+from app.utils.security import check_password, hash_password
 from app.utils.uploads import allowed_image
 
 resident_bp = Blueprint("resident", __name__, template_folder="../templates/resident")
@@ -71,6 +75,9 @@ def _build_preset_for_template(preset: dict) -> dict:
         if default_urgency is not None
         else "soon"
     )
+    evidence_policy = preset.get("evidence_policy") or "optional"
+    if evidence_policy not in ("optional", "recommended"):
+        evidence_policy = "optional"
     return {
         "suggested_title": preset.get("suggested_title") or "Incident reported",
         "urgency_value": urgency_value,
@@ -79,6 +86,8 @@ def _build_preset_for_template(preset: dict) -> dict:
         "ask_is_happening_now": preset.get("ask_is_happening_now", False),
         "ask_is_anyone_in_danger": preset.get("ask_is_anyone_in_danger", False),
         "ask_is_issue_still_present": preset.get("ask_is_issue_still_present", False),
+        "evidence_policy": evidence_policy,
+        "evidence_help": preset.get("evidence_help") or "",
     }
 
 
@@ -266,6 +275,61 @@ def serve_profile_avatar(filename: str):
     if not os.path.abspath(avatar_dir).startswith(os.path.abspath(upload_folder)):
         return "", 404
     return send_from_directory(avatar_dir, filename)
+
+
+@resident_bp.route("/account/delete", methods=["POST"])
+@login_required
+@role_required(Roles.RESIDENT)
+def delete_account():
+    """Self-service resident account deletion (deactivate + anonymize PII)."""
+    confirmation = (request.form.get("confirm_delete_text") or "").strip()
+    password = request.form.get("password_confirm_delete") or ""
+    if confirmation.upper() != "DELETE MY ACCOUNT":
+        flash("Type DELETE MY ACCOUNT to confirm account deletion.", "danger")
+        return redirect(url_for("resident.profile"))
+    if not password:
+        flash("Enter your password to confirm account deletion.", "danger")
+        return redirect(url_for("resident.profile"))
+    if not check_password(password, current_user.password_hash):
+        flash("Password is incorrect. Account was not deleted.", "danger")
+        return redirect(url_for("resident.profile"))
+
+    profile_obj = get_or_create_profile(current_user)  # type: ignore[arg-type]
+    _delete_profile_avatar(current_user.id, profile_obj.avatar_filename)
+    profile_obj.avatar_filename = None
+    profile_obj.phone_number = None
+    profile_obj.street_address_1 = None
+    profile_obj.street_address_2 = None
+    profile_obj.suburb = None
+    profile_obj.city = None
+    profile_obj.postal_code = None
+    profile_obj.latitude = None
+    profile_obj.longitude = None
+    profile_obj.location_verified = False
+    profile_obj.profile_completed = False
+    profile_obj.consent_location = False
+    profile_obj.notify_incident_updates = False
+    profile_obj.notify_status_changes = False
+    profile_obj.notify_community_alerts = False
+    profile_obj.share_anonymous_analytics = False
+
+    deleted_stamp = utc_now_naive().strftime("%Y%m%d%H%M%S")
+    current_user.name = f"Deleted User {current_user.id}"
+    current_user.email = f"deleted+{current_user.id}.{deleted_stamp}@deleted.local"
+    current_user.password_hash = hash_password(secrets.token_urlsafe(32))
+    current_user.is_active = False
+    current_user.email_verified = False
+    current_user.phone_verified = False
+    current_user.last_login_at = None
+    current_user.invite_token = None
+    current_user.invite_expires_at = None
+    current_user.email_verification_token = None
+    current_user.email_verification_expires_at = None
+
+    db.session.commit()
+    logout_user()
+    flash("Your account has been deleted.", "info")
+    return redirect(url_for("main.home"))
 
 
 @resident_bp.route("/dashboard")
@@ -507,6 +571,10 @@ def my_incidents():
         except ValueError:
             date_to = None
 
+    date_from, date_to = clamp_incident_list_date_filters(date_from, date_to)
+    date_from_raw = date_from.date().isoformat() if date_from else ""
+    date_to_raw = date_to.date().isoformat() if date_to else ""
+
     page_obj = incident_service.search_incidents_for_resident(
         current_user,  # type: ignore[arg-type]
         status=status_filter,
@@ -526,6 +594,7 @@ def my_incidents():
         .all()
     )
     first_day_this_month = date.today().replace(day=1).strftime("%Y-%m-%d")
+    filter_max_date = date.today().strftime("%Y-%m-%d")
     return render_template(
         "resident/my_incidents.html",
         page=page_obj,
@@ -537,6 +606,7 @@ def my_incidents():
         date_to=date_to_raw,
         categories=categories,
         first_day_this_month=first_day_this_month,
+        filter_max_date=filter_max_date,
     )
 
 
@@ -565,7 +635,7 @@ def incidents_map():
         except ValueError:
             category_id = None
 
-    stmt = db.session.query(Incident)
+    stmt = db.session.query(Incident).options(joinedload(Incident.category_rel))
     if my_only:
         stmt = stmt.filter(Incident.reported_by_id == current_user.id)
     else:
@@ -603,6 +673,21 @@ def incidents_map():
         is_own = inc.reported_by_id == current_user.id
         has_coords = inc.latitude is not None and inc.longitude is not None
         is_resolved = (inc.status or "").strip().lower() in resolved_statuses
+        category_label = ""
+        if inc.category_rel is not None and inc.category_rel.name:
+            category_label = inc.category_rel.name.replace("_", " ").title()
+        elif inc.category:
+            category_label = str(inc.category).replace("_", " ").title()
+        location_label = (
+            inc.validated_address
+            or inc.location
+            or ", ".join([x for x in [inc.street_or_landmark, inc.suburb_or_ward] if x])
+            or inc.nearest_place
+            or "Location unavailable"
+        )
+        desc = (inc.description or "").strip()
+        if len(desc) > 200:
+            desc = desc[:199].rstrip() + "…"
         incident_points.append(
             {
                 "id": inc.id,
@@ -610,16 +695,20 @@ def incidents_map():
                 "status": inc.status,
                 "is_resolved": is_resolved,
                 "category": inc.category,
+                "category_label": category_label,
                 "location": inc.location,
+                "location_label": location_label,
                 "suburb_or_ward": inc.suburb_or_ward,
                 "created_at": inc.created_at.strftime("%Y-%m-%d %H:%M") if inc.created_at else "",
                 "latitude": float(inc.latitude) if has_coords else None,
                 "longitude": float(inc.longitude) if has_coords else None,
+                "has_coordinates": has_coords,
                 "is_own": is_own,
                 "detail_url": url_for("resident.incident_detail", incident_id=inc.id)
                 if is_own
                 else None,
                 "reference_code": inc.reference_code or f"#{inc.id}",
+                "description_preview": desc if is_own else "",
             }
         )
 

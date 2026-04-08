@@ -21,12 +21,23 @@ class BaseConfig:
     MAIL_SERVER = os.getenv("MAIL_SERVER", "localhost")
     MAIL_PORT = int(os.getenv("MAIL_PORT", "25"))
     MAIL_USE_TLS = os.getenv("MAIL_USE_TLS", "false").lower() == "true"
+    MAIL_USE_SSL = os.getenv("MAIL_USE_SSL", "false").lower() == "true"
+    MAIL_SUPPRESS_SEND = os.getenv("MAIL_SUPPRESS_SEND", "false").lower() == "true"
     MAIL_USERNAME = os.getenv("MAIL_USERNAME")
     MAIL_PASSWORD = os.getenv("MAIL_PASSWORD")
     MAIL_DEFAULT_SENDER = os.getenv(
         "MAIL_DEFAULT_SENDER",
         "alertweb@example.com",
     )
+    APP_BASE_URL = os.getenv("APP_BASE_URL", "http://127.0.0.1:5000")
+
+    # Email verification (Resend API — https://resend.com/docs/send-with-python)
+    RESEND_API_KEY = (os.getenv("RESEND_API_KEY") or "").strip() or None
+    _raw_from = (os.getenv("RESEND_FROM_EMAIL") or "").strip().strip('"').strip("'")
+    RESEND_FROM_EMAIL = _raw_from or None
+    EMAIL_VERIFICATION_TOKEN_DAYS = int(os.getenv("EMAIL_VERIFICATION_TOKEN_DAYS", "7"))
+    # When true, unverified users cannot log in (disabled in tests via TestingConfig).
+    EMAIL_VERIFICATION_REQUIRED = os.getenv("EMAIL_VERIFICATION_REQUIRED", "true").lower() == "true"
 
     # Rate limiting
     RATELIMIT_DEFAULT = "200 per day"
@@ -60,6 +71,7 @@ class DevelopmentConfig(BaseConfig):
 class TestingConfig(BaseConfig):
     TESTING = True
     ENV = "testing"
+    EMAIL_VERIFICATION_REQUIRED = False
     SQLALCHEMY_DATABASE_URI = os.getenv(
         "TEST_DATABASE_URL",
         "sqlite:///:memory:",

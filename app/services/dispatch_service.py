@@ -1,12 +1,13 @@
 from __future__ import annotations
 
+import logging
 from dataclasses import dataclass
 
 from flask import current_app
-from flask_mail import Message
 
-from app.extensions import db, mail
+from app.extensions import db
 from app.models import Authority, DepartmentContact, Incident, IncidentDispatch
+from app.services.resend_email import send_outbound_email, text_to_html_email
 from app.utils.datetime_helpers import utc_now
 
 
@@ -49,9 +50,88 @@ class DispatchService:
         return query.order_by(DepartmentContact.id.asc()).first()
 
     @staticmethod
+    def _resolve_phone_contact(authority: Authority) -> DepartmentContact | None:
+        """Pick the phone/WhatsApp row used for display; same priority as email."""
+        if authority is None:
+            return None
+        query = db.session.query(DepartmentContact).filter(
+            DepartmentContact.authority_id == authority.id,
+            DepartmentContact.is_active.is_(True),
+            DepartmentContact.channel.in_(("phone", "whatsapp")),
+        )
+        priority_order = [
+            ("verified", True, False),
+            ("verified", False, True),
+            ("unverified", True, False),
+        ]
+        for verification_status, is_primary, is_secondary in priority_order:
+            contact = (
+                query.filter(
+                    DepartmentContact.verification_status == verification_status,
+                    DepartmentContact.is_primary.is_(is_primary),
+                    DepartmentContact.is_secondary.is_(is_secondary),
+                )
+                .order_by(DepartmentContact.id.asc())
+                .first()
+            )
+            if contact is not None:
+                return contact
+        return query.order_by(DepartmentContact.id.asc()).first()
+
+    @staticmethod
     def resolve_primary_email(authority: Authority) -> str | None:
         contact = DispatchService._resolve_email_contact(authority)
         return (contact.value or "").strip() if contact is not None else None
+
+    @staticmethod
+    def resolve_primary_phone(authority: Authority) -> str | None:
+        contact = DispatchService._resolve_phone_contact(authority)
+        return (contact.value or "").strip() if contact is not None else None
+
+    @staticmethod
+    def sync_authority_legacy_contacts(authority: Authority) -> None:
+        """
+        After editing Authority.contact_email / contact_phone, update the row dispatch
+        resolution prefers (or add one) so directory, form, and email send stay aligned.
+        """
+        email = (authority.contact_email or "").strip() or None
+        phone = (authority.contact_phone or "").strip() or None
+
+        if email:
+            contact = DispatchService._resolve_email_contact(authority)
+            if contact is not None:
+                if (contact.value or "").strip() != email:
+                    contact.value = email
+            else:
+                db.session.add(
+                    DepartmentContact(
+                        authority_id=authority.id,
+                        channel="email",
+                        value=email,
+                        is_primary=True,
+                        is_secondary=False,
+                        contact_type="primary",
+                        verification_status="unverified",
+                    )
+                )
+
+        if phone:
+            pcontact = DispatchService._resolve_phone_contact(authority)
+            if pcontact is not None:
+                if (pcontact.value or "").strip() != phone:
+                    pcontact.value = phone
+            else:
+                db.session.add(
+                    DepartmentContact(
+                        authority_id=authority.id,
+                        channel="phone",
+                        value=phone,
+                        is_primary=True,
+                        is_secondary=False,
+                        contact_type="primary",
+                        verification_status="unverified",
+                    )
+                )
 
     @staticmethod
     def compose_work_order(incident: Incident, authority: Authority) -> tuple[str, str]:
@@ -120,13 +200,20 @@ class DispatchService:
         dispatch.last_status_update_at = utc_now()
 
         try:
-            msg = Message(subject=subject, recipients=[recipient], body=body)
-            mail.send(msg)
+            ok, err, provider = send_outbound_email(
+                current_app,
+                to_email=recipient,
+                subject=subject,
+                text_body=body,
+                html_body=text_to_html_email(body),
+            )
+            if not ok:
+                raise RuntimeError(err or "send_failed")
             now = utc_now()
             dispatch.status = "sent"
             dispatch.delivery_status = "sent"
-            dispatch.delivery_provider = "flask-mail"
-            dispatch.delivery_reference = "flask-mail"
+            dispatch.delivery_provider = provider
+            dispatch.delivery_reference = provider
             dispatch.sent_at = dispatch.sent_at or now
             dispatch.last_status_update_at = now
             return DispatchResult(ok=True, recipient_email=recipient)
@@ -135,6 +222,14 @@ class DispatchService:
             dispatch.delivery_status = "failed"
             dispatch.failure_reason = str(exc)
             dispatch.last_status_update_at = utc_now()
+            logging.getLogger(__name__).warning(
+                "dispatch_email_failed incident_id=%s dispatch_id=%s authority_id=%s error_type=%s message=%s",
+                dispatch.incident_id,
+                dispatch.id,
+                dispatch.authority_id,
+                type(exc).__name__,
+                str(exc)[:200],
+            )
             return DispatchResult(ok=False, recipient_email=recipient, error=str(exc))
 
     def retry_dispatch(self, dispatch: IncidentDispatch) -> DispatchResult:

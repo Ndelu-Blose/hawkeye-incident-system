@@ -5,7 +5,13 @@
 {% set admin_page_subtitle = "Operational metadata, contacts, channels, and verification status." %}
 
 {% block admin_content %}
+  <div class="admin-department-directory-page">
   <form class="row g-3 mb-3 align-items-end" method="get">
+    <div class="col-12">
+      <div class="alert alert-info py-2 mb-0">
+        Email contacts are used for automated dispatch. Phone and WhatsApp entries are informational only.
+      </div>
+    </div>
     <div class="col-sm-6 col-md-3">
       <label for="channel" class="form-label">Channel</label>
       <select class="form-select" id="channel" name="channel" onchange="this.form.submit()">
@@ -31,7 +37,7 @@
   <div class="card hawkeye-admin-panel">
     <div class="card-body">
       <div class="table-responsive">
-        <table class="table table-dark table-striped align-middle">
+        <table class="table table-dark table-striped align-middle admin-department-directory-table">
           <thead>
             <tr>
               <th>Department</th>
@@ -46,18 +52,23 @@
               {% set contacts = contacts_by_authority.get(authority.id, []) %}
               <tr>
                 <td>{{ authority.name }}</td>
-                <td><code>{{ authority.code or "—" }}</code></td>
+                <td><code class="admin-dept-code">{{ authority.code or "—" }}</code></td>
                 <td>{{ authority.operating_hours or "—" }}</td>
                 <td>{{ authority.service_hub or "—" }}</td>
                 <td>
                   {% if contacts %}
-                    <div class="d-flex flex-wrap gap-1">
+                    <div class="d-flex flex-wrap gap-2 admin-dept-contact-list">
                       {% for contact in contacts %}
-                        <span class="badge rounded-pill bg-secondary">
-                          {{ contact.channel }}:
-                          {{ contact.value }}
-                          {% if contact.is_primary %}(primary){% elif contact.is_secondary %}(secondary){% endif %}
-                          [{{ contact.verification_status }}]
+                        <span class="admin-dept-contact-chip">
+                          <span class="admin-dept-contact-channel">{{ contact.channel }}</span>
+                          <span class="admin-dept-contact-value">{{ contact.value }}</span>
+                          {% if contact.is_primary %}
+                            <span class="admin-dept-contact-role">Primary</span>
+                          {% elif contact.is_secondary %}
+                            <span class="admin-dept-contact-role">Secondary</span>
+                          {% endif %}
+                          {% set vs = (contact.verification_status or 'unverified')|lower %}
+                          <span class="admin-dept-contact-verify admin-dept-contact-verify--{{ vs if vs in ['verified', 'unverified'] else 'unknown' }}">{{ (contact.verification_status or 'unverified')|replace('_',' ') }}</span>
                         </span>
                       {% endfor %}
                     </div>
@@ -71,5 +82,6 @@
         </table>
       </div>
     </div>
+  </div>
   </div>
 {% endblock %}

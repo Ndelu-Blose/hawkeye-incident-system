@@ -54,9 +54,10 @@
 
         <div class="resident-profile-completion">
           <div class="d-flex justify-content-between align-items-center">
-            <strong>Profile Completion: <span id="profileCompletionValue">{{ profile_completion.percentage }}</span>%</strong>
+            <strong>Required for reporting: <span id="profileCompletionValue">{{ profile_completion.percentage }}</span>%</strong>
             <small class="text-muted">{{ profile_completion.completed_count }}/{{ profile_completion.total_count }} complete</small>
           </div>
+          <small class="text-muted">Photo is optional. Completion only counts required fields (phone, suburb, consent, and location).</small>
           <div class="resident-completion-bar mt-2" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="{{ profile_completion.percentage }}">
             <div class="resident-completion-fill" id="profileCompletionFill" style="width: {{ profile_completion.percentage }}%;"></div>
           </div>
@@ -145,15 +146,38 @@
           </div>
         </section>
 
-        <section class="resident-profile-section">
+        <section class="resident-profile-section resident-profile-picture-section" data-has-avatar="{{ 'true' if avatar_url else 'false' }}">
           <h5>Profile Picture</h5>
           {% if avatar_url %}
-            <div class="small text-muted mb-2">Current profile photo is active.</div>
+            <div class="resident-profile-picture-current">
+              <div class="resident-profile-picture-preview-wrap" aria-hidden="true">
+                <img
+                  src="{{ avatar_url }}"
+                  alt=""
+                  class="resident-profile-picture-preview"
+                  width="88"
+                  height="88"
+                  loading="lazy"
+                  onerror="this.closest('.resident-profile-picture-current')?.classList.add('resident-profile-picture-preview-missing')"
+                />
+              </div>
+              <div class="resident-profile-picture-current-copy">
+                <p class="small text-muted mb-1"><strong class="text-body">Current photo in use.</strong> It appears in your profile header and sidebar. Replace it with a new file, or remove it below.</p>
+              </div>
+            </div>
+          {% else %}
+            <p class="small text-muted mb-2">Optional. Add a photo to personalize your profile; it will be resized to a small thumbnail.</p>
           {% endif %}
           <div class="hawkeye-form-group">
-            <label class="hawkeye-form-label" for="profile_image">Upload profile image</label>
+            <label class="hawkeye-form-label" for="profile_image">{% if avatar_url %}Replace with a new image{% else %}Upload profile image{% endif %}</label>
             <input class="hawkeye-file" type="file" id="profile_image" name="profile_image" accept=".jpg,.jpeg,.png,.webp" />
-            <div class="form-text">JPG, PNG, WebP. Uploading a new image replaces your current one with an optimized thumbnail.</div>
+            <div class="form-text">
+              {% if avatar_url %}
+                JPG, PNG, or WebP. Choosing a file replaces your current photo (optimized WebP thumbnail).
+              {% else %}
+                JPG, PNG, WebP. Your image is stored as an optimized thumbnail.
+              {% endif %}
+            </div>
           </div>
           {% if avatar_url %}
             <div class="form-check mt-2">
@@ -185,6 +209,33 @@
         {% else %}
           <p class="text-muted mb-0">No activity yet. Report your first incident to start your timeline.</p>
         {% endif %}
+      </div>
+      <div class="resident-profile-timeline-card mt-3">
+        <h4 class="resident-section-title mb-2 text-danger">Danger zone</h4>
+        <p class="small text-muted mb-3">
+          Deleting your account signs you out and removes personal profile details.
+        </p>
+        <form method="post" action="{{ url_for('resident.delete_account') }}" class="d-flex flex-column gap-2">
+          <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+          <label class="hawkeye-form-label mb-0" for="confirm_delete_text">Type DELETE MY ACCOUNT</label>
+          <input
+            class="hawkeye-input"
+            id="confirm_delete_text"
+            name="confirm_delete_text"
+            autocomplete="off"
+            required
+          />
+          <label class="hawkeye-form-label mb-0" for="password_confirm_delete">Confirm password</label>
+          <input
+            class="hawkeye-input"
+            type="password"
+            id="password_confirm_delete"
+            name="password_confirm_delete"
+            autocomplete="current-password"
+            required
+          />
+          <button type="submit" class="btn btn-outline-danger">Delete my account</button>
+        </form>
       </div>
     </aside>
   </div>
@@ -222,6 +273,21 @@
     node.addEventListener("change", sync);
   });
   sync();
+})();
+
+(() => {
+  const section = document.querySelector(".resident-profile-picture-section");
+  const removeCb = document.getElementById("remove_avatar");
+  const fileInput = document.getElementById("profile_image");
+  if (!section || !fileInput) return;
+  if (section.dataset.hasAvatar === "true" && removeCb) {
+    removeCb.addEventListener("change", () => {
+      if (removeCb.checked) fileInput.value = "";
+    });
+    fileInput.addEventListener("change", () => {
+      if (fileInput.files && fileInput.files.length > 0) removeCb.checked = false;
+    });
+  }
 })();
 </script>
 {% if google_maps_api_key and profile.latitude and profile.longitude %}

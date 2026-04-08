@@ -68,7 +68,13 @@ def _get_or_create_user(email: str, name: str, password: str, role: str) -> User
     user = auth_service.user_repo.get_by_email(email)
     if user:
         return user
-    user, errors = auth_service.register_user(name=name, email=email, password=password, role=role)
+    user, errors = auth_service.register_user(
+        name=name,
+        email=email,
+        password=password,
+        role=role,
+        email_verified=True,
+    )
     if user is None:
         raise RuntimeError(f"Failed to create user {email}: {errors}")
     return user

@@ -690,6 +690,7 @@ def build_generated_description(
         dump_type = details.get("dump_type")
         dump_size = details.get("dump_size")
         blocked = details.get("blocking_access")
+        pest = details.get("pest_or_health_risk")
         sentence = "Illegal dumping was reported"
         if dump_type:
             sentence += f" ({_option_label(schema, 'dump_type', dump_type).lower()})"
@@ -699,8 +700,110 @@ def build_generated_description(
             )
         if blocked is True:
             sentence += ", and access is blocked"
+        if pest is True:
+            sentence += ", with a possible pest or health risk"
         return _finalize(sentence, notes)
+    generic = _generic_detail_sentence(schema, details)
+    if generic:
+        return _finalize(generic, notes)
     return _finalize("An incident was reported.", notes)
+
+
+def _generic_detail_sentence(schema: CategorySchema, details: dict[str, Any]) -> str:
+    """Build a readable sentence from guided fields when no specific template exists."""
+    bits: list[str] = []
+    label = (schema.label or "Incident").strip()
+    for field in schema.fields:
+        if not _field_visible_for_details(field, details):
+            continue
+        raw = details.get(field.key)
+        if raw in (None, "", []):
+            continue
+        if field.field_type == "boolean":
+            if raw is True:
+                bits.append(f"{field.label}: yes")
+        elif field.field_type == "multiselect":
+            if not isinstance(raw, list) or not raw:
+                continue
+            labels = [_option_label(schema, field.key, str(v)) for v in raw]
+            bits.append(f"{field.label}: {', '.join(labels)}")
+        elif field.field_type == "select":
+            bits.append(f"{field.label}: {_option_label(schema, field.key, str(raw))}")
+        else:
+            bits.append(f"{field.label}: {str(raw).strip()}")
+    if not bits:
+        return ""
+    return f"{label} was reported: {'; '.join(bits)}"
+
+
+def _field_visible_for_details(field: FieldSchema, details: dict[str, Any]) -> bool:
+    if not field.show_when:
+        return True
+    for cond_field, equals_val in field.show_when:
+        current = details.get(cond_field)
+        if isinstance(current, bool):
+            if str(current).lower() != str(equals_val).lower():
+                return False
+        elif str(current or "") != str(equals_val):
+            return False
+    return True
+
+
+def append_report_context_to_description(
+    text: str,
+    *,
+    urgency_level: str | None,
+    suburb_or_ward: str | None,
+    street_or_landmark: str | None,
+    nearest_place: str | None,
+) -> str:
+    """Append urgency and location lines so stored text matches the resident form preview."""
+    parts: list[str] = [text.rstrip()]
+    urg = _urgency_context_sentence(urgency_level)
+    loc = _location_context_sentence(
+        suburb_or_ward=suburb_or_ward,
+        street_or_landmark=street_or_landmark,
+        nearest_place=nearest_place,
+    )
+    if urg:
+        parts.append(urg)
+    if loc:
+        parts.append(loc)
+    return " ".join(p for p in parts if p).strip()
+
+
+def _urgency_context_sentence(urgency_level: str | None) -> str:
+    if not urgency_level:
+        return ""
+    u = urgency_level.strip().lower()
+    if u == "urgent_now":
+        return "Urgency: urgent — happening now or someone at risk."
+    if u == "soon":
+        return "Urgency: soon — needs attention in the next few days."
+    if u == "scheduled":
+        return "Urgency: can be scheduled — not time-critical."
+    return ""
+
+
+def _location_context_sentence(
+    *,
+    suburb_or_ward: str | None,
+    street_or_landmark: str | None,
+    nearest_place: str | None,
+) -> str:
+    parts: list[str] = []
+    s = (street_or_landmark or "").strip()
+    su = (suburb_or_ward or "").strip()
+    n = (nearest_place or "").strip()
+    if s:
+        parts.append(s)
+    if su:
+        parts.append(su)
+    if n:
+        parts.append(f"near {n}")
+    if not parts:
+        return ""
+    return f"Location: {', '.join(parts)}."
 
 
 def _join_list(value: Any) -> str:

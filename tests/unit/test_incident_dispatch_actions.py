@@ -4,10 +4,12 @@ import io
 
 from werkzeug.datastructures import FileStorage
 
-from app.constants import Roles
+from app.constants import IncidentStatus, Roles
 from app.extensions import db
 from app.models.authority import Authority
+from app.models.authority_user import AuthorityUser
 from app.models.department_action_log import DepartmentActionLog
+from app.models.incident import Incident
 from app.models.incident_assignment import IncidentAssignment
 from app.models.incident_category import IncidentCategory
 from app.models.incident_dispatch import IncidentDispatch
@@ -94,8 +96,6 @@ def test_log_department_action_persists_row(app):
         db.session.add(auth)
         db.session.commit()
 
-        from app.models.incident import Incident
-
         incident = Incident(
             reported_by_id=user.id,
             title="Test",
@@ -159,3 +159,48 @@ def test_log_department_action_returns_none_for_missing_incident(app):
             note="Test",
         )
         assert log is None
+
+
+def test_log_department_action_auto_advances_acknowledged_to_in_progress(app):
+    """First operational log while Acknowledged moves workflow to In progress."""
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Dept Worker",
+            email="dept.worker@example.com",
+            password="pass",
+            role=Roles.AUTHORITY.value,
+        )
+        auth = Authority(name="Ops", is_active=True)
+        db.session.add(auth)
+        db.session.flush()
+        db.session.add(AuthorityUser(authority_id=auth.id, user_id=user.id))
+        db.session.commit()
+
+        incident = Incident(
+            reported_by_id=user.id,
+            title="Ops case",
+            description="Desc",
+            category="Cat",
+            suburb_or_ward="Sub",
+            street_or_landmark="St",
+            location="St, Sub",
+            severity="low",
+            status=IncidentStatus.ACKNOWLEDGED.value,
+            reference_code="HK-2026-03-000100",
+            current_authority_id=auth.id,
+        )
+        db.session.add(incident)
+        db.session.commit()
+        iid = incident.id
+
+        incident_service.log_department_action(
+            incident_id=iid,
+            authority_id=auth.id,
+            performed_by=user,
+            action_type="site_inspection",
+            note="On-site check complete",
+        )
+
+        refreshed = db.session.get(Incident, iid)
+        assert refreshed is not None
+        assert refreshed.status == IncidentStatus.IN_PROGRESS.value

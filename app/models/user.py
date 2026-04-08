@@ -28,6 +28,9 @@ class User(UserMixin, db.Model):
     invite_token = db.Column(db.String(64), nullable=True, index=True)
     invite_expires_at = db.Column(db.DateTime, nullable=True)
 
+    email_verification_token = db.Column(db.String(64), nullable=True, index=True)
+    email_verification_expires_at = db.Column(db.DateTime, nullable=True)
+
     incidents_reported = db.relationship(
         "Incident",
         back_populates="reporter",
