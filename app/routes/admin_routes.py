@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import os
 import re
-from datetime import datetime
+from datetime import date, datetime
 
 from flask import (
     Blueprint,
@@ -18,7 +18,7 @@ from flask import (
 from flask_login import current_user, login_required
 from sqlalchemy import func
 
-from app.constants import IncidentStatus, Roles
+from app.constants import SEVERITY_LEVELS, IncidentStatus, Roles
 from app.extensions import db
 from app.models.admin_audit_log import AdminAuditLog
 from app.models.admin_preference import AdminPreference
@@ -38,12 +38,72 @@ from app.services.dashboard_service import dashboard_service
 from app.services.dispatch_service import dispatch_service
 from app.services.incident_service import incident_service
 from app.utils.decorators import role_required
+from app.utils.incident_date_filters import clamp_incident_list_date_filters
 from app.utils.validators import (
     validate_admin_create_user_invite,
     validate_admin_update_user_form,
 )
 
 admin_bp = Blueprint("admin", __name__, template_folder="../templates/admin")
+
+
+def _parse_routing_priority_override(raw: str | None) -> tuple[str | None, str | None]:
+    """Return (stored_value, error_message). Empty means use category default."""
+    s = (raw or "").strip().lower()
+    if not s:
+        return None, None
+    if s in SEVERITY_LEVELS:
+        return s, None
+    return None, (
+        "Priority override must be one of: "
+        + ", ".join(SEVERITY_LEVELS)
+        + ", or leave “Use category default” selected."
+    )
+
+
+def _authority_display_contacts(authority: Authority) -> tuple[str | None, str | None]:
+    """Form + summary: use Authority fields, or fall back to directory rows dispatch prefers."""
+    raw_e = (authority.contact_email or "").strip() or None
+    raw_p = (authority.contact_phone or "").strip() or None
+    if getattr(authority, "id", None) is None:
+        return raw_e, raw_p
+    eff_e = raw_e or dispatch_service.resolve_primary_email(authority)
+    eff_p = raw_p or dispatch_service.resolve_primary_phone(authority)
+    return eff_e, eff_p
+
+
+def _parse_sla_hours_override(raw: str | None) -> tuple[int | None, str | None]:
+    """Return (hours, error_message). Empty means use category default."""
+    s = (raw or "").strip()
+    if not s:
+        return None, None
+    if not s.isdigit():
+        return (
+            None,
+            "SLA override must be a whole number of hours, or leave blank for the category default.",
+        )
+    v = int(s)
+    if v < 1 or v > 8760:
+        return None, "SLA override must be between 1 and 8760 hours."
+    return v, None
+
+
+def _routing_rule_template_kwargs(
+    *,
+    rule: RoutingRule,
+    categories: list,
+    locations: list,
+    authorities: list,
+    form_data: dict | None = None,
+) -> dict:
+    return {
+        "rule": rule,
+        "categories": categories,
+        "locations": locations,
+        "authorities": authorities,
+        "form_data": form_data or {},
+        "severity_levels": SEVERITY_LEVELS,
+    }
 
 
 def _compact_token(value: str | None, fallback: str) -> str:
@@ -342,6 +402,11 @@ def incidents():
             date_to = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
         except ValueError:
             date_to = None
+
+    date_from, date_to = clamp_incident_list_date_filters(date_from, date_to)
+    date_from_raw = date_from.date().isoformat() if date_from else ""
+    date_to_raw = date_to.date().isoformat() if date_to else ""
+
     incident_page = incident_service.incident_repo.list_for_admin(
         status=status_filter,
         q=q or None,
@@ -357,6 +422,7 @@ def incidents():
         per_page=25,
     )
 
+    now = datetime.now()
     overview = dashboard_service.get_overview()
     google_maps_api_key = current_app.config.get("GOOGLE_MAPS_API_KEY")
     authorities = (
@@ -365,10 +431,12 @@ def incidents():
         .order_by(Authority.name.asc())
         .all()
     )
+    filter_max_date = date.today().strftime("%Y-%m-%d")
     return render_template(
         "admin/incidents/index.html",
         overview=overview,
         page=incident_page,
+        now=now,
         selected_status=status_param,
         q=q,
         selected_category=category,
@@ -381,6 +449,7 @@ def incidents():
         date_to=date_to_raw,
         sort=sort,
         google_maps_api_key=google_maps_api_key,
+        filter_max_date=filter_max_date,
     )
 
 
@@ -411,6 +480,7 @@ def incident_detail(incident_id: int):
         timeline=timeline,
         media=media,
         dispatches=dispatches,
+        google_maps_api_key=current_app.config.get("GOOGLE_MAPS_API_KEY"),
     )
 
 
@@ -475,10 +545,24 @@ def update_incident_status(incident_id: int):
     to_status_raw = request.form.get("status") or ""
     note = request.form.get("note") or ""
 
+    incident = db.session.get(Incident, incident_id)
+    if incident is None:
+        flash("Incident not found.", "danger")
+        return redirect(url_for("admin.incidents"))
+
     try:
         to_status = IncidentStatus(to_status_raw)
     except ValueError:
         flash("Invalid status.", "danger")
+        return redirect(url_for("admin.incident_detail", incident_id=incident_id))
+
+    current = (incident.status or "").strip().lower()
+    if current == to_status.value.lower():
+        flash(
+            "Nothing was saved — the incident is already in that workflow status. "
+            "Choose a different status to record a change.",
+            "warning",
+        )
         return redirect(url_for("admin.incident_detail", incident_id=incident_id))
 
     ok, errors = incident_service.update_status(
@@ -517,6 +601,19 @@ def retry_dispatch(incident_id: int, dispatch_id: int):
         flash("Dispatch record not found.", "warning")
         return redirect(url_for("admin.incident_detail", incident_id=incident_id))
     result = dispatch_service.retry_dispatch(dispatch)
+    db.session.add(
+        AdminAuditLog(
+            admin_user_id=getattr(current_user, "id", None),
+            action="dispatch_retry_requested",
+            target_type="incident_dispatch",
+            target_id=dispatch.id,
+            details={
+                "incident_id": incident_id,
+                "authority_id": dispatch.authority_id,
+                "ok": bool(result.ok),
+            },
+        )
+    )
     db.session.commit()
     if result.ok:
         flash("Dispatch retried successfully.", "success")
@@ -655,6 +752,25 @@ def user_new():
             "User created. Share the set-password link with them; they choose their own password.",
             "success",
         )
+        db.session.add(
+            AdminAuditLog(
+                admin_user_id=getattr(current_user, "id", None),
+                action="user_invited",
+                target_type="user",
+                target_id=user.id,
+                details={
+                    "role": user.role,
+                    "email": user.email,
+                },
+            )
+        )
+        audit_service.log_user_change(
+            user_id=user.id,
+            action="user_invited",
+            actor_user_id=getattr(current_user, "id", None),
+            after_json={"role": user.role, "email": user.email},
+        )
+        db.session.commit()
         return redirect(url_for("admin.user_detail", user_id=user.id, invite_token=invite_token))
 
     return render_template("admin/users/new.html", form_data=None)
@@ -791,19 +907,35 @@ def send_user_email_verification(user_id: int):
         flash("User not found.", "warning")
         return redirect(url_for("admin.users"))
 
-    # MVP: verification flows are system-driven; admin can only trigger actions.
-    # If/when verification tokens are implemented, wire them here.
+    try:
+        ok, errors = auth_service.send_verification_email(user)
+    except Exception:
+        current_app.logger.exception(
+            "admin send_user_email_verification failed for user_id=%s",
+            user.id,
+        )
+        ok, errors = (
+            False,
+            [
+                "Could not send verification email right now. "
+                "Check mail provider configuration and server logs.",
+            ],
+        )
     db.session.add(
         AdminAuditLog(
             admin_user_id=getattr(current_user, "id", None),
             action="user_email_verification_requested",
             target_type="user",
             target_id=user.id,
-            details={"email": user.email},
+            details={"email": user.email, "send_ok": ok},
         )
     )
     db.session.commit()
-    flash("Verification email flow is not configured yet.", "warning")
+    if ok:
+        flash("Verification email sent.", "success")
+    else:
+        for e in errors:
+            flash(e, "warning")
     return redirect(url_for("admin.user_detail", user_id=user.id))
 
 
@@ -899,9 +1031,12 @@ def authority_detail(authority_id: int):
                 details={"name": authority.name, "is_active": authority.is_active},
             )
         )
+        dispatch_service.sync_authority_legacy_contacts(authority)
         db.session.commit()
         flash("Department updated.", "success")
         return redirect(url_for("admin.authority_detail", authority_id=authority.id))
+
+    contact_email_display, contact_phone_display = _authority_display_contacts(authority)
 
     member_count = authority.members.count()
     open_statuses = [
@@ -949,6 +1084,8 @@ def authority_detail(authority_id: int):
         open_incidents=open_incidents,
         total_assigned=total_assigned,
         form_data=request.form if request.method == "POST" else None,
+        contact_email_display=contact_email_display,
+        contact_phone_display=contact_phone_display,
     )
 
 
@@ -961,11 +1098,18 @@ def authority_new():
         name = (form_data.get("name") or "").strip()
         if not name:
             flash("Name is required.", "danger")
+            ce, cp = _authority_display_contacts(Authority(name=""))
             return render_template(
                 "admin/authorities/detail.html",
                 authority=Authority(name=""),
                 routing_rule_count=0,
+                routing_rules=[],
+                member_count=0,
+                open_incidents=0,
+                total_assigned=0,
                 form_data=form_data,
+                contact_email_display=ce,
+                contact_phone_display=cp,
             )
 
         authority = Authority(
@@ -987,16 +1131,24 @@ def authority_new():
                 details={"name": authority.name},
             )
         )
+        dispatch_service.sync_authority_legacy_contacts(authority)
         db.session.commit()
         flash("Department created.", "success")
         return redirect(url_for("admin.authorities"))
 
     tmp_authority = Authority(name="")
+    ce, cp = _authority_display_contacts(tmp_authority)
     return render_template(
         "admin/authorities/detail.html",
         authority=tmp_authority,
         routing_rule_count=0,
+        routing_rules=[],
+        member_count=0,
+        open_incidents=0,
+        total_assigned=0,
         form_data=request.form if request.method == "POST" else None,
+        contact_email_display=ce,
+        contact_phone_display=cp,
     )
 
 
@@ -1035,11 +1187,40 @@ def routing_rule_new():
             flash("Category and department are required.", "danger")
             return render_template(
                 "admin/routing_rules/detail.html",
-                rule=RoutingRule(is_active=True),
-                categories=categories,
-                locations=locations,
-                authorities=authorities,
-                form_data=form_data,
+                **_routing_rule_template_kwargs(
+                    rule=RoutingRule(is_active=True),
+                    categories=categories,
+                    locations=locations,
+                    authorities=authorities,
+                    form_data=form_data,
+                ),
+            )
+
+        prio_val, prio_err = _parse_routing_priority_override(form_data.get("priority_override"))
+        sla_val, sla_err = _parse_sla_hours_override(form_data.get("sla_hours_override"))
+        if prio_err:
+            flash(prio_err, "danger")
+            return render_template(
+                "admin/routing_rules/detail.html",
+                **_routing_rule_template_kwargs(
+                    rule=RoutingRule(is_active=True),
+                    categories=categories,
+                    locations=locations,
+                    authorities=authorities,
+                    form_data=form_data,
+                ),
+            )
+        if sla_err:
+            flash(sla_err, "danger")
+            return render_template(
+                "admin/routing_rules/detail.html",
+                **_routing_rule_template_kwargs(
+                    rule=RoutingRule(is_active=True),
+                    categories=categories,
+                    locations=locations,
+                    authorities=authorities,
+                    form_data=form_data,
+                ),
             )
 
         location_id_raw = form_data.get("location_id") or ""
@@ -1049,12 +1230,8 @@ def routing_rule_new():
             category_id=category_id,
             location_id=location_id,
             authority_id=authority_id,
-            priority_override=(form_data.get("priority_override") or "").strip() or None,
-            sla_hours_override=(
-                int(form_data.get("sla_hours_override"))
-                if (form_data.get("sla_hours_override") or "").strip().isdigit()
-                else None
-            ),
+            priority_override=prio_val,
+            sla_hours_override=sla_val,
             is_active=form_data.get("is_active") in ("1", "on", "yes", "true", True),
         )
         db.session.add(rule)
@@ -1085,11 +1262,13 @@ def routing_rule_new():
 
     return render_template(
         "admin/routing_rules/detail.html",
-        rule=RoutingRule(is_active=True),
-        categories=categories,
-        locations=locations,
-        authorities=authorities,
-        form_data=request.form if request.method == "POST" else {},
+        **_routing_rule_template_kwargs(
+            rule=RoutingRule(is_active=True),
+            categories=categories,
+            locations=locations,
+            authorities=authorities,
+            form_data=request.form if request.method == "POST" else {},
+        ),
     )
 
 
@@ -1115,11 +1294,40 @@ def routing_rule_detail(rule_id: int):
             flash("Category and department are required.", "danger")
             return render_template(
                 "admin/routing_rules/detail.html",
-                rule=rule,
-                categories=categories,
-                locations=locations,
-                authorities=authorities,
-                form_data=form_data,
+                **_routing_rule_template_kwargs(
+                    rule=rule,
+                    categories=categories,
+                    locations=locations,
+                    authorities=authorities,
+                    form_data=form_data,
+                ),
+            )
+
+        prio_val, prio_err = _parse_routing_priority_override(form_data.get("priority_override"))
+        sla_val, sla_err = _parse_sla_hours_override(form_data.get("sla_hours_override"))
+        if prio_err:
+            flash(prio_err, "danger")
+            return render_template(
+                "admin/routing_rules/detail.html",
+                **_routing_rule_template_kwargs(
+                    rule=rule,
+                    categories=categories,
+                    locations=locations,
+                    authorities=authorities,
+                    form_data=form_data,
+                ),
+            )
+        if sla_err:
+            flash(sla_err, "danger")
+            return render_template(
+                "admin/routing_rules/detail.html",
+                **_routing_rule_template_kwargs(
+                    rule=rule,
+                    categories=categories,
+                    locations=locations,
+                    authorities=authorities,
+                    form_data=form_data,
+                ),
             )
 
         before_json = {
@@ -1131,12 +1339,8 @@ def routing_rule_detail(rule_id: int):
 
         location_id_raw = form_data.get("location_id") or ""
         rule.location_id = int(location_id_raw) if location_id_raw.isdigit() else None
-        rule.priority_override = (form_data.get("priority_override") or "").strip() or None
-        rule.sla_hours_override = (
-            int(form_data.get("sla_hours_override"))
-            if (form_data.get("sla_hours_override") or "").strip().isdigit()
-            else None
-        )
+        rule.priority_override = prio_val
+        rule.sla_hours_override = sla_val
         rule.is_active = form_data.get("is_active") in ("1", "on", "yes", "true", True)
 
         audit_service.log_routing_rule(
@@ -1165,22 +1369,37 @@ def routing_rule_detail(rule_id: int):
         flash("Routing rule updated.", "success")
         return redirect(url_for("admin.routing_rule_detail", rule_id=rule.id))
 
-    return render_template(
-        "admin/routing_rules/detail.html",
-        rule=rule,
-        categories=categories,
-        locations=locations,
-        authorities=authorities,
-        form_data=request.form
+    form_data = (
+        request.form
         if request.method == "POST"
         else {
             "category_id": rule.category_id,
             "location_id": rule.location_id or "",
             "authority_id": rule.authority_id,
             "priority_override": rule.priority_override or "",
-            "sla_hours_override": rule.sla_hours_override or "",
+            "sla_hours_override": (
+                "" if rule.sla_hours_override is None else rule.sla_hours_override
+            ),
             "is_active": "on" if rule.is_active else "",
-        },
+        }
+    )
+    if request.method == "GET" and rule.priority_override:
+        lo = rule.priority_override.strip().lower()
+        if lo not in SEVERITY_LEVELS:
+            flash(
+                "This rule’s saved priority override is not a standard level. "
+                "Choose Low / Medium / High / Critical and save.",
+                "warning",
+            )
+    return render_template(
+        "admin/routing_rules/detail.html",
+        **_routing_rule_template_kwargs(
+            rule=rule,
+            categories=categories,
+            locations=locations,
+            authorities=authorities,
+            form_data=form_data,
+        ),
     )
 
 

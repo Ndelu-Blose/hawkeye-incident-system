@@ -146,7 +146,11 @@ def test_confirm_screening_backfills_suggestion_from_category_text_routing_rule(
         assert incident.status == IncidentStatus.ASSIGNED.value
 
 
-def test_request_more_proof_and_resubmission_loop(app, client):
+def test_request_more_proof_and_resubmission_loop(app, client, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.notification_service.send_outbound_email",
+        lambda *a, **k: (True, None, "resend"),
+    )
     with app.app_context():
         resident, _ = auth_service.register_user(
             name="Resident B",
@@ -222,7 +226,7 @@ def test_request_more_proof_and_resubmission_loop(app, client):
             .filter(
                 NotificationLog.incident_id == incident_id,
                 NotificationLog.type == "proof_submitted",
-                NotificationLog.status == "queued",
+                NotificationLog.status == "sent",
             )
             .count()
             >= 1
@@ -232,7 +236,7 @@ def test_request_more_proof_and_resubmission_loop(app, client):
 
 
 def test_approve_proof_advances_from_awaiting_evidence(app, client):
-    """Approving proof must move the incident out of awaiting_evidence (not only set verification)."""
+    """Approving proof must auto-advance to screened after awaiting_evidence."""
     with app.app_context():
         resident, _ = auth_service.register_user(
             name="Resident D",
@@ -278,18 +282,69 @@ def test_approve_proof_advances_from_awaiting_evidence(app, client):
     with app.app_context():
         incident = db.session.get(Incident, incident_id)
         assert incident is not None
-        assert incident.status == IncidentStatus.REPORTED.value
+        assert incident.status == IncidentStatus.SCREENED.value
         assert incident.verification_status == "approved"
         assert incident.proof_request_reason is None
+
+
+def test_approve_proof_advances_from_reported_to_screened(app, client):
+    with app.app_context():
+        resident, _ = auth_service.register_user(
+            name="Resident E",
+            email="resident.e@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        auth_service.register_user(
+            name="Admin E",
+            email="admin.e@example.com",
+            password="pass",
+            role=Roles.ADMIN.value,
+        )
+        incident = Incident(
+            reported_by_id=resident.id,
+            title="Street flood",
+            description="Flooded section",
+            category="water",
+            suburb_or_ward="Ward 6",
+            street_or_landmark="River Rd",
+            location="River Rd, Ward 6",
+            severity="high",
+            status=IncidentStatus.REPORTED.value,
+            verification_status="pending",
+            reference_code="HK-2026-03-222005",
+        )
+        db.session.add(incident)
+        db.session.commit()
+        incident_id = incident.id
+
+    client.post(
+        "/auth/login",
+        data={"email": "admin.e@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.post(
+        f"/admin/incidents/{incident_id}/proof/review",
+        data={"decision": "approved", "note": "Validated evidence."},
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+
+    with app.app_context():
+        incident = db.session.get(Incident, incident_id)
+        assert incident is not None
+        assert incident.status == IncidentStatus.SCREENED.value
+        assert incident.verification_status == "approved"
 
 
 def test_notification_queue_processing_marks_sent(app, monkeypatch):
     sent = {"count": 0}
 
-    def fake_send(_msg):
+    def fake_send(*_a, **_k):
         sent["count"] += 1
+        return True, None, "resend"
 
-    monkeypatch.setattr("app.services.notification_service.mail.send", fake_send)
+    monkeypatch.setattr("app.services.notification_service.send_outbound_email", fake_send)
 
     with app.app_context():
         resident, _ = auth_service.register_user(

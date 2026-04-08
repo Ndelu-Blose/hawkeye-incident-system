@@ -6,9 +6,9 @@
 <section class="hawkeye-public-page">
   <div class="hawkeye-public-container public-incidents-shell">
     <div class="public-incidents-header">
-      <h1 class="mb-2">Community Incident Preview</h1>
+      <h1 class="mb-2">Community incident reports</h1>
       <p class="mb-0">
-        Explore anonymized incident reports by area. Who submitted each report is never shown.
+        Browse anonymized summaries by suburb or ward. Who submitted each report is never shown.
         <a href="{{ url_for('auth.register') }}">Create an account</a> to report and track your own incidents.
       </p>
     </div>
@@ -16,17 +16,20 @@
     <div class="public-incidents-card mb-4">
       <form method="get">
         <div class="row g-3 align-items-end">
-          <div class="col-12 col-lg-4">
+          <div class="col-12 col-md-6 col-lg-5">
             <label for="area_select" class="form-label fw-bold">Area (suburb / ward)</label>
             <select id="area_select" name="area" class="form-select form-select-lg">
-              <option value="">Select an area</option>
+              <option value="">All recent areas</option>
               {% for a in areas %}
                 <option value="{{ a }}" {% if area == a %}selected{% endif %}>{{ a }}</option>
               {% endfor %}
             </select>
           </div>
-          <div class="col-12 col-lg-2">
-            <button type="submit" class="btn btn-primary w-100">{{ "View area map" if area else "Explore map" }}</button>
+          <div class="col-6 col-md-3 col-lg-2">
+            <button type="submit" class="btn btn-primary w-100">Show reports</button>
+          </div>
+          <div class="col-6 col-md-3 col-lg-2">
+            <a href="{{ url_for('public.area_incidents') }}" class="btn btn-outline-secondary w-100">Clear filters</a>
           </div>
         </div>
       </form>
@@ -37,103 +40,30 @@
         No incidents have been reported yet. <a href="{{ url_for('auth.register') }}">Register</a> to report the first incident in your area.
       </div>
     {% else %}
-      <div class="public-incidents-map-layout">
-        <div class="public-incidents-card">
-          <h2 class="h5 mb-2">
-            {{ "Area map: " + area if area else "Latest community map" }}
-          </h2>
-          <p class="small text-muted mb-3">
-            Pins show anonymized report locations only.
-          </p>
-          {% if google_maps_api_key %}
-            <div id="publicAreaMap" class="public-incidents-map-canvas"></div>
-            {% if not map_points %}
-              <div class="alert alert-info mt-3 mb-0">
-                No mapped incidents available for this view yet.
-              </div>
-            {% endif %}
-          {% else %}
-            <div class="alert alert-info mb-0">
-              Set `GOOGLE_MAPS_API_KEY` to enable map view.
-            </div>
-          {% endif %}
-        </div>
-
-        <div class="public-incidents-card">
-          <h3 class="h6 mb-3">{{ "Recent in " + area if area else "Recent reports" }}</h3>
-          {% if incidents %}
-            <div class="public-incidents-list">
-              {% for inc in incidents %}
-                <article class="public-incidents-item">
-                  <div class="title">{{ inc.title }}</div>
-                  <div class="meta">
-                    <code>{{ inc.reference_code }}</code>
-                    •
-                    {{ inc.category_rel.name | replace('_', ' ') | title if inc.category_rel else inc.category | replace('_', ' ') | title }}
-                    • {{ inc.created_at.strftime('%Y-%m-%d') if inc.created_at else '-' }}
-                  </div>
-                  <div class="mt-2">{{ render_status_badge(inc.status) }}</div>
-                </article>
-              {% endfor %}
-            </div>
-          {% else %}
-            <p class="text-muted mb-0">No incidents available for this view yet.</p>
-          {% endif %}
-        </div>
-      </div>
-    {% endif %}
-
-    {#
-      Old table view replaced with map-first experience.
-    #}
-    {% if false %}
       <div class="public-incidents-card">
-        <h2 class="h5 mb-3">Results for {{ area }}</h2>
+        <h2 class="h5 mb-2">
+          {% if area %}Reports in {{ area }}{% else %}Recent community reports{% endif %}
+        </h2>
+        <p class="small text-muted mb-3">
+          Reference, category, and status only—no names or contact details.
+        </p>
         {% if incidents %}
-          <div class="table-responsive">
-            <table class="table table-hover mb-0">
-              <thead>
-                <tr>
-                  <th>Reference</th>
-                  <th>Title</th>
-                  <th>Category</th>
-                  <th>Status</th>
-                  <th>Reported</th>
-                </tr>
-              </thead>
-              <tbody>
-                {% for inc in incidents %}
-                  <tr>
-                    <td><code>{{ inc.reference_code }}</code></td>
-                    <td>{{ inc.title }}</td>
-                    <td>{{ inc.category_rel.name | replace('_', ' ') | title if inc.category_rel else inc.category | replace('_', ' ') | title }}</td>
-                    <td>{{ render_status_badge(inc.status) }}</td>
-                    <td>{{ inc.created_at.strftime('%Y-%m-%d') if inc.created_at else '-' }}</td>
-                  </tr>
-                {% endfor %}
-              </tbody>
-            </table>
+          <div class="public-incidents-list">
+            {% for inc in incidents %}
+              <article class="public-incidents-item">
+                <div class="title">{{ inc.title }}</div>
+                <div class="meta">
+                  <code>{{ inc.reference_code }}</code>
+                  •
+                  {{ inc.category_rel.name | replace('_', ' ') | title if inc.category_rel else inc.category | replace('_', ' ') | title }}
+                  • {{ inc.created_at.strftime('%Y-%m-%d') if inc.created_at else '-' }}
+                </div>
+                <div class="mt-2">{{ render_status_badge(inc.status) }}</div>
+              </article>
+            {% endfor %}
           </div>
-
-          {% if page_result and page_result.pages > 1 %}
-            <nav class="d-flex justify-content-between align-items-center mt-3">
-              <span class="text-muted small">
-                Page {{ page_result.page }} of {{ page_result.pages }} ({{ page_result.total }} incidents)
-              </span>
-              <ul class="pagination mb-0">
-                <li class="page-item {% if not page_result.has_prev %}disabled{% endif %}">
-                  <a class="page-link" href="{{ url_for('public.area_incidents', area=area, category_id=selected_category_id or '', status=selected_status, date_from=date_from, date_to=date_to, page=page_result.page-1) if page_result.has_prev else '#' }}">Prev</a>
-                </li>
-                <li class="page-item {% if not page_result.has_next %}disabled{% endif %}">
-                  <a class="page-link" href="{{ url_for('public.area_incidents', area=area, category_id=selected_category_id or '', status=selected_status, date_from=date_from, date_to=date_to, page=page_result.page+1) if page_result.has_next else '#' }}">Next</a>
-                </li>
-              </ul>
-            </nav>
-          {% endif %}
         {% else %}
-          <div class="alert alert-light border mb-0">
-            No incidents found in <strong>{{ area }}</strong> with the selected filters.
-          </div>
+          <p class="text-muted mb-0">No incidents match this view yet. Try another area or check back later.</p>
         {% endif %}
       </div>
     {% endif %}
@@ -144,45 +74,4 @@
     </div>
   </div>
 </section>
-{% endblock %}
-
-{% block scripts %}
-{{ super() }}
-{% if google_maps_api_key %}
-<script src="https://maps.googleapis.com/maps/api/js?key={{ google_maps_api_key }}"></script>
-<script>
-(() => {
-  const mapNode = document.getElementById("publicAreaMap");
-  if (!mapNode || !window.google || !google.maps) return;
-  const points = {{ map_points | tojson }};
-  const defaultCenter = { lat: -29.8587, lng: 31.0218 };
-  const map = new google.maps.Map(mapNode, {
-    center: defaultCenter,
-    zoom: points.length ? 12 : 10,
-    mapTypeControl: false,
-    streetViewControl: false,
-    fullscreenControl: false,
-  });
-  if (!points.length) return;
-  const bounds = new google.maps.LatLngBounds();
-  points.forEach((point) => {
-    const pos = { lat: point.lat, lng: point.lng };
-    bounds.extend(pos);
-    const marker = new google.maps.Marker({ position: pos, map });
-    const info = new google.maps.InfoWindow({
-      content: `
-        <div style="max-width:240px">
-          <strong>${point.title}</strong><br/>
-          <small>${point.category} • ${point.reported_on}</small><br/>
-          <small>${point.area}</small><br/>
-          <small>${point.reference_code}</small>
-        </div>
-      `,
-    });
-    marker.addListener("click", () => info.open({ anchor: marker, map }));
-  });
-  map.fitBounds(bounds, 36);
-})();
-</script>
-{% endif %}
 {% endblock %}

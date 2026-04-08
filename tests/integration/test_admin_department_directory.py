@@ -42,4 +42,5 @@ def test_admin_department_directory_filters_by_channel(app, client):
     response = client.get("/admin/departments/directory?channel=email")
     assert response.status_code == 200
     assert b"Department Directory" in response.data
-    assert b"email:" in response.data
+    assert b"admin-dept-contact-chip" in response.data
+    assert b"metroceo@durban.gov.za" in response.data

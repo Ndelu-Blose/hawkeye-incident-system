@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from collections.abc import Iterable
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
@@ -28,6 +29,7 @@ from app.repositories.incident_repo import IncidentRepository
 from app.repositories.incident_update_repo import IncidentUpdateRepository
 from app.services.audit_service import audit_service
 from app.services.incident_dynamic_schema import (
+    append_report_context_to_description,
     build_generated_description,
     get_category_schema,
     validate_details,
@@ -39,6 +41,15 @@ from app.services.routing_service import routing_service
 from app.services.screening_service import screening_service
 from app.utils.datetime_helpers import utc_now
 from app.utils.uploads import save_incident_media
+
+
+def _process_notification_outbox() -> None:
+    """Send queued resident/authority notification emails (best-effort)."""
+    try:
+        notification_service.process_queued(limit=50)
+    except Exception:  # pragma: no cover - log and continue
+        logging.getLogger(__name__).exception("notification outbox processing failed")
+
 
 if TYPE_CHECKING:
     from werkzeug.datastructures import FileStorage
@@ -276,6 +287,14 @@ class IncidentService:
         if urgency_level and not severity:
             severity = urgency_to_severity(urgency_level)
 
+        if location_mode == LocationMode.SAVED.value:
+            profile = getattr(resident_user, "resident_profile", None)
+            if profile:
+                if not suburb_or_ward:
+                    suburb_or_ward = (getattr(profile, "suburb", None) or "").strip()
+                if not street_or_landmark:
+                    street_or_landmark = (getattr(profile, "street_address_1", None) or "").strip()
+
         if not title:
             errors.append("Title is required.")
         if not category and not category_obj:
@@ -291,20 +310,18 @@ class IncidentService:
             dynamic_details,
             additional_notes,
         )
+        generated_description = append_report_context_to_description(
+            generated_description,
+            urgency_level=urgency_level,
+            suburb_or_ward=suburb_or_ward,
+            street_or_landmark=street_or_landmark,
+            nearest_place=nearest_place,
+        )
         user_edited_description = bool(payload.get("description_manually_edited"))
         if not description or not user_edited_description:
             description = generated_description
         if not description:
             errors.append("Description is required.")
-
-        # When location_mode is saved, fill from resident profile if fields are empty
-        if location_mode == LocationMode.SAVED.value:
-            profile = getattr(resident_user, "resident_profile", None)
-            if profile:
-                if not suburb_or_ward:
-                    suburb_or_ward = (getattr(profile, "suburb", None) or "").strip()
-                if not street_or_landmark:
-                    street_or_landmark = (getattr(profile, "street_address_1", None) or "").strip()
 
         if not suburb_or_ward:
             errors.append("Suburb/ward is required.")
@@ -527,7 +544,6 @@ class IncidentService:
                 note="Evidence uploaded",
             )
             self.update_repo.add(evidence_update)
-
         # Phase B1: auto-apply high-confidence, exact-location routing (assignment + ownership only).
         #
         # Guardrails:
@@ -600,7 +616,9 @@ class IncidentService:
                 )
                 db.session.add(route_applied_event)
         self._upsert_sla_tracking(incident)
+        notification_service.enqueue_incident_submitted(incident, resident_user)
         db.session.commit()
+        _process_notification_outbox()
         return incident, []
 
     def confirm_screening(
@@ -714,6 +732,7 @@ class IncidentService:
                 return False, errors
 
         db.session.commit()
+        _process_notification_outbox()
         return True, []
 
     def review_proof(
@@ -748,23 +767,28 @@ class IncidentService:
                 reason=note_norm,
                 after_json={"verification_status": "approved"},
             )
-            # Approve must advance workflow: verification alone left incidents stuck in awaiting_evidence.
-            if incident.status == IncidentStatus.AWAITING_EVIDENCE.value:
+            # Approve must advance workflow automatically.
+            # Move awaiting_evidence/reported incidents straight to screened so admins
+            # do not need a redundant manual status update after proof approval.
+            if incident.status in (
+                IncidentStatus.AWAITING_EVIDENCE.value,
+                IncidentStatus.REPORTED.value,
+            ):
                 incident.proof_request_reason = None
                 incident.proof_requested_at = None
                 incident.proof_requested_by_user_id = None
                 ok, errors = self.change_status(
                     incident,
-                    IncidentStatus.REPORTED,
+                    IncidentStatus.SCREENED,
                     actor_user_id=actor_user.id,
                     actor_role=self._actor_role_from_user(actor_user),
-                    note=note_norm or "Proof approved by admin; incident ready for screening.",
+                    note=note_norm or "Proof approved by admin; incident auto-screened.",
                     allow_admin_override=True,
                 )
                 if not ok:
                     return False, errors
-            elif incident.status == IncidentStatus.REPORTED.value:
-                # Proof OK while already reported — record visible timeline entry.
+            elif incident.status == IncidentStatus.SCREENED.value:
+                # Proof already approved in workflow terms; record explicit timeline entry.
                 self.update_repo.add(
                     IncidentUpdate(
                         incident_id=incident.id,
@@ -775,6 +799,7 @@ class IncidentService:
                     )
                 )
             db.session.commit()
+            _process_notification_outbox()
             return True, []
 
         incident.verification_status = "rejected"
@@ -799,6 +824,7 @@ class IncidentService:
         if not ok:
             return False, errors
         db.session.commit()
+        _process_notification_outbox()
         return True, []
 
     def request_additional_proof(
@@ -846,6 +872,7 @@ class IncidentService:
         if not ok:
             return False, errors
         db.session.commit()
+        _process_notification_outbox()
         return True, []
 
     def get_incident_with_history(
@@ -862,15 +889,58 @@ class IncidentService:
         return incident, updates
 
     def assemble_timeline(self, incident_id: int) -> list[TimelineEvent]:
-        """Build timeline from incident_events (primary), fallback to IncidentUpdate for legacy."""
+        """Build timeline from incident_events plus supplemental legacy rows (updates/dispatches)."""
         incident = self.incident_repo.get_by_id(incident_id)
         if incident is None:
             return []
 
         event_rows = self.event_repo.list_for_incident(incident_id)
-        if event_rows:
-            return self._timeline_from_events(incident, event_rows)
-        return self._timeline_from_legacy(incident_id, incident)
+        legacy = self._timeline_from_legacy(incident_id, incident)
+        if not event_rows:
+            return legacy
+
+        ledger = self._timeline_from_events(incident, event_rows)
+        return self._merge_timeline_ledger_and_legacy(ledger, legacy)
+
+    def _merge_timeline_ledger_and_legacy(
+        self,
+        ledger: list[TimelineEvent],
+        legacy: list[TimelineEvent],
+    ) -> list[TimelineEvent]:
+        """
+        incident_events is authoritative for status transitions, but some paths only wrote
+        IncidentUpdate rows (e.g. proof approved while status stayed reported). Legacy timeline
+        includes those; merge without duplicating creation / department-action rows.
+        """
+
+        def _fp(e: TimelineEvent) -> tuple:
+            at = e.at.replace(microsecond=0) if e.at else None
+            return (at, e.kind, (e.title or "")[:160], (e.actor_label or "")[:80])
+
+        merged: list[TimelineEvent] = list(ledger)
+        seen = {_fp(e) for e in merged}
+        has_created = any(e.kind == "incident_created" for e in merged)
+
+        for e in legacy:
+            if e.kind == "incident_created" and has_created:
+                continue
+            fp = _fp(e)
+            if fp in seen:
+                continue
+            if e.at:
+                if any(
+                    o.kind == e.kind
+                    and (o.title or "") == (e.title or "")
+                    and o.at
+                    and abs((e.at - o.at).total_seconds()) < 3
+                    for o in merged
+                ):
+                    continue
+            merged.append(e)
+            seen.add(fp)
+
+        merged.sort(key=lambda x: x.at if x.at is not None else datetime.min)
+        return merged
 
     def _timeline_from_events(self, incident: Incident, event_rows: list) -> list[TimelineEvent]:
         """Build timeline from incident_events (read-first)."""
@@ -1255,6 +1325,7 @@ class IncidentService:
                 return False, errors
             notification_service.enqueue_admins_proof_submitted(incident)
         db.session.commit()
+        _process_notification_outbox()
         return True, []
 
     def list_incidents_for_authority(
@@ -1262,6 +1333,88 @@ class IncidentService:
         status: IncidentStatus | None = None,
     ) -> Iterable[Incident]:
         return self.incident_repo.list_for_authority(status=status)
+
+    def get_authority_workflow_actions(self, incident: Incident) -> list[dict[str, Any]]:
+        """
+        Next-step actions for the department incident screen.
+
+        Routing and handoff statuses (reported, screened, assigned, acknowledged) are driven by
+        admin screening, dispatch, and the Acknowledge button—not by a free-form status dropdown.
+        """
+        try:
+            cur = IncidentStatus(incident.status)
+        except ValueError:
+            cur = IncidentStatus.REPORTED
+
+        actions: list[dict[str, Any]] = []
+
+        if cur == IncidentStatus.ASSIGNED:
+            actions.append(
+                {
+                    "status": IncidentStatus.REJECTED.value,
+                    "label": "Reject incident",
+                    "note_required": True,
+                    "hint": "Only if this case is invalid or outside your mandate. Admins may need to re-route.",
+                    "btn_class": "btn-outline-danger",
+                }
+            )
+            return actions
+
+        if cur == IncidentStatus.ACKNOWLEDGED:
+            actions.append(
+                {
+                    "status": IncidentStatus.IN_PROGRESS.value,
+                    "label": "Mark in progress",
+                    "note_required": False,
+                    "hint": "When your team has started active work on this case.",
+                    "btn_class": "btn-primary",
+                }
+            )
+            actions.append(
+                {
+                    "status": IncidentStatus.REJECTED.value,
+                    "label": "Reject incident",
+                    "note_required": True,
+                    "hint": "Requires a clear reason.",
+                    "btn_class": "btn-outline-danger",
+                }
+            )
+            return actions
+
+        if cur == IncidentStatus.IN_PROGRESS:
+            actions.append(
+                {
+                    "status": IncidentStatus.RESOLVED.value,
+                    "label": "Mark resolved",
+                    "note_required": True,
+                    "hint": "Summarise the outcome: what was done, references, resident contact if applicable.",
+                    "btn_class": "btn-success",
+                }
+            )
+            actions.append(
+                {
+                    "status": IncidentStatus.REJECTED.value,
+                    "label": "Reject incident",
+                    "note_required": True,
+                    "hint": "If work cannot be completed—explain why.",
+                    "btn_class": "btn-outline-danger",
+                }
+            )
+            return actions
+
+        if cur == IncidentStatus.RESOLVED:
+            actions.append(
+                {
+                    "status": IncidentStatus.CLOSED.value,
+                    "label": "Close incident",
+                    "note_required": True,
+                    "hint": "Final note for the record (e.g. case filed, resident notified).",
+                    "btn_class": "btn-outline-secondary",
+                }
+            )
+            return actions
+
+        return []
 
     def update_status(
         self,
@@ -1290,7 +1443,108 @@ class IncidentService:
         if not ok:
             return False, errors
         db.session.commit()
+        _process_notification_outbox()
         return True, []
+
+    def _try_auto_in_progress_on_department_activity(
+        self,
+        incident: Incident,
+        performed_by: User,
+        log: DepartmentActionLog,
+    ) -> None:
+        """When status is Acknowledged, first logged activity moves the case to In progress."""
+        if incident.status != IncidentStatus.ACKNOWLEDGED.value:
+            return
+        label = (log.action_type or "").replace("_", " ").strip() or "activity"
+        ok, errors = self.change_status(
+            incident,
+            IncidentStatus.IN_PROGRESS,
+            actor_user_id=performed_by.id,
+            actor_role=self._actor_role_from_user(performed_by),
+            note=(
+                f"Automatically set to in progress when the department recorded {label} "
+                f"on the operational log."
+            ),
+            authority_id=log.authority_id,
+            dispatch_id=None,
+        )
+        if not ok:
+            logging.getLogger(__name__).warning(
+                "auto_in_progress_on_department_activity_failed incident_id=%s errors=%s",
+                incident.id,
+                errors,
+            )
+
+    def _sync_incident_after_dispatch_marked_resolved(
+        self,
+        dispatch: IncidentDispatch,
+        *,
+        resolution_note: str | None,
+    ) -> None:
+        """Align incident workflow when the dispatch record is marked resolved (department closure)."""
+        incident = self.incident_repo.get_by_id(dispatch.incident_id)
+        if incident is None:
+            return
+        terminal = {
+            IncidentStatus.RESOLVED.value,
+            IncidentStatus.CLOSED.value,
+            IncidentStatus.REJECTED.value,
+        }
+        if incident.status in terminal:
+            return
+        note = (resolution_note or "").strip() or "Department marked the dispatch as resolved."
+        actor_id = dispatch.ack_user_id or dispatch.dispatched_by_id
+
+        if incident.status == IncidentStatus.IN_PROGRESS.value:
+            ok, errors = self.change_status(
+                incident,
+                IncidentStatus.RESOLVED,
+                actor_user_id=actor_id,
+                actor_role="department",
+                note=note,
+                authority_id=dispatch.authority_id,
+                dispatch_id=dispatch.id,
+            )
+            if not ok:
+                logging.getLogger(__name__).warning(
+                    "sync_incident_resolved_from_dispatch_failed incident_id=%s errors=%s",
+                    incident.id,
+                    errors,
+                )
+            return
+
+        if incident.status == IncidentStatus.ACKNOWLEDGED.value:
+            ok_ip, err_ip = self.change_status(
+                incident,
+                IncidentStatus.IN_PROGRESS,
+                actor_user_id=actor_id,
+                actor_role="department",
+                note="Automatically set when the department closed the dispatch as resolved.",
+                authority_id=dispatch.authority_id,
+                dispatch_id=dispatch.id,
+            )
+            if not ok_ip:
+                logging.getLogger(__name__).warning(
+                    "sync_incident_in_progress_before_resolve_failed incident_id=%s errors=%s",
+                    incident.id,
+                    err_ip,
+                )
+                return
+            ok_r, err_r = self.change_status(
+                incident,
+                IncidentStatus.RESOLVED,
+                actor_user_id=actor_id,
+                actor_role="department",
+                note=note,
+                authority_id=dispatch.authority_id,
+                dispatch_id=dispatch.id,
+            )
+            if not ok_r:
+                logging.getLogger(__name__).warning(
+                    "sync_incident_resolved_after_in_progress_failed incident_id=%s errors=%s",
+                    incident.id,
+                    err_r,
+                )
 
     def log_department_action(
         self,
@@ -1300,7 +1554,7 @@ class IncidentService:
         action_type: str,
         note: str | None = None,
     ) -> DepartmentActionLog | None:
-        """Log a department action on an incident. Creates and commits the log entry."""
+        """Log a department action on an incident. May auto-advance status to in progress."""
         incident = self.incident_repo.get_by_id(incident_id)
         if incident is None:
             return None
@@ -1312,7 +1566,10 @@ class IncidentService:
             note=note,
         )
         db.session.add(log)
+        db.session.flush()
+        self._try_auto_in_progress_on_department_activity(incident, performed_by, log)
         db.session.commit()
+        _process_notification_outbox()
         return log
 
     def create_dispatch(
@@ -1402,6 +1659,11 @@ class IncidentService:
         dispatch.resolution_proof_url = (resolution_proof_url or "").strip() or None
         dispatch.resolved_at = now
         dispatch.last_status_update_at = now
+        db.session.flush()
+        self._sync_incident_after_dispatch_marked_resolved(
+            dispatch,
+            resolution_note=resolution_note,
+        )
         return dispatch
 
     def attach_external_reference(
@@ -1477,6 +1739,7 @@ class IncidentService:
         if not ok:
             return False, errors
         db.session.commit()
+        _process_notification_outbox()
         return True, []
 
     def acknowledge_incident(

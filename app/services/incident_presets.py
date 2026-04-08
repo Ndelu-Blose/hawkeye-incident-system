@@ -9,6 +9,8 @@ from app.services.incident_dynamic_schema import get_category_schema, normalize_
 # Keys must match IncidentCategory.name from seed / DB.
 PRESETS: dict[str, dict] = {
     "suspicious_activity": {
+        "evidence_policy": "optional",
+        "evidence_help": "Photos help when it is safe to take them. Many reports have no images — that is fine.",
         "suggested_title": "Suspicious activity reported",
         "default_urgency": UrgencyLevel.URGENT_NOW,
         "helper_prompts": [
@@ -23,6 +25,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Do not put yourself at risk to take a photo.",
     },
     "crime": {
+        "evidence_policy": "optional",
+        "evidence_help": "Never risk your safety for a photo. Many urgent reports have no images.",
         "suggested_title": "Criminal activity reported",
         "default_urgency": UrgencyLevel.URGENT_NOW,
         "helper_prompts": [
@@ -36,6 +40,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Do not put yourself at risk to take a photo.",
     },
     "vandalism": {
+        "evidence_policy": "recommended",
+        "evidence_help": "Photos help verify damage and location.",
         "suggested_title": "Vandalism or damage reported",
         "default_urgency": UrgencyLevel.NEEDS_ATTENTION_SOON,
         "helper_prompts": [
@@ -49,6 +55,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Try to capture both the damage and the surrounding area.",
     },
     "dumping": {
+        "evidence_policy": "recommended",
+        "evidence_help": "Photos help crews find and assess the site.",
         "suggested_title": "Illegal dumping reported",
         "default_urgency": UrgencyLevel.NEEDS_ATTENTION_SOON,
         "helper_prompts": [
@@ -63,6 +71,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Try to capture both the pile and the surrounding area.",
     },
     "broken_streetlight": {
+        "evidence_policy": "recommended",
+        "evidence_help": "A photo of the pole or area speeds up identification.",
         "suggested_title": "Streetlight not working",
         "default_urgency": UrgencyLevel.NEEDS_ATTENTION_SOON,
         "helper_prompts": [
@@ -76,6 +86,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Try to capture the streetlight and the area so we can locate it.",
     },
     "pothole": {
+        "evidence_policy": "recommended",
+        "evidence_help": "Photos help confirm the hazard and its exact position.",
         "suggested_title": "Road hazard reported",
         "default_urgency": UrgencyLevel.NEEDS_ATTENTION_SOON,
         "helper_prompts": [
@@ -89,6 +101,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Try to capture both the hazard and the surrounding area.",
     },
     "water_leak": {
+        "evidence_policy": "recommended",
+        "evidence_help": "Photos help show scale and exact location of the leak.",
         "suggested_title": "Water leak or burst reported",
         "default_urgency": UrgencyLevel.URGENT_NOW,
         "helper_prompts": [
@@ -102,6 +116,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Try to capture the leak and the surrounding area.",
     },
     "blocked_drain": {
+        "evidence_policy": "recommended",
+        "evidence_help": "Photos help locate the drain and see blockage or flooding.",
         "suggested_title": "Blocked drain reported",
         "default_urgency": UrgencyLevel.NEEDS_ATTENTION_SOON,
         "helper_prompts": [
@@ -115,6 +131,8 @@ PRESETS: dict[str, dict] = {
         "safety_tip": "Try to capture the drain and surrounding area.",
     },
     "other": {
+        "evidence_policy": "optional",
+        "evidence_help": "Add images when it is safe — they are not required to submit.",
         "suggested_title": "Incident reported",
         "default_urgency": UrgencyLevel.NEEDS_ATTENTION_SOON,
         "helper_prompts": [

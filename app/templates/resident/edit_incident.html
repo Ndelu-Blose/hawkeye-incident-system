@@ -16,11 +16,11 @@
       <h2 class="mb-4">Edit Incident #{{ incident.id }}</h2>
       <p class="text-muted small">Status: {{ render_status_badge(incident.status) }} — Reported {{ incident.created_at.strftime('%Y-%m-%d %H:%M') if incident.created_at }}</p>
 
-      <form method="post" novalidate>
+      <form method="post">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
         <div class="mb-3">
-          <label for="title" class="form-label">Title</label>
+          <label for="title" class="form-label">Title <span class="text-danger">*</span></label>
           <input
             type="text"
             class="form-control"
@@ -32,7 +32,7 @@
         </div>
 
         <div class="mb-3">
-          <label for="description" class="form-label">Description</label>
+          <label for="description" class="form-label">Description <span class="text-danger">*</span></label>
           <textarea
             class="form-control"
             id="description"
@@ -43,7 +43,7 @@
         </div>
 
         <div class="mb-3">
-          <label for="category" class="form-label">Category</label>
+          <label for="category" class="form-label">Category <span class="text-danger">*</span></label>
           <input
             type="text"
             class="form-control"
@@ -56,7 +56,7 @@
 
         <div class="row">
           <div class="col-md-6 mb-3">
-            <label for="suburb_or_ward" class="form-label">Suburb / Ward</label>
+            <label for="suburb_or_ward" class="form-label">Suburb / Ward <span class="text-danger">*</span></label>
             <input
               type="text"
               class="form-control"
@@ -67,7 +67,7 @@
             />
           </div>
           <div class="col-md-6 mb-3">
-            <label for="street_or_landmark" class="form-label">Street / Landmark</label>
+            <label for="street_or_landmark" class="form-label">Street / Landmark <span class="text-danger">*</span></label>
             <input
               type="text"
               class="form-control"
@@ -91,7 +91,7 @@
         </div>
 
         <div class="mb-3">
-          <label for="severity" class="form-label">Severity</label>
+          <label for="severity" class="form-label">Severity <span class="text-danger">*</span></label>
           <select class="form-select" id="severity" name="severity" required>
             {% set sel = (form_data.severity if form_data is defined else incident.severity) | default(incident.severity) %}
             <option value="low" {% if sel == 'low' %}selected{% endif %}>Low</option>

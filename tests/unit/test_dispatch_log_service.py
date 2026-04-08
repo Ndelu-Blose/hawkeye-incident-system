@@ -116,3 +116,50 @@ def test_dispatch_log_external_reference_and_timeline_visibility(app):
         assert dispatch.external_reference_source == "eThekwini"
         assert dispatch_events
         assert any("ETH-FAULT-88214" in (e.description or "") for e in dispatch_events)
+
+
+def test_mark_resolved_syncs_incident_when_in_progress(app):
+    with app.app_context():
+        _, admin, authority, incident, assignment = _seed_incident_context()
+        dispatch = incident_service.create_dispatch(
+            incident_id=incident.id,
+            authority_id=authority.id,
+            incident_assignment_id=assignment.id,
+            channel="email",
+            recipient_email="ops@example.com",
+            created_by_user_id=admin.id,
+            dispatched_by_type="admin",
+        )
+        incident.status = IncidentStatus.IN_PROGRESS.value
+        db.session.commit()
+
+        incident_service.mark_resolved(dispatch, resolution_note="Cleared on site")
+        db.session.commit()
+
+        refreshed = db.session.get(Incident, incident.id)
+        assert refreshed is not None
+        assert refreshed.status == IncidentStatus.RESOLVED.value
+
+
+def test_mark_resolved_syncs_incident_when_acknowledged_via_two_step(app):
+    """Acknowledged + dispatch resolved advances incident to resolved (via in progress)."""
+    with app.app_context():
+        _, admin, authority, incident, assignment = _seed_incident_context()
+        dispatch = incident_service.create_dispatch(
+            incident_id=incident.id,
+            authority_id=authority.id,
+            incident_assignment_id=assignment.id,
+            channel="email",
+            recipient_email="ops@example.com",
+            created_by_user_id=admin.id,
+            dispatched_by_type="admin",
+        )
+        incident.status = IncidentStatus.ACKNOWLEDGED.value
+        db.session.commit()
+
+        incident_service.mark_resolved(dispatch, resolution_note="Handled end-to-end")
+        db.session.commit()
+
+        refreshed = db.session.get(Incident, incident.id)
+        assert refreshed is not None
+        assert refreshed.status == IncidentStatus.RESOLVED.value

@@ -109,6 +109,54 @@ def test_resolve_primary_email_prefers_verified_primary_then_secondary(app):
         assert resolved == "verified-primary@example.com"
 
 
+def test_resolve_primary_phone_prefers_verified_primary(app):
+    with app.app_context():
+        authority, _ = _seed_dispatch_context()
+        db.session.add(
+            DepartmentContact(
+                authority_id=authority.id,
+                contact_type="primary",
+                is_primary=True,
+                channel="phone",
+                value="031-000-0000",
+                is_active=True,
+                verification_status="verified",
+            )
+        )
+        db.session.commit()
+        assert dispatch_service.resolve_primary_phone(authority) == "031-000-0000"
+
+
+def test_sync_authority_legacy_contacts_updates_resolved_email_row(app):
+    with app.app_context():
+        authority, _ = _seed_dispatch_context()
+        db.session.add(
+            DepartmentContact(
+                authority_id=authority.id,
+                contact_type="primary",
+                is_primary=True,
+                channel="email",
+                value="old@example.com",
+                is_active=True,
+                verification_status="unverified",
+            )
+        )
+        db.session.commit()
+        authority.contact_email = "new@example.com"
+        dispatch_service.sync_authority_legacy_contacts(authority)
+        db.session.commit()
+        assert dispatch_service.resolve_primary_email(authority) == "new@example.com"
+
+
+def test_sync_authority_legacy_contacts_inserts_email_when_no_row(app):
+    with app.app_context():
+        authority, _ = _seed_dispatch_context()
+        authority.contact_email = "ops@example.com"
+        dispatch_service.sync_authority_legacy_contacts(authority)
+        db.session.commit()
+        assert dispatch_service.resolve_primary_email(authority) == "ops@example.com"
+
+
 def test_send_assignment_dispatch_records_snapshots_and_status(app, monkeypatch):
     with app.app_context():
         authority, dispatch = _seed_dispatch_context()
@@ -123,7 +171,10 @@ def test_send_assignment_dispatch_records_snapshots_and_status(app, monkeypatch)
         )
         db.session.commit()
 
-        monkeypatch.setattr("app.services.dispatch_service.mail.send", lambda msg: None)
+        monkeypatch.setattr(
+            "app.services.dispatch_service.send_outbound_email",
+            lambda *a, **k: (True, None, "resend"),
+        )
         result = dispatch_service.send_assignment_dispatch(dispatch)
         db.session.commit()
 

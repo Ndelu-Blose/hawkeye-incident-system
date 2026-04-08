@@ -11,6 +11,7 @@
 {% endblock %}
 
 {% block admin_content %}
+  <div class="admin-authority-detail-page">
   <div class="row g-3 mb-3">
     <div class="col-6 col-md-3">
       <div class="admin-stat-card text-center h-100">
@@ -47,6 +48,7 @@
               <h3 class="h6 mb-1">Department configuration</h3>
               <p class="text-muted small mb-0">
                 Update contact details, jurisdiction, and whether this department can receive routed incidents.
+                If email or phone were only stored in the department directory, those values appear here so they stay in sync with dispatch.
               </p>
             </div>
             {% if authority.is_active %}
@@ -56,7 +58,7 @@
             {% endif %}
           </div>
 
-          <form method="post" class="mb-0">
+          <form method="post" class="mb-0 admin-authority-form">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
             <div class="mb-3">
@@ -67,6 +69,7 @@
                 name="name"
                 value="{{ form_data.name if form_data else authority.name }}"
                 required
+                autocomplete="organization"
               />
             </div>
 
@@ -88,7 +91,7 @@
                 id="contact_email"
                 name="contact_email"
                 type="email"
-                value="{{ form_data.contact_email if form_data else (authority.contact_email or '') }}"
+                value="{{ form_data.contact_email if form_data else (contact_email_display or '') }}"
               />
             </div>
 
@@ -98,7 +101,7 @@
                 class="form-control"
                 id="contact_phone"
                 name="contact_phone"
-                value="{{ form_data.contact_phone if form_data else (authority.contact_phone or '') }}"
+                value="{{ form_data.contact_phone if form_data else (contact_phone_display or '') }}"
               />
             </div>
 
@@ -193,15 +196,16 @@
 
       <div class="card hawkeye-admin-panel">
         <div class="card-body">
-          <h3 class="h6 mb-2">Contact &amp; jurisdiction</h3>
+          <h3 class="h6 mb-1">Contact &amp; jurisdiction</h3>
+          <p class="small hawkeye-detail-secondary mb-3">Read-only summary of the same contact values shown in the form (including directory fallbacks). Edit the form, then Save changes to persist on the department record and align directory rows used for dispatch.</p>
           <div class="small">
             <div class="d-flex justify-content-between gap-3 py-2 border-bottom border-secondary">
               <span class="text-muted">Email</span>
-              <span class="text-end">{{ authority.contact_email or '—' }}</span>
+              <span class="text-end">{{ contact_email_display or '—' }}</span>
             </div>
             <div class="d-flex justify-content-between gap-3 py-2 border-bottom border-secondary">
               <span class="text-muted">Phone</span>
-              <span class="text-end">{{ authority.contact_phone or '—' }}</span>
+              <span class="text-end">{{ contact_phone_display or '—' }}</span>
             </div>
             <div class="d-flex justify-content-between gap-3 py-2">
               <span class="text-muted">Type</span>
@@ -222,6 +226,7 @@
         </div>
       </div>
     </div>
+  </div>
   </div>
 {% endblock %}
 

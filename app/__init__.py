@@ -2,7 +2,7 @@ import os
 from typing import Any
 
 from flask import Flask, render_template
-from sqlalchemy.exc import OperationalError, ProgrammingError
+from sqlalchemy.exc import OperationalError, ProgrammingError, SQLAlchemyError
 
 from .config import DevelopmentConfig, ProductionConfig, TestingConfig
 from .constants import APP_NAME, APP_TAGLINE, Roles
@@ -43,6 +43,10 @@ def create_app(config_name: str | None = None) -> Flask:
     app.jinja_env.globals["render_status_badge"] = render_status_badge
     app.jinja_env.filters["sla_due"] = sla_due
 
+    from .cli import register_cli
+
+    register_cli(app)
+
     return app
 
 
@@ -59,9 +63,22 @@ def _register_extensions(app: Flask) -> None:
 
     @login_manager.user_loader
     def load_user(user_id: str) -> User | None:  # type: ignore[override]
+        """Load user for the session; never raise—bad DB state must not 500 every page."""
         try:
-            return User.query.get(int(user_id))
+            uid = int(user_id)
         except (TypeError, ValueError):
+            return None
+        try:
+            return db.session.get(User, uid)
+        except (OperationalError, ProgrammingError) as exc:
+            app.logger.warning(
+                "login user_loader: database error loading user id=%s (%s). Treating as logged out.",
+                user_id,
+                exc,
+            )
+            return None
+        except SQLAlchemyError as exc:
+            app.logger.warning("login user_loader: %s", exc)
             return None
 
     login_manager.login_view = "auth.login"
@@ -95,6 +112,8 @@ def _register_error_handlers(app: Flask) -> None:
 
     @app.errorhandler(500)
     def server_error(error: Exception) -> tuple[str, int]:
+        original = getattr(error, "original_exception", None) or error
+        app.logger.exception("HTTP 500 (handler): %s", original)
         return render_template("errors/500.html"), 500
 
 
@@ -146,6 +165,7 @@ def _bootstrap_admin(app: Flask) -> None:
                 email=email,
                 password=password,
                 role=Roles.ADMIN.value,
+                email_verified=True,
             )
             if errors:
                 app.logger.warning("Failed to bootstrap admin user: %s", "; ".join(errors))

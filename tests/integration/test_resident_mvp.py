@@ -1,6 +1,7 @@
 """Tests for Resident MVP: create with evidence, edit rule, dashboard, access control, guided form."""
 
 import io
+from datetime import date
 from pathlib import Path
 
 from PIL import Image
@@ -22,6 +23,39 @@ def test_resident_dashboard_requires_login(client):
     assert b"login" in resp.data.lower() or b"Log in" in resp.data
 
 
+def test_resident_can_delete_own_account(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Delete Me",
+            email="delete-me@example.com",
+            password="pass12345",
+            role=Roles.RESIDENT.value,
+        )
+        user_id = user.id
+
+    client.post(
+        "/auth/login",
+        data={"email": "delete-me@example.com", "password": "pass12345"},
+        follow_redirects=True,
+    )
+    resp = client.post(
+        "/resident/account/delete",
+        data={
+            "confirm_delete_text": "DELETE MY ACCOUNT",
+            "password_confirm_delete": "pass12345",
+        },
+        follow_redirects=True,
+    )
+    assert resp.status_code == 200
+    assert b"Your account has been deleted." in resp.data
+
+    with app.app_context():
+        deleted_user = db.session.get(User, user_id)
+        assert deleted_user is not None
+        assert deleted_user.is_active is False
+        assert deleted_user.email.startswith(f"deleted+{user_id}.")
+
+
 def test_resident_dashboard_and_my_incidents(app, client):
     with app.app_context():
         auth_service.register_user(
@@ -38,6 +72,32 @@ def test_resident_dashboard_and_my_incidents(app, client):
     assert b"Resident One" in resp.data or b"Welcome" in resp.data
     resp = client.get("/resident/incidents")
     assert resp.status_code == 200
+    assert b'max="' in resp.data
+    assert date.today().strftime("%Y-%m-%d").encode() in resp.data
+
+
+def test_resident_my_incidents_clamps_future_date_query_params(app, client):
+    """Future From/To in the query string are clamped to today for filtering and display."""
+    with app.app_context():
+        auth_service.register_user(
+            name="Resident Dates",
+            email="rdates@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+    client.post(
+        "/auth/login",
+        data={"email": "rdates@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get(
+        "/resident/incidents",
+        query_string={"date_from": "2099-06-01", "date_to": "2099-12-31"},
+    )
+    assert resp.status_code == 200
+    today = date.today().strftime("%Y-%m-%d")
+    assert today.encode() in resp.data
+    assert b"2099" not in resp.data
 
 
 def test_resident_incidents_filters_and_pagination(app, client):
@@ -859,6 +919,40 @@ def test_incidents_map_resolution_filter_applies(app, client):
     assert b"Open map incident" not in resp_resolved.data
 
 
+def test_incidents_map_has_clear_filters_and_coordinate_flags(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="map-payload-contract@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        no_coords = Incident(
+            reported_by_id=user.id,
+            title="No coordinates incident",
+            description="No coords",
+            category="pothole",
+            suburb_or_ward="Ward 1",
+            street_or_landmark="Main",
+            location="Main, Ward 1",
+            severity="low",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-090005",
+        )
+        db.session.add(no_coords)
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "map-payload-contract@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get("/resident/incidents/map")
+    assert resp.status_code == 200
+    assert b"Clear filters" in resp.data
+    assert b"data-has-coordinates" in resp.data
+
+
 def test_resident_profile_page_shows_identity_completion_and_activity(app, client):
     with app.app_context():
         user, _ = auth_service.register_user(
@@ -899,7 +993,7 @@ def test_resident_profile_page_shows_identity_completion_and_activity(app, clien
     resp = client.get("/resident/profile")
     assert resp.status_code == 200
     assert b"Thamsanqa Ndelu" in resp.data
-    assert b"Profile Completion" in resp.data
+    assert b"Required for reporting" in resp.data
     assert b"Your Activity" in resp.data
     assert b"Recent Activity" in resp.data
 

@@ -11,23 +11,37 @@
 {% endblock %}
 
 {% block admin_content %}
-  <div class="row justify-content-center">
+  <div class="row justify-content-center admin-routing-rule-page">
     <div class="col-lg-8">
       <div class="card hawkeye-admin-panel">
         <div class="card-body">
-          <form method="post">
+          <form method="post" class="admin-routing-rule-form" id="adminRoutingRuleForm">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
 
             <div class="mb-3">
               <label class="form-label" for="category_id">Category</label>
-              <select class="form-select" id="category_id" name="category_id" required>
+              <select
+                class="form-select"
+                id="category_id"
+                name="category_id"
+                required
+                aria-describedby="category-defaults-hint"
+              >
                 <option value="">Select category</option>
                 {% for cat in categories %}
-                  <option value="{{ cat.id }}" {% if form_data.category_id|int == cat.id %}selected{% endif %}>
+                  <option
+                    value="{{ cat.id }}"
+                    data-default-priority="{{ cat.default_priority or '' }}"
+                    data-default-sla="{% if cat.default_sla_hours is not none %}{{ cat.default_sla_hours }}{% endif %}"
+                    {% if form_data.category_id|int == cat.id %}selected{% endif %}
+                  >
                     {{ cat.name }}
                   </option>
                 {% endfor %}
               </select>
+              <p id="category-defaults-hint" class="form-text hawkeye-detail-secondary small mb-0 mt-1">
+                <span id="category-defaults-live">Category defaults load when you select a category.</span>
+              </p>
             </div>
 
             <div class="mb-3">
@@ -40,9 +54,9 @@
                   </option>
                 {% endfor %}
               </select>
-              <div class="form-text text-muted">
-                Leave as \"Any location\" to apply this rule for the category across the whole area.
-              </div>
+              <p class="form-text hawkeye-detail-secondary small mb-0 mt-1">
+                Leave as “Any location” to apply this rule for the category across the whole area.
+              </p>
             </div>
 
             <div class="mb-3">
@@ -60,13 +74,19 @@
             <div class="row">
               <div class="col-md-6 mb-3">
                 <label class="form-label" for="priority_override">Priority override</label>
-                <input
-                  class="form-control"
-                  id="priority_override"
-                  name="priority_override"
-                  value="{{ form_data.priority_override or '' }}"
-                  placeholder="e.g. high, critical"
-                />
+                {% set raw_prio = form_data.priority_override|default('', true) %}
+                <select class="form-select" id="priority_override" name="priority_override" aria-describedby="priority-help">
+                  <option value="" {% if not raw_prio %}selected{% endif %}>Use category default (no override)</option>
+                  {% for p in severity_levels %}
+                    <option value="{{ p }}" {% if raw_prio|lower == p %}selected{% endif %}>{{ p|replace('_', ' ')|title }}</option>
+                  {% endfor %}
+                  {% if raw_prio and raw_prio|lower not in severity_levels %}
+                    <option value="{{ raw_prio }}" selected>Non-standard (update required): {{ raw_prio }}</option>
+                  {% endif %}
+                </select>
+                <p id="priority-help" class="form-text hawkeye-detail-secondary small mb-0 mt-1">
+                  Matches incident <strong class="hawkeye-detail-emphasis">severity</strong> when the resident did not set one. Same values used for analytics and escalation thresholds (high / critical).
+                </p>
               </div>
               <div class="col-md-6 mb-3">
                 <label class="form-label" for="sla_hours_override">SLA override (hours)</label>
@@ -76,22 +96,37 @@
                   name="sla_hours_override"
                   type="number"
                   min="1"
-                  value="{{ form_data.sla_hours_override or '' }}"
+                  max="8760"
+                  step="1"
+                  inputmode="numeric"
+                  value="{{ form_data.sla_hours_override if form_data.sla_hours_override is not none and form_data.sla_hours_override != '' else '' }}"
+                  placeholder="Blank = category default"
+                  aria-describedby="sla-help"
                 />
+                <p id="sla-help" class="form-text hawkeye-detail-secondary small mb-0 mt-1">
+                  Target response window for this rule. Used with category SLA for due-date and overdue / escalation views. Whole hours, 1–8760, or blank to inherit the category default.
+                </p>
               </div>
             </div>
 
             <div class="form-check mb-3">
-              {% set active_checked = form_data.is_active if form_data else (rule.is_active and 'on') %}
+              {% if request.method == 'POST' %}
+                {% set active_checked = form_data.get('is_active') in ('1', 'on', 'yes', 'true', True) %}
+              {% else %}
+                {% set active_checked = rule.is_active %}
+              {% endif %}
               <input class="form-check-input" type="checkbox" id="is_active" name="is_active" {% if active_checked %}checked{% endif %}>
               <label class="form-check-label" for="is_active">
                 Active (used for auto-routing)
               </label>
             </div>
 
-            <div class="alert alert-secondary small">
-              When a resident reports an incident with this category (and optional location),
-              Alertweb Solutions will automatically route it to the selected department using this rule.
+            <div class="admin-routing-rule-callout mb-3">
+              <strong class="d-block mb-1">How this connects</strong>
+              <p class="mb-0 small">
+                When a resident submits an incident in this category (and optional location), routing resolves to this department.
+                Priority and SLA here override the <em>category defaults</em> for new incidents and feed severity / due-time logic used downstream (including escalation monitoring).
+              </p>
             </div>
 
             <button type="submit" class="btn btn-primary">
@@ -102,5 +137,26 @@
       </div>
     </div>
   </div>
-{% endblock %}
 
+  <script>
+    (function () {
+      var cat = document.getElementById("category_id");
+      var live = document.getElementById("category-defaults-live");
+      if (!cat || !live) return;
+      function fmt() {
+        var opt = cat.options[cat.selectedIndex];
+        if (!opt || !opt.value) {
+          live.textContent = "Select a category to see its default priority and SLA.";
+          return;
+        }
+        var p = (opt.getAttribute("data-default-priority") || "").trim();
+        var s = opt.getAttribute("data-default-sla");
+        var prio = p ? p : "—";
+        var sla = s !== null && s !== "" ? s + " h" : "—";
+        live.textContent = "Defaults for this category: priority " + prio + ", SLA " + sla + " (overrides apply when set above).";
+      }
+      cat.addEventListener("change", fmt);
+      fmt();
+    })();
+  </script>
+{% endblock %}

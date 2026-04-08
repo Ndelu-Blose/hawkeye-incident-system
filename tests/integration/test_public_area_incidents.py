@@ -13,11 +13,11 @@ def test_public_area_incidents_page_requires_login(app, client):
 
 
 def test_public_area_incidents_shows_empty_when_no_incidents(app, client):
-    """When no incidents exist, area dropdown is empty."""
+    """When no incidents exist, page still loads with area filter (no areas in list)."""
     with app.app_context():
         resp = client.get("/public/area")
     assert resp.status_code == 200
-    assert b"Select an area" in resp.data
+    assert b"All recent areas" in resp.data
 
 
 def test_public_area_incidents_lists_anonymised_incidents(app, client):

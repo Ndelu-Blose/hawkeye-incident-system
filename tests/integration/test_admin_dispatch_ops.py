@@ -1,6 +1,13 @@
 from app.constants import IncidentStatus, Roles
 from app.extensions import db
-from app.models import Authority, DepartmentContact, Incident, IncidentAssignment, IncidentDispatch
+from app.models import (
+    AdminAuditLog,
+    Authority,
+    DepartmentContact,
+    Incident,
+    IncidentAssignment,
+    IncidentDispatch,
+)
 from app.services.auth_service import auth_service
 
 
@@ -84,7 +91,10 @@ def test_admin_can_retry_dispatch(app, client, monkeypatch):
         data={"email": "admin-dispatch-ops@example.com", "password": "password123"},
         follow_redirects=True,
     )
-    monkeypatch.setattr("app.services.dispatch_service.mail.send", lambda msg: None)
+    monkeypatch.setattr(
+        "app.services.dispatch_service.send_outbound_email",
+        lambda *a, **k: (True, None, "resend"),
+    )
 
     resp = client.post(
         f"/admin/incidents/{incident_id}/dispatch/{dispatch_id}/retry",
@@ -99,6 +109,17 @@ def test_admin_can_retry_dispatch(app, client, monkeypatch):
         assert dispatch.status == "sent"
         assert dispatch.delivery_status == "sent"
         assert dispatch.recipient_email == "metro@example.com"
+        audit = (
+            db.session.query(AdminAuditLog)
+            .filter(
+                AdminAuditLog.action == "dispatch_retry_requested",
+                AdminAuditLog.target_type == "incident_dispatch",
+                AdminAuditLog.target_id == dispatch_id,
+            )
+            .order_by(AdminAuditLog.id.desc())
+            .first()
+        )
+        assert audit is not None
 
 
 def test_admin_can_save_external_reference(app, client):

@@ -1,0 +1,44 @@
+{% extends "layout.html" %}
+
+{% block title %}Alertweb Solutions | Resend verification{% endblock %}
+
+{% block content %}
+<section class="hawkeye-public-page hawkeye-auth-page">
+  <div class="hawkeye-public-container hawkeye-auth-layout">
+    <div class="hawkeye-auth-card hawkeye-auth-card-tight">
+      <h1 class="hawkeye-card-title mb-1">Resend verification email</h1>
+      <p class="hawkeye-card-subtitle mb-3">
+        Enter the email you used to register. We will send a new link if the account still needs verification.
+      </p>
+
+      <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+
+        <div class="hawkeye-form-group mb-3">
+          <label class="hawkeye-form-label" for="email">Email</label>
+          <div class="hawkeye-input-wrap hawkeye-input-with-icon">
+            <i class="bi bi-envelope hawkeye-input-icon"></i>
+            <input
+              class="hawkeye-input"
+              type="email"
+              id="email"
+              name="email"
+              value="{{ (form_data.email if form_data is defined else '') | default('') }}"
+              autocomplete="email"
+              required
+            />
+          </div>
+        </div>
+
+        <div class="hawkeye-form-actions">
+          <button type="submit" class="hawkeye-btn-primary w-100">Send email</button>
+        </div>
+      </form>
+
+      <div class="hawkeye-auth-links mt-3">
+        <a href="{{ url_for('auth.login') }}">Back to sign in</a>
+      </div>
+    </div>
+  </div>
+</section>
+{% endblock %}
