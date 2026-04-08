@@ -70,6 +70,12 @@ def send_outbound_email(
     (``MAIL_SERVER`` / MailHog, etc.).
     """
     api_key = (app.config.get("RESEND_API_KEY") or "").strip()
+    app.logger.info(
+        "outbound_email_attempt: recipient=%s subject=%s resend_configured=%s",
+        to_email,
+        subject,
+        bool(api_key),
+    )
     if api_key:
         try:
             ok, err = send_resend_email(
@@ -87,19 +93,36 @@ def send_outbound_email(
         except Exception as exc:
             ok, err = False, str(exc)
         if ok:
+            app.logger.info("outbound_email_sent: recipient=%s provider=resend", to_email)
             return True, None, "resend"
         # In Docker/dev we may have RESEND_API_KEY set but no SDK installed.
         # Fall back to configured SMTP (MailHog) instead of raising a 500.
         if err not in ("resend_sdk_not_installed", "No module named 'resend'"):
+            app.logger.warning(
+                "outbound_email_failed: recipient=%s provider=resend error=%s",
+                to_email,
+                err,
+            )
             return False, err, "resend"
+        app.logger.warning(
+            "outbound_email_fallback_to_smtp: recipient=%s reason=%s",
+            to_email,
+            err,
+        )
 
     try:
         msg = Message(subject=subject, recipients=[to_email.strip()], body=text_body)
         if html_body:
             msg.html = html_body
         mail.send(msg)
+        app.logger.info("outbound_email_sent: recipient=%s provider=smtp", to_email)
         return True, None, "smtp"
     except Exception as exc:
+        app.logger.warning(
+            "outbound_email_failed: recipient=%s provider=smtp error=%s",
+            to_email,
+            exc,
+        )
         return False, str(exc), "smtp"
 
 

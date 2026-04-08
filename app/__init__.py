@@ -24,6 +24,7 @@ def create_app(config_name: str | None = None) -> Flask:
     }
     config_class = config_mapping.get(config_name, DevelopmentConfig)
     app.config.from_object(config_class)
+    _log_email_config_readiness(app)
 
     # Normalize upload folder to an absolute path so send_from_directory works
     # reliably in Docker and on Windows.
@@ -131,6 +132,41 @@ def _register_template_globals(app: Flask) -> None:
     def inject_csrf() -> dict[str, Any]:
         # Expose generate_csrf as csrf_token() in templates
         return {"csrf_token": generate_csrf}
+
+
+def _log_email_config_readiness(app: Flask) -> None:
+    """Log startup guidance for direct auth mail and queued worker mail delivery."""
+    app_base_url = (app.config.get("APP_BASE_URL") or "").strip()
+    resend_api_key = (app.config.get("RESEND_API_KEY") or "").strip()
+    resend_from = (app.config.get("RESEND_FROM_EMAIL") or "").strip()
+    mail_sender = (app.config.get("MAIL_DEFAULT_SENDER") or "").strip()
+    mail_server = (app.config.get("MAIL_SERVER") or "").strip()
+    mail_port = app.config.get("MAIL_PORT")
+
+    if not app_base_url:
+        app.logger.warning(
+            "email_config_missing: APP_BASE_URL is empty; email links may be invalid."
+        )
+    if resend_api_key and not resend_from and not mail_sender:
+        app.logger.warning(
+            "email_config_missing: RESEND_API_KEY is set but sender is missing "
+            "(RESEND_FROM_EMAIL or MAIL_DEFAULT_SENDER)."
+        )
+    if not resend_api_key and (not mail_server or not mail_sender):
+        app.logger.warning(
+            "email_config_missing: RESEND_API_KEY is not set and SMTP fallback is incomplete "
+            "(MAIL_SERVER/MAIL_DEFAULT_SENDER)."
+        )
+    app.logger.info(
+        "email_config_summary: resend_enabled=%s resend_from=%s smtp_server=%s smtp_port=%s "
+        "mail_default_sender=%s app_base_url=%s",
+        bool(resend_api_key),
+        bool(resend_from),
+        mail_server or "unset",
+        mail_port,
+        bool(mail_sender),
+        app_base_url or "unset",
+    )
 
 
 def _bootstrap_admin(app: Flask) -> None:

@@ -953,6 +953,55 @@ def test_incidents_map_has_clear_filters_and_coordinate_flags(app, client):
     assert b"data-has-coordinates" in resp.data
 
 
+def test_incidents_map_area_filter_shows_full_area_names(app, client):
+    with app.app_context():
+        user, _ = auth_service.register_user(
+            name="Resident",
+            email="map-area-filter@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        db.session.add_all(
+            [
+                Incident(
+                    reported_by_id=user.id,
+                    title="Area one incident",
+                    description="Area one",
+                    category="pothole",
+                    suburb_or_ward="Amanzimtoti",
+                    street_or_landmark="Main",
+                    location="Main, Amanzimtoti",
+                    severity="low",
+                    status=IncidentStatus.REPORTED.value,
+                    reference_code="HK-2026-03-090006",
+                ),
+                Incident(
+                    reported_by_id=user.id,
+                    title="Area two incident",
+                    description="Area two",
+                    category="water",
+                    suburb_or_ward="Durban North",
+                    street_or_landmark="Main",
+                    location="Main, Durban North",
+                    severity="low",
+                    status=IncidentStatus.REPORTED.value,
+                    reference_code="HK-2026-03-090007",
+                ),
+            ]
+        )
+        db.session.commit()
+
+    client.post(
+        "/auth/login",
+        data={"email": "map-area-filter@example.com", "password": "pass"},
+        follow_redirects=True,
+    )
+    resp = client.get("/resident/incidents/map")
+    assert resp.status_code == 200
+    assert b"Amanzimtoti" in resp.data
+    assert b"Durban North" in resp.data
+
+
 def test_resident_profile_page_shows_identity_completion_and_activity(app, client):
     with app.app_context():
         user, _ = auth_service.register_user(

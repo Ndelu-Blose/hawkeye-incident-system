@@ -370,12 +370,21 @@
       let circles = [];
       const hasGoogleMaps = mapNode && window.google && window.google.maps;
       if (hasGoogleMaps) {
-        map = new google.maps.Map(mapNode, {
-          center: { lat: -29.8587, lng: 31.0218 },
-          zoom: 11,
-          mapTypeControl: false,
-          streetViewControl: false,
-        });
+        try {
+          map = new google.maps.Map(mapNode, {
+            center: { lat: -29.8587, lng: 31.0218 },
+            zoom: 11,
+            mapTypeControl: false,
+            streetViewControl: false,
+          });
+        } catch (err) {
+          console.error("Google Maps failed to initialize", err);
+          map = null;
+          if (mapNode) {
+            mapNode.innerHTML =
+              '<div class="text-muted small p-2">Heatmap unavailable (Google Maps failed to initialize).</div>';
+          }
+        }
       } else if (mapNode) {
         // Keep hotspot table functional even if Maps does not load.
         mapNode.innerHTML =
@@ -417,22 +426,26 @@
           return;
         }
         if (emptyNode) emptyNode.classList.add("d-none");
-        const bounds = new google.maps.LatLngBounds();
-        points.forEach((point) => {
-          bounds.extend({ lat: point.lat, lng: point.lng });
-          const circle = new google.maps.Circle({
-            strokeColor: "#ff5f5f",
-            strokeOpacity: 0.55,
-            strokeWeight: 1,
-            fillColor: "#ff2e2e",
-            fillOpacity: 0.2 + Math.min(0.55, (point.weight || 1) / 8),
-            map,
-            center: { lat: point.lat, lng: point.lng },
-            radius: 140 + ((point.weight || 1) * 120),
+        try {
+          const bounds = new google.maps.LatLngBounds();
+          points.forEach((point) => {
+            bounds.extend({ lat: point.lat, lng: point.lng });
+            const circle = new google.maps.Circle({
+              strokeColor: "#ff5f5f",
+              strokeOpacity: 0.55,
+              strokeWeight: 1,
+              fillColor: "#ff2e2e",
+              fillOpacity: 0.2 + Math.min(0.55, (point.weight || 1) / 8),
+              map,
+              center: { lat: point.lat, lng: point.lng },
+              radius: 140 + ((point.weight || 1) * 120),
             });
             circles.push(circle);
           });
           map.fitBounds(bounds, 48);
+        } catch (err) {
+          console.error("Failed to render hotspot circles", err);
+        }
         }
       };
 

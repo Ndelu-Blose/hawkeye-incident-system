@@ -387,3 +387,93 @@ def test_notification_queue_processing_marks_sent(app, monkeypatch):
         assert row is not None
         assert row.status == "sent"
         assert row.sent_at is not None
+
+
+def test_notification_queue_processing_marks_failed_on_provider_error(app, monkeypatch):
+    monkeypatch.setattr(
+        "app.services.notification_service.send_outbound_email",
+        lambda *_a, **_k: (False, "provider_rejected", "resend"),
+    )
+    with app.app_context():
+        resident, _ = auth_service.register_user(
+            name="Resident F",
+            email="resident.f@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        incident = Incident(
+            reported_by_id=resident.id,
+            title="Blocked drain",
+            description="Drain clogged after storm",
+            category="water",
+            suburb_or_ward="Ward 7",
+            street_or_landmark="Canal Street",
+            location="Canal Street, Ward 7",
+            severity="medium",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-222006",
+        )
+        db.session.add(incident)
+        db.session.flush()
+        db.session.add(
+            NotificationLog(
+                incident_id=incident.id,
+                user_id=resident.id,
+                recipient_email=resident.email,
+                type="status_changed",
+                status="queued",
+            )
+        )
+        db.session.commit()
+
+        result = notification_service.process_queued(limit=20)
+        assert result["processed"] >= 1
+        assert result["failed"] >= 1
+
+        row = db.session.query(NotificationLog).order_by(NotificationLog.id.desc()).first()
+        assert row is not None
+        assert row.status == "failed"
+        assert "provider_rejected" in (row.last_error or "")
+
+
+def test_notification_queue_processing_marks_failed_for_missing_recipient(app):
+    with app.app_context():
+        resident, _ = auth_service.register_user(
+            name="Resident G",
+            email="resident.g@example.com",
+            password="pass",
+            role=Roles.RESIDENT.value,
+        )
+        incident = Incident(
+            reported_by_id=resident.id,
+            title="Illegal fire",
+            description="Open burn near homes",
+            category="waste",
+            suburb_or_ward="Ward 8",
+            street_or_landmark="Hill Road",
+            location="Hill Road, Ward 8",
+            severity="high",
+            status=IncidentStatus.REPORTED.value,
+            reference_code="HK-2026-03-222007",
+        )
+        db.session.add(incident)
+        db.session.flush()
+        db.session.add(
+            NotificationLog(
+                incident_id=incident.id,
+                user_id=resident.id,
+                recipient_email=" ",
+                type="status_changed",
+                status="queued",
+            )
+        )
+        db.session.commit()
+
+        result = notification_service.process_queued(limit=20)
+        assert result["processed"] >= 1
+        assert result["failed"] >= 1
+
+        row = db.session.query(NotificationLog).order_by(NotificationLog.id.desc()).first()
+        assert row is not None
+        assert row.status == "failed"
+        assert "Recipient email is missing." in (row.last_error or "")

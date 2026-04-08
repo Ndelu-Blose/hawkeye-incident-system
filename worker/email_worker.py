@@ -14,12 +14,24 @@ BATCH_SIZE = 20
 def _process_batch(app: Flask) -> int:
     with app.app_context():
         stats = notification_service.process_queued(limit=BATCH_SIZE)
+        app.logger.info(
+            "email_worker_batch: batch_size=%s processed=%s sent=%s failed=%s",
+            BATCH_SIZE,
+            stats.get("processed", 0),
+            stats.get("sent", 0),
+            stats.get("failed", 0),
+        )
         return int(stats.get("processed", 0))
 
 
 def run_worker() -> None:
     """Polling loop for queued notification emails (same pipeline as the web app)."""
     app = create_app()
+    app.logger.info(
+        "email_worker_started: poll_interval_seconds=%s batch_size=%s",
+        POLL_INTERVAL_SECONDS,
+        BATCH_SIZE,
+    )
 
     while True:
         processed = _process_batch(app)

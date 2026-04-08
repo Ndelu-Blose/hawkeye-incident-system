@@ -60,9 +60,15 @@ def register():
         if not send_ok:
             for err in send_errors:
                 flash(err, "warning")
+            flash(
+                "Account created. Verify your email to sign in. "
+                "Your request was received and a verification email will be sent shortly.",
+                "info",
+            )
+            return redirect(url_for("auth.login"))
         flash(
-            "Account created. We sent a verification link to your email. "
-            "Confirm your address, then sign in.",
+            "Account created. Your verification request was received and a verification email "
+            "will be sent shortly.",
             "success",
         )
         return redirect(url_for("auth.login"))
@@ -180,7 +186,7 @@ def resend_verification():
             )
         flash(
             "If an account exists for that address and still needs verification, "
-            "we sent a new email.",
+            "your request has been received and an email will be sent shortly.",
             "success",
         )
         return redirect(url_for("auth.login"))
@@ -201,7 +207,8 @@ def forgot_password():
                 flash(err, "danger")
             return render_template("auth/forgot_password.html", form_data=form_data)
         flash(
-            "If an account exists for that address, we sent password reset instructions.",
+            "If an account exists for that address, your request has been received and "
+            "a password reset email will be sent shortly.",
             "success",
         )
         return redirect(url_for("auth.login"))

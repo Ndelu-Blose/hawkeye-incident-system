@@ -156,11 +156,12 @@ class AuthService:
             )
         except Exception as exc:
             current_app.logger.exception(
-                "send_verification_email: provider failure for %s",
+                "send_password_reset_email: provider failure for %s",
                 user.email,
             )
             ok, detail = False, str(exc)
         if ok:
+            current_app.logger.info("password_reset_email_accepted: email=%s", user.email)
             return True, []
 
         if current_app.config.get("ENV") != "production":
@@ -307,6 +308,7 @@ class AuthService:
             )
             ok, detail = False, str(exc)
         if ok:
+            current_app.logger.info("verification_email_accepted: email=%s", user.email)
             return True, []
 
         if current_app.config.get("ENV") != "production":

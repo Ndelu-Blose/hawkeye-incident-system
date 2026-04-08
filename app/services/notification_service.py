@@ -108,6 +108,9 @@ class NotificationService:
     def process_queued(self, *, limit: int = 50) -> dict[str, int]:
         """Send queued notifications and update delivery status."""
         queued = list(self.notification_repo.list_queued(limit=limit))
+        current_app.logger.info(
+            "notification_process_batch_start: queued=%s limit=%s", len(queued), limit
+        )
         sent = 0
         failed = 0
         for notification in queued:
@@ -115,8 +118,19 @@ class NotificationService:
                 subject, body = self._compose_message(notification)
                 recipient = (notification.recipient_email or "").strip()
                 if not recipient:
+                    current_app.logger.warning(
+                        "notification_missing_recipient: notification_id=%s type=%s",
+                        notification.id,
+                        notification.type,
+                    )
                     raise ValueError("Recipient email is missing.")
                 html = text_to_html_email(body)
+                current_app.logger.info(
+                    "notification_send_attempt: notification_id=%s recipient=%s type=%s",
+                    notification.id,
+                    recipient,
+                    notification.type,
+                )
                 ok, err, provider = send_outbound_email(
                     current_app,
                     to_email=recipient,
@@ -125,6 +139,13 @@ class NotificationService:
                     html_body=html,
                 )
                 if not ok:
+                    current_app.logger.warning(
+                        "notification_provider_rejected: notification_id=%s recipient=%s provider=%s error=%s",
+                        notification.id,
+                        recipient,
+                        provider,
+                        err,
+                    )
                     raise RuntimeError(err or "send_failed")
                 notification.status = "sent"
                 notification.sent_at = utc_now()
@@ -134,9 +155,29 @@ class NotificationService:
             except Exception as exc:
                 notification.status = "failed"
                 notification.last_error = str(exc)
+                current_app.logger.exception(
+                    "notification_send_failed: notification_id=%s recipient=%s type=%s error=%s",
+                    notification.id,
+                    notification.recipient_email,
+                    notification.type,
+                    exc,
+                )
                 failed += 1
         db.session.commit()
+        current_app.logger.info(
+            "notification_process_batch_complete: processed=%s sent=%s failed=%s",
+            len(queued),
+            sent,
+            failed,
+        )
         return {"processed": len(queued), "sent": sent, "failed": failed}
+
+    def retry_failed(self, *, limit: int = 100) -> int:
+        """Move failed notification rows back to queued for retry."""
+        retried = self.notification_repo.requeue_failed(limit=limit)
+        db.session.commit()
+        current_app.logger.info("notification_retry_failed: retried=%s limit=%s", retried, limit)
+        return retried
 
     @staticmethod
     def _compose_message(notification: NotificationLog) -> tuple[str, str]:
