@@ -6,7 +6,7 @@
 
 {% block resident_content %}
   <div class="resident-map-filters resident-panel mb-3">
-    <form method="get" class="row g-2 align-items-end">
+    <form method="get" class="row g-2 align-items-end" id="residentMapFiltersForm">
       <div class="col-12 col-md-4">
         <label for="area" class="form-label mb-1">Area</label>
         <select class="form-select" id="area" name="area">
@@ -164,6 +164,21 @@
       {% endif %}
     </div>
   </div>
+
+  <script>
+    (function () {
+      var form = document.getElementById("residentMapFiltersForm");
+      if (!form) return;
+      var autoFields = ["area", "category_id", "status", "resolution", "my_only"];
+      autoFields.forEach(function (fieldName) {
+        var field = form.elements.namedItem(fieldName);
+        if (!field) return;
+        field.addEventListener("change", function () {
+          form.submit();
+        });
+      });
+    })();
+  </script>
 
   {% if google_maps_api_key %}
     <script>
