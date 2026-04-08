@@ -15,6 +15,12 @@ class NotificationLog(db.Model):
         nullable=True,
         index=True,
     )
+    event_id = db.Column(
+        db.Integer,
+        db.ForeignKey("incident_events.id", ondelete="SET NULL"),
+        nullable=True,
+        index=True,
+    )
 
     # Either store a foreign key to the user or just an email address
     user_id = db.Column(
@@ -39,6 +45,7 @@ class NotificationLog(db.Model):
         "Incident",
         back_populates="notifications",
     )
+    event = db.relationship("IncidentEvent")
 
     user = db.relationship("User")
 

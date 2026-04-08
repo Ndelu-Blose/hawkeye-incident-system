@@ -368,13 +368,18 @@
 
       let map = null;
       let circles = [];
-      if (mapNode && window.google && window.google.maps) {
+      const hasGoogleMaps = mapNode && window.google && window.google.maps;
+      if (hasGoogleMaps) {
         map = new google.maps.Map(mapNode, {
           center: { lat: -29.8587, lng: 31.0218 },
           zoom: 11,
           mapTypeControl: false,
           streetViewControl: false,
         });
+      } else if (mapNode) {
+        // Keep hotspot table functional even if Maps does not load.
+        mapNode.innerHTML =
+          '<div class="text-muted small p-2">Heatmap unavailable (Google Maps failed to load).</div>';
       }
 
       const escapeHtml = (value) => String(value ?? "")
@@ -424,10 +429,11 @@
             map,
             center: { lat: point.lat, lng: point.lng },
             radius: 140 + ((point.weight || 1) * 120),
+            });
+            circles.push(circle);
           });
-          circles.push(circle);
-        });
-        map.fitBounds(bounds, 48);
+          map.fitBounds(bounds, 48);
+        }
       };
 
       const loadHotspots = async () => {

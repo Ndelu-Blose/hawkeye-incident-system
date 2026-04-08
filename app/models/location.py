@@ -9,6 +9,10 @@ class Location(db.Model):
 
     id = db.Column(db.Integer, primary_key=True)
 
+    location_type = db.Column(db.String(32), nullable=True, index=True)
+    name = db.Column(db.String(150), nullable=True, index=True)
+    code = db.Column(db.String(64), nullable=True, unique=True, index=True)
+
     country = db.Column(db.String(100))
     province = db.Column(db.String(100))
     municipality = db.Column(db.String(150))
@@ -39,9 +43,10 @@ class Location(db.Model):
     )
 
     @property
-    def name(self) -> str:
+    def display_name(self) -> str:
         """Human-friendly label for templates and dropdowns."""
         for value in (
+            self.name,
             self.area_name,
             self.suburb,
             self.ward,
@@ -55,4 +60,4 @@ class Location(db.Model):
         return f"Location #{self.id}"
 
     def __repr__(self) -> str:  # pragma: no cover
-        return f"<Location id={self.id} area={self.area_name!r}>"
+        return f"<Location id={self.id} name={self.display_name!r}>"

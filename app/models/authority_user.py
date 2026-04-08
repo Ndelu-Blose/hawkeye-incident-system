@@ -21,6 +21,10 @@ class AuthorityUser(db.Model):
     )
 
     job_title = db.Column(db.String(120))
+    role_in_authority = db.Column(db.String(64), nullable=True)
+    is_primary_contact = db.Column(db.Boolean, nullable=False, default=False)
+    is_active = db.Column(db.Boolean, nullable=False, default=True)
+    joined_at = db.Column(db.DateTime, nullable=False, default=utc_now)
     can_assign = db.Column(db.Boolean, nullable=False, default=False)
     can_resolve = db.Column(db.Boolean, nullable=False, default=False)
     can_export = db.Column(db.Boolean, nullable=False, default=False)

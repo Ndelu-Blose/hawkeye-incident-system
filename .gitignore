@@ -8,5 +8,6 @@ __pycache__/
 .pytest_cache/
 .ruff_cache/
 instance/app.db
+# Local uploaded assets (not committed)
 instance/uploads/
 instance/uploads_test/

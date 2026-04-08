@@ -15,6 +15,7 @@ from .incident_dispatch import IncidentDispatch  # noqa: F401
 from .incident_event import IncidentEvent  # noqa: F401
 from .incident_media import IncidentMedia  # noqa: F401
 from .incident_ownership_history import IncidentOwnershipHistory  # noqa: F401
+from .incident_sla_tracking import IncidentSlaTracking  # noqa: F401
 from .incident_update import IncidentUpdate  # noqa: F401
 from .location import Location  # noqa: F401
 from .notification_log import NotificationLog  # noqa: F401
@@ -39,6 +40,7 @@ __all__ = [
     "IncidentDispatch",
     "IncidentEvent",
     "IncidentOwnershipHistory",
+    "IncidentSlaTracking",
     "RoutingRule",
     "Location",
     "NotificationLog",

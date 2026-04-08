@@ -43,6 +43,10 @@ class IncidentEventType(StrEnum):
     AUTHORITY_PROGRESS_UPDATE = "authority_progress_update"
     AUTHORITY_RESOLUTION_UPDATE = "authority_resolution_update"
     MANUAL_OVERRIDE = "manual_override"
+    ROUTE_SUGGESTED = "route_suggested"
+    ROUTE_APPLIED = "route_applied"
+    ROUTING_FAILED = "routing_failed"
+    ROUTING_OVERRIDDEN = "routing_overridden"
 
 
 class LocationMode(StrEnum):

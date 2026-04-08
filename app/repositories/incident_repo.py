@@ -12,6 +12,7 @@ from app.extensions import db
 from app.models.incident import Incident
 from app.models.incident_dispatch import IncidentDispatch
 from app.models.incident_ownership_history import IncidentOwnershipHistory
+from app.models.incident_sla_tracking import IncidentSlaTracking
 
 
 @dataclass(frozen=True)
@@ -355,6 +356,15 @@ class IncidentRepository:
 
     def count_overdue(self) -> int:
         """Incidents not resolved/rejected/closed and past SLA (reported_at + category default_sla_hours)."""
+        now = datetime.now(UTC)
+        sla_stmt = select(func.count(IncidentSlaTracking.id)).where(
+            IncidentSlaTracking.status == "breached",
+            IncidentSlaTracking.deadline_at <= now,
+        )
+        sla_count = int(db.session.execute(sla_stmt).scalar() or 0)
+        if sla_count > 0:
+            return sla_count
+
         from app.models import IncidentCategory
 
         closed_statuses = (
@@ -362,7 +372,6 @@ class IncidentRepository:
             IncidentStatus.REJECTED.value,
             IncidentStatus.CLOSED.value,
         )
-        now = datetime.now(UTC)
         stmt = (
             select(Incident)
             .outerjoin(IncidentCategory, Incident.category_id == IncidentCategory.id)
@@ -469,6 +478,27 @@ class IncidentRepository:
 
     def list_overdue(self, *, limit: int = 5) -> list[Incident]:
         """Return a small list of overdue incidents for dashboards."""
+        now = datetime.now(UTC)
+        sla_stmt = (
+            select(Incident)
+            .join(IncidentSlaTracking, IncidentSlaTracking.incident_id == Incident.id)
+            .where(
+                IncidentSlaTracking.status == "breached",
+                IncidentSlaTracking.deadline_at <= now,
+            )
+            .options(
+                joinedload(Incident.category_rel),
+                joinedload(Incident.location_rel),
+                joinedload(Incident.current_authority),
+                joinedload(Incident.reporter),
+            )
+            .order_by(IncidentSlaTracking.deadline_at.asc())
+            .limit(limit)
+        )
+        sla_items = list(db.session.execute(sla_stmt).scalars().unique().all())
+        if sla_items:
+            return sla_items
+
         from app.models import IncidentCategory
 
         closed_statuses = (
@@ -476,7 +506,6 @@ class IncidentRepository:
             IncidentStatus.REJECTED.value,
             IncidentStatus.CLOSED.value,
         )
-        now = datetime.now(UTC)
         stmt = (
             select(Incident)
             .outerjoin(IncidentCategory, Incident.category_id == IncidentCategory.id)
