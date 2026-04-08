@@ -422,7 +422,14 @@ class IncidentRepository:
             .order_by(Incident.suburb_or_ward)
         )
         rows = db.session.execute(stmt).scalars().all()
-        return [r[0] for r in rows if r[0]]
+        areas: list[str] = []
+        for value in rows:
+            if value is None:
+                continue
+            clean = str(value).strip()
+            if clean:
+                areas.append(clean)
+        return areas
 
     def search_public(
         self,

@@ -26,3 +26,21 @@ class NotificationRepository:
             .limit(limit)
         )
         return db.session.execute(stmt).scalars().all()
+
+    def list_failed(self, limit: int = 100) -> Iterable[NotificationLog]:
+        stmt = (
+            select(NotificationLog)
+            .where(NotificationLog.status == "failed")
+            .order_by(NotificationLog.created_at.asc())
+            .limit(limit)
+        )
+        return db.session.execute(stmt).scalars().all()
+
+    def requeue_failed(self, limit: int = 100) -> int:
+        failed = list(self.list_failed(limit=limit))
+        for notification in failed:
+            notification.status = "queued"
+            notification.last_error = None
+            notification.sent_at = None
+            notification.provider_message_id = None
+        return len(failed)

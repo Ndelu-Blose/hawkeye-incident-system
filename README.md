@@ -48,10 +48,22 @@ Alertweb Solutions is a Flask + SQLAlchemy + PostgreSQL web application for repo
 
    For anything beyond local demos, you should **override** these defaults with strong values and treat them like normal credentials.
 
-4. **Run the app (local)**
+4. **Run the app (local web process)**
 
    ```bash
    python run.py
+   ```
+
+5. **Run the notification worker (second local process)**
+
+   ```bash
+   python -m worker.email_worker
+   ```
+
+   Or run a one-shot batch manually:
+
+   ```bash
+   python -m scripts.process_notifications
    ```
 
 ### Running with Docker
@@ -86,16 +98,42 @@ Local mail testing with MailHog:
 2. Set `MAIL_SERVER=localhost`, `MAIL_PORT=1025`, `MAIL_USE_TLS=false`, `MAIL_USE_SSL=false`.
 3. Open MailHog UI (`http://localhost:8025`) and verify outgoing emails.
 
+Provider modes:
+
+- **Mode A (Resend):** set `RESEND_API_KEY` and `RESEND_FROM_EMAIL` (or `MAIL_DEFAULT_SENDER` fallback).
+- **Mode B (SMTP/MailHog):** leave `RESEND_API_KEY` empty and use `MAIL_SERVER`/`MAIL_PORT`/sender settings.
+
 Failure behavior notes:
 
 - Dispatch email failures set dispatch status to `failed` and persist `failure_reason`.
 - Dispatch failures are also logged at warning level with incident/dispatch/authority identifiers.
 - In non-production, password reset flow provides a dev fallback link if email send is unavailable.
+- Notification queue failures persist `last_error` in `notification_log` and can be retried with:
+
+  ```bash
+  python -m scripts.retry_failed_notifications
+  ```
+
+Operational queries:
+
+- Inspect queued/failed notifications:
+
+  ```sql
+  SELECT id, type, recipient_email, status, last_error, sent_at, created_at
+  FROM notification_log
+  ORDER BY created_at DESC
+  LIMIT 50;
+  ```
+
+Render deployment note:
+
+- Run web and worker as separate services/processes.
+- Suggested worker command: `python -m worker.email_worker` (or schedule `python -m scripts.process_notifications`).
 
 ### Project structure (high level)
 
 - `app/` – Flask application package (config, extensions, models, services, routes, templates, static assets)
-- `worker/` – background worker for email notifications (to be implemented)
+- `worker/` – background worker for queued notification emails
 - `tests/` – unit and integration tests
 
 Further details are documented in the Alertweb Solutions implementation plan.
