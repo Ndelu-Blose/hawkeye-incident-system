@@ -5,3 +5,8 @@ __pycache__/
 .coverage
 
 .cursor/
+.pytest_cache/
+.ruff_cache/
+instance/app.db
+instance/uploads/
+instance/uploads_test/
